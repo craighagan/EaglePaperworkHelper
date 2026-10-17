@@ -53,6 +53,13 @@ async function launch() {
   let id = 0;
   const pending = new Map();
   const listeners = [];
+  ws.onclose = () => {
+    // Chrome crashed or quit: fail loudly instead of leaving the tests waiting forever.
+    for (const { reject } of pending.values()) reject(new Error('Chrome closed the connection (it may have crashed).'));
+    pending.clear();
+    if (!closing) { console.error('Chrome closed the connection (it may have crashed). If its sandbox cannot run here, set CHROME_NO_SANDBOX=1.'); process.exit(1); }
+  };
+  let closing = false;
   ws.onmessage = (event) => {
     const msg = JSON.parse(event.data);
     if (msg.id && pending.has(msg.id)) {
@@ -66,7 +73,7 @@ async function launch() {
     pending.set(n, { resolve, reject });
     ws.send(JSON.stringify({ id: n, method, params }));
   });
-  const close = () => { try { ws.close(); } catch {} proc.kill(); setTimeout(() => fs.rmSync(profile, { recursive: true, force: true }), 500); };
+  const close = () => { closing = true; try { ws.close(); } catch {} proc.kill(); setTimeout(() => fs.rmSync(profile, { recursive: true, force: true }), 500); };
   return { send, on: (fn) => listeners.push(fn), close };
 }
 
@@ -456,12 +463,150 @@ async function run() {
       await evaluate('document.querySelector(".use-draft").click()');
       await waitFor('document.getElementById("json-chosen").className.includes("ok")');
     });
+
+    console.log('Signed pages and attachments');
+    const A = require(path.join(ROOT, 'lib/attachments.js'));
+    const scan = path.join(__dirname, 'fixtures/scan-portrait.jpg');
+    const twoPagePdf = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'eph-permit-')), 'permit.pdf'); // not in downloads, which tests clear
+    fs.writeFileSync(twoPagePdf, A.writePdf([{ text: [{ x: 72, y: 700, text: 'Park permit page 1', size: 14 }] }, { text: [{ x: 72, y: 700, text: 'Park permit page 2', size: 14 }] }]));
+    let backupWithScans = null;
+    await test('adds signed pages and a PDF attachment, keeps them after a reload, and saves them in the backup file', async () => {
+      await open('EagleWorkbook-guided.html', '!!document.querySelector("nav button")');
+      await evaluate(`localStorage.clear(); indexedDB.deleteDatabase("eagle_workbook_files"); localStorage.setItem("eagle_workbook_guided_v1", ${JSON.stringify(fs.readFileSync(SAMPLE, 'utf8'))}); true`);
+      await open('EagleWorkbook-guided.html', '!!document.querySelector("nav button")');
+      const lastTab = 'document.querySelectorAll("nav button")[5]';
+      await evaluate(`${lastTab}.click()`);
+      await waitFor('!!document.querySelector(".privacy-warning")');
+      assert.match(await evaluate('document.querySelector(".privacy-warning").textContent'), /signatures/);
+      dialogs = [];
+      await setFile('.attachments .file-pick input', scan);
+      await waitFor('document.querySelectorAll(".thumb img").length === 1');
+      assert.ok(dialogs.some((m) => /backup file will hold pictures of the adults’ signatures/.test(m)), 'warns before the first picture');
+      const pickers = await evaluate('document.querySelectorAll(".attachments .file-pick input").length');
+      // The "Add an attachment" picker is the last one.
+      const { root } = await send('DOM.getDocument');
+      const { nodeIds } = await send('DOM.querySelectorAll', { nodeId: root.nodeId, selector: '.attachments .file-pick input' });
+      await send('DOM.setFileInputFiles', { nodeId: nodeIds[nodeIds.length - 1], files: [twoPagePdf] });
+      await waitFor('document.querySelectorAll(".attachment .thumb img").length === 2', 30000);
+      assert.ok(pickers >= 4);
+      await click('+ Add a link');
+      await waitFor('!!document.querySelector(".link-row input[type=url]")');
+      await evaluate(`(() => { const [t, u] = document.querySelectorAll(".link-row input"); t.value = "Budget"; t.dispatchEvent(new Event("input")); u.value = "https://example.org/budget"; u.dispatchEvent(new Event("input")); })()`);
+      await waitFor('(localStorage.getItem("eagle_workbook_guided_v1") || "").includes("example.org/budget")');
+      await open('EagleWorkbook-guided.html', '!!document.querySelector("nav button")');
+      await evaluate(`${lastTab}.click()`);
+      await waitFor('document.querySelectorAll(".thumb img").length === 3', 10000);
+      assert.equal(await evaluate('document.querySelector(".link-row input[type=url]").value'), 'https://example.org/budget');
+      const draft = await evaluate('localStorage.getItem("eagle_workbook_guided_v1")');
+      assert.doesNotMatch(draft, /"jpeg"/, 'pictures are not in localStorage');
+      clearDownloads();
+      await click('Save backup file');
+      backupWithScans = await waitForDownload('.json');
+      const saved = JSON.parse(fs.readFileSync(backupWithScans, 'utf8'));
+      assert.equal(saved.attachments.length, 2);
+      assert.ok(saved.attachments.flatMap((a) => a.pages).every((p) => A.isJpeg(A.fromBase64(p.jpeg))));
+      backupWithScans = path.join(os.tmpdir(), `eph-backup-scans-${process.pid}.json`);
+      fs.copyFileSync(path.join(downloads, downloaded('.json')[0]), backupWithScans);
+      assert.deepEqual(problems, []);
+    });
+    await test('switching tabs while a file is read does not make a second Proposal Page H', async () => {
+      await open('EagleWorkbook-guided.html', '!!document.querySelector("nav button")');
+      await evaluate('document.querySelectorAll("nav button")[5].click()');
+      await waitFor('!!document.querySelector(".privacy-warning")');
+      const { root } = await send('DOM.getDocument');
+      const { nodeId } = await send('DOM.querySelector', { nodeId: root.nodeId, selector: '.attachments .file-pick input' });
+      await send('DOM.setFileInputFiles', { nodeId, files: [twoPagePdf] });
+      await evaluate('document.querySelectorAll("nav button")[0].click(); document.querySelectorAll("nav button")[5].click(); true');
+      await waitFor(`!document.querySelector(".attachments .file-pick input").disabled && (JSON.parse(localStorage.getItem("eagle_workbook_guided_v1")).attachments || []).filter((a) => a.place === "proposalH").reduce((n, a) => n + a.pages.length, 0) === 3`, 30000);
+      const draft = JSON.parse(await evaluate('localStorage.getItem("eagle_workbook_guided_v1")'));
+      assert.equal(draft.attachments.filter((a) => a.place === 'proposalH').length, 1);
+      assert.equal(await evaluate('document.querySelectorAll(".attachments .card")[1].querySelectorAll(".thumb img").length'), 3, 'all Proposal Page H pages show');
+    });
+    await test('two photos chosen at once for an empty slot become one signed page set', async () => {
+      await evaluate('[...document.querySelectorAll(".attachments .card")].find((c) => /Report Page C/.test(c.textContent)).querySelector(".file-pick input").id = "slotc"; true');
+      const { root } = await send('DOM.getDocument');
+      const { nodeId } = await send('DOM.querySelector', { nodeId: root.nodeId, selector: '#slotc' });
+      await send('DOM.setFileInputFiles', { nodeId, files: [scan, path.join(__dirname, 'fixtures/scan-landscape.jpg')] });
+      await waitFor(`(JSON.parse(localStorage.getItem("eagle_workbook_guided_v1")).attachments || []).filter((a) => a.place === "reportC").reduce((n, a) => n + a.pages.length, 0) === 2`, 20000);
+      const draft = JSON.parse(await evaluate('localStorage.getItem("eagle_workbook_guided_v1")'));
+      assert.equal(draft.attachments.filter((a) => a.place === 'reportC').length, 1);
+      assert.match(await evaluate('document.querySelector(".stage-card .status-pill").textContent'), /Proposal Page H, Project Report Page C/, 'the stage summary updates right away');
+      dialogs = [];
+      await evaluate('[...document.querySelectorAll(".attachments .card")].find((c) => /Report Page C/.test(c.textContent)).querySelector("button.link-button:not([aria-label])").click()');
+      await waitFor(`!(JSON.parse(localStorage.getItem("eagle_workbook_guided_v1")).attachments || []).some((a) => a.place === "reportC")`);
+      assert.ok(dialogs.some((m) => /Remove “Signed Project Report Page C” \(2 pages\)/.test(m)));
+    });
+    await test('a PDF with too many pages gets a clear message', async () => {
+      const { root } = await send('DOM.getDocument');
+      const { nodeIds } = await send('DOM.querySelectorAll', { nodeId: root.nodeId, selector: '.attachments .file-pick input' });
+      await send('DOM.setFileInputFiles', { nodeId: nodeIds[nodeIds.length - 1], files: [PDF] });
+      await waitFor('/has 32 pages/.test(document.querySelector(".attachments").textContent)', 30000);
+    });
+    await test('the filler finds pictures saved in this browser when using the draft', async () => {
+      await open('FillOfficialPDF.html', '!!window.EagleOfficialPdf');
+      await waitFor('!!document.querySelector(".use-draft")');
+      await evaluate('[...document.querySelectorAll(".use-draft")].find((b) => b.textContent.includes("Guided")).click()');
+      await waitFor('/Signed Proposal Page H/.test(document.getElementById("attach-summary").textContent)', 10000);
+      assert.doesNotMatch(await evaluate('document.getElementById("attach-summary").textContent'), /Missing pictures/);
+    });
+    await test('makes a submission copy with each signed page right after its page', async () => {
+      assert.ok(backupWithScans, 'needs the backup from the earlier test');
+      await open('FillOfficialPDF.html', '!!window.EagleOfficialPdf');
+      await setFile('#pdf-file', PDF);
+      await setFile('#json-file', backupWithScans);
+      await waitFor('!document.getElementById("create-submission").disabled');
+      assert.match(await evaluate('document.getElementById("attach-summary").textContent'), /Signed Proposal Page H/);
+      clearDownloads();
+      await evaluate('document.getElementById("create-submission").click()');
+      await waitFor('/\\b(ok|error)\\b/.test(document.getElementById("submission-status").className)', 120000);
+      const status = await evaluate('document.getElementById("submission-status").textContent');
+      assert.match(status, /^Done\./, status);
+      const file = await waitForDownload('.pdf');
+      assert.match(path.basename(file), /-Submission-copy\.pdf$/);
+      const pdfjsLib = (() => { for (const n of ['DOMMatrix', 'Path2D', 'ImageData']) if (!globalThis[n]) globalThis[n] = class {}; const { warn, log } = console; console.warn = () => {}; console.log = () => {}; try { require(path.join(ROOT, 'vendor/pdfjs/pdf.worker.js')); require(path.join(ROOT, 'vendor/pdfjs/pdf.js')); return globalThis.pdfjsLib; } finally { console.warn = warn; console.log = log; } })();
+      const doc = await pdfjsLib.getDocument({ data: new Uint8Array(fs.readFileSync(file)), verbosity: 0 }).promise;
+      assert.equal(doc.numPages, 32 + 1 + 1 + 2);
+      const text = (await (await doc.getPage(34)).getTextContent()).items.map((i) => i.str).join(' ');
+      assert.match(text, /Signed Proposal Page H: page 16 \(after workbook page 15\)/);
+      assert.match(text, /permit: pages 35.36/);
+      await doc.destroy();
+      // The drawn workbook pages must show the typed answers: look for dark text inside the
+      // "Briefly describe your project" box on page 10 (it is blank light blue without an answer).
+      try { execFileSync('which', ['pdftoppm'], { stdio: 'ignore' }); } catch { return; }
+      const pgm = execFileSync('pdftoppm', ['-f', '10', '-l', '10', '-r', '50', '-gray', file]);
+      const [, w, hgt] = pgm.toString('latin1', 0, 40).match(/^P5\s+(\d+)\s+(\d+)\s+255\s/);
+      const start = pgm.length - w * hgt;
+      let dark = 0;
+      for (let y = Math.round(hgt * 40 / 550); y < Math.round(hgt * 240 / 550); y++) for (let x = Math.round(w * 30 / 425); x < Math.round(w * 395 / 425); x++) if (pgm[start + y * w + x] < 110) dark++;
+      assert.ok(dark > 30, `expected typed text in the description box, found ${dark} dark pixels`);
+      assert.deepEqual(problems, []);
+    });
+    await test('opening a different backup file forgets the old scans in this browser', async () => {
+      await open('EagleWorkbook-guided.html', '!!document.querySelector("nav button")');
+      const keys = 'new Promise((r) => { const q = indexedDB.open("eagle_workbook_files"); q.onsuccess = () => { const g = q.result.transaction("pages").objectStore("pages").getAllKeys(); g.onsuccess = () => r(g.result.length); }; })';
+      assert.ok(await evaluate(keys) > 0);
+      // Open (and accept) a backup file with no scans, in the Guided workbook only; the Classic draft has none either.
+      await evaluate('localStorage.removeItem("eagle_workbook_v1"); true');
+      await evaluate(`(() => { const orig = HTMLInputElement.prototype.click; HTMLInputElement.prototype.click = function () { if (this.type === 'file') { window.__picker = this; return; } return orig.call(this); }; })()`);
+      await click('Open backup file');
+      await waitFor('!!window.__picker');
+      const { root } = await send('DOM.getDocument');
+      await evaluate('document.body.appendChild(window.__picker); window.__picker.id = "picked"; true');
+      const { nodeId } = await send('DOM.querySelector', { nodeId: root.nodeId, selector: '#picked' });
+      await send('DOM.setFileInputFiles', { nodeId, files: [SAMPLE] });
+      await waitFor(`(JSON.parse(localStorage.getItem("eagle_workbook_guided_v1") || "{}").attachments || [1]).length === 0`);
+      for (let t = 0; t < 50 && await evaluate(keys) > 0; t++) await sleep(100);
+      assert.equal(await evaluate(keys), 0);
+    });
+    if (backupWithScans) fs.rmSync(backupWithScans, { force: true });
+    fs.rmSync(path.dirname(twoPagePdf), { recursive: true, force: true });
   } finally {
     browser.close();
     fs.rmSync(downloads, { recursive: true, force: true });
     if (filledPdf) fs.rmSync(filledPdf, { force: true });
   }
   console.log(`\n${passed} passed, ${failures.length} failed`);
+  if (!passed) { console.error('No tests ran.'); process.exit(1); }
   process.exit(failures.length ? 1 : 0);
 }
 

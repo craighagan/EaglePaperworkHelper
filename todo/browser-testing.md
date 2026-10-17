@@ -33,3 +33,5 @@ Open a filled PDF and check:
 Then update the README's browser and viewer notes and `lib/fill-page.js`'s "Open the PDF (in Preview, Adobe Acrobat Reader, or your web browser)" line to match what was verified.
 
 **Effort:** 1–2 hours with access to the browsers.
+
+**Signed Pages tab:** check that scans persist in IndexedDB when the pages are opened from `file://` in Firefox (it may give each file its own origin) and Safari, and that the "This browser can’t keep pictures" warning shows where they don't. Also check HEIC photos in Safari, and the share and download of an 8 MB submission copy on a phone.
