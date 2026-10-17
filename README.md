@@ -39,7 +39,7 @@ Open the filled PDF, read every page, and share it with the people reviewing you
 | [`BackupFromPDF.html`](BackupFromPDF.html) | **Make a backup file from a PDF.** Already typed answers into the official PDF? This reads them back into a backup file for the workbook pages. |
 | [`index.html`](index.html) | **Home page.** Short instructions and links to every page. |
 | `lib/`, `vendor/`, `docs/` | Files the pages need. Don’t move or delete them. |
-| `tests/`, `tools/` | For developers. Scouts can ignore these folders. |
+| `tests/`, `tools/`, `todo/`, `AGENTS.md` | For developers. Scouts can ignore these. |
 
 Both workbooks use the same backup file. A backup file saved in one opens in the other with **📂 Open backup file**.
 
@@ -96,6 +96,8 @@ The PDF must still have its fillable boxes. A copy made with “Print” → “
 It is just copying the files to any web server that serves plain files over **https**. No server scripts or database are needed, and the server never receives anyone’s answers or PDF. For an example, see <http://www.cih.com/troop6/eagle/>. See [INSTALL.md](INSTALL.md) for which files to copy, where to host it (its own web address, because browsers let every page at the same address read saved drafts), GitHub Pages steps, and how to check it works.
 
 ## For developers
+
+Start with [AGENTS.md](AGENTS.md): the project’s hard rules, file layout, commands, and how to make common changes. Open ideas and follow-ups are in [todo/](todo/).
 
 Requirements: Node.js 22 or newer. No `npm install`. The browser tests also need Google Chrome or Chromium.
 
