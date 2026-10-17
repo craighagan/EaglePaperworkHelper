@@ -140,4 +140,4 @@ If Scouting America publishes a new workbook, its field names may change. Update
 
 ## License and trademarks
 
-The code in this repository is available under the [MIT License](LICENSE). pdf.js is included under the Apache License 2.0, with core-js (MIT) bundled inside it. Scouting America names, marks, and the official workbook belong to Scouting America and are not covered by these licenses. The workbook itself is not included in this repository.
+The code in this repository is available under the [MIT License](LICENSE). pdf.js is included under the Apache License 2.0, with core-js (MIT) bundled inside it, and its JPEG 2000 decoder, OpenJPEG, under the BSD 2-Clause License (`vendor/pdfjs/LICENSE_OPENJPEG`, `vendor/pdfjs/LICENSE_PDFJS_OPENJPEG`). Scouting America names, marks, and the official workbook belong to Scouting America and are not covered by these licenses. The workbook itself is not included in this repository.

@@ -429,7 +429,7 @@ function everyAnswer() {
       const csp = /http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(source);
       assert.ok(csp, 'CSP meta tag');
       assert.match(csp[1], /default-src 'none'/);
-      assert.doesNotMatch(csp[1], /script-src[^;]*unsafe/);
+      assert.doesNotMatch(csp[1], /script-src[^;]*'unsafe-(inline|eval)'/); // 'wasm-unsafe-eval' (JPEG 2000 decoder) is allowed on pages that draw PDFs
       const connect = (/connect-src ([^;]+);/.exec(csp[1]) || [null, "'none'"])[1]; // default-src 'none' covers a missing connect-src
       assert.ok(connect === "'none'" || connect === lib.OFFICIAL_PDF_URL, `connect-src ${connect}`);
     });
