@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src 'self' file:; form-action 'none'; base-uri 'none'">
+<title>EaglePaperworkHelper: Eagle Scout Service Project Workbook helpers</title>
+<style>
+:root{--blue:#003f87;--gold:#f6be00;--ink:#172537;--muted:#46566a;--line:#c5d5e5}
+*{box-sizing:border-box}
+body{margin:0;color:var(--ink);background:radial-gradient(circle at 10% 0,#dcecfb,transparent 28rem),radial-gradient(circle at 95% 14%,#fff0cf,transparent 24rem),#f6f5f0;font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{width:min(880px,calc(100% - 24px));margin:24px auto 40px}
+header{padding:26px 28px 22px;border-radius:16px 16px 0 0;color:#fff;background:linear-gradient(135deg,#002f6c,#005aab 58%,#1375b9);border-bottom:5px solid var(--gold)}
+header h1{margin:0 0 6px;font-size:clamp(1.6rem,4.5vw,2.2rem);line-height:1.15}
+header p{margin:0;color:#e3f0ff;font-size:1.05rem}
+.body{background:#fff;border:1px solid var(--line);border-top:0;border-radius:0 0 16px 16px;padding:22px 28px 26px;box-shadow:0 14px 34px rgb(13 59 105/.10)}
+a{color:#00509e}
+a:focus-visible{outline:3px solid #0066b8;outline-offset:2px}
+h2{color:var(--blue);font-size:1.25rem;margin:26px 0 8px}
+.note{margin:0 0 6px;padding:11px 14px;background:#fff8df;border-left:4px solid #e0a500;border-radius:6px;font-size:.95rem}
+.tools{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:14px}
+.tool{display:block;padding:16px 18px;border:1px solid var(--line);border-radius:12px;background:linear-gradient(150deg,#fbfdff,#f3f8fd);text-decoration:none;color:var(--ink)}
+.tool:hover{border-color:#0066b8;box-shadow:0 4px 12px rgb(0 63 135/.12)}
+.tool strong{display:block;color:var(--blue);font-size:1.08rem;margin-bottom:2px}
+.tool.start{border:2px solid #1f6b34;background:linear-gradient(150deg,#f6fff8,#eaf7ee)}
+.tool.start strong{color:#1f6b34}
+.tool span{font-size:.93rem;color:var(--muted)}
+ol,ul{padding-left:22px}
+li{margin:4px 0}
+figure{margin:16px 0 0}
+figure img{width:100%;height:auto;border:1px solid var(--line);border-radius:10px}
+figcaption{font-size:.85rem;color:var(--muted)}
+table{width:100%;border-collapse:collapse;font-size:.93rem}
+th,td{border-top:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:top}
+th{width:38%;font-weight:600}
+footer{margin-top:24px;font-size:.85rem;color:var(--muted)}
+@media(max-width:620px){.tools{grid-template-columns:1fr}header,.body{padding-left:18px;padding-right:18px}}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Eagle Project Workbook Helper</h1>
+    <p>Free, offline helpers for the Eagle Scout Service Project Workbook. Type your answers in a friendly page, then put them into the official workbook PDF.</p>
+  </header>
+  <div class="body">
+    <p class="note"><strong>Your answers stay on this computer.</strong> Nothing you type is uploaded. This is an independent helper, not made or endorsed by Scouting America. Read the entire <a href="https://www.scouting.org/wp-content/uploads/2023/01/EagleProjectWorkbook2023a.pdf" target="_blank" rel="noopener noreferrer">official workbook (PDF) ↗</a>, and read its “Message to Scouts and Parents or Guardians” with a parent or guardian.</p>
+
+    <h2>Pick a page</h2>
+    <div class="tools">
+      <a class="tool start" href="EagleWorkbook-guided.html"><strong>Guided workbook (start here) →</strong><span>Five stages with plain-language questions, examples, running totals, and progress checks.</span></a>
+      <a class="tool" href="EagleWorkbook.html"><strong>Classic workbook →</strong><span>The same questions, worded and ordered like the official workbook.</span></a>
+      <a class="tool" href="FillOfficialPDF.html"><strong>Fill the official PDF →</strong><span>Copy your answers from a backup file into the official workbook PDF.</span></a>
+      <a class="tool" href="BackupFromPDF.html"><strong>Make a backup file from a PDF →</strong><span>Already typed answers into the official PDF? Bring them into the workbook pages.</span></a>
+    </div>
+
+    <h2>How it works</h2>
+    <ol>
+      <li>Open the <a href="EagleWorkbook-guided.html">Guided workbook</a>. Start with <strong>1. Set Up</strong> and <strong>2. Proposal</strong>. Your draft saves automatically in this browser.</li>
+      <li>Click <strong>💾 Save backup file</strong> often. It saves a file ending in <code>.json</code>, usually in your Downloads folder. That file is your real save: browsers can erase saved data.</li>
+      <li>When you’re ready, click <strong>Fill the official PDF →</strong>. Get the official PDF, choose your answers, and create the filled PDF.</li>
+      <li>Open the filled PDF and read every page. Add photos as separate attachments. Get the required signatures; this helper never fills them in.</li>
+    </ol>
+    <figure>
+      <img src="docs/guided-workbook.png" alt="The Guided workbook on its Proposal stage, with buttons to save a backup file, print a draft, and fill the official PDF.">
+      <figcaption>The Guided workbook, shown with made-up sample answers.</figcaption>
+    </figure>
+
+    <h2>Which file is which</h2>
+    <table>
+      <tr><th>Draft</th><td>What a workbook page saves automatically in this browser on this computer.</td></tr>
+      <tr><th>Backup file (.json)</th><td>Your answers saved as a file with <strong>Save backup file</strong>. Open it in either workbook page, or use it to fill the official PDF.</td></tr>
+      <tr><th>Printed draft</th><td>A simple printout for talking your plans over with your unit leader or coach. Marked “DRAFT: not the official workbook.”</td></tr>
+      <tr><th>Filled official PDF</th><td>The official Scouting America workbook with your answers typed into its own boxes. This is what you share for approvals and signatures.</td></tr>
+    </table>
+
+    <h2>Privacy</h2>
+    <ul>
+      <li>The pages send nothing anywhere. The only network request is the optional <strong>Get the official PDF for me</strong> button, which downloads the blank workbook from scouting.org.</li>
+      <li>Backup files and filled PDFs contain names, birth dates, phone numbers, and addresses. Share them only with the people reviewing your project.</li>
+      <li>On a shared computer, save a backup file, then use <strong>erase this draft from this browser</strong> at the bottom of a workbook page.</li>
+    </ul>
+
+    <h2>If something doesn’t work</h2>
+    <ul>
+      <li><strong>A page says “Loading…” or that helper files are missing:</strong> unzip (extract) the download first, and keep these pages next to the <code>lib</code> and <code>vendor</code> folders.</li>
+      <li><strong>Your answers are gone:</strong> you may be in a different browser, or browser data was cleared. Click <strong>📂 Open backup file</strong> and choose your latest backup file.</li>
+      <li>More help is in the <a href="README.md">README.md</a> file that came with these pages (it opens as plain text), or on the project’s <a href="https://github.com/craighagan/EaglePaperworkHelper#readme" target="_blank" rel="noopener noreferrer">GitHub page ↗</a>.</li>
+    </ul>
+
+    <footer>EaglePaperworkHelper. Code under the MIT License; pdf.js under the Apache License 2.0. Scouting America names, marks, and the official workbook belong to Scouting America. The official workbook, your council, and the required signatures are what count.</footer>
+  </div>
+</main>
+</body>
+</html>

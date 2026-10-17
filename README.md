@@ -20,7 +20,7 @@ Free, offline helpers for the **Eagle Scout Service Project Workbook**. Type you
    - **Mac:** double-click the ZIP file.
 
    You get a folder named something like `EaglePaperworkHelper-main`. Move it somewhere easy to find, such as Documents. Keep everything in it together.
-3. **Open `EagleWorkbook-guided.html`.** Double-click it. It opens in your web browser. (Windows may hide the `.html` ending, so look for **EagleWorkbook-guided**.) Bookmark it, and always use the same browser.
+3. **Open `index.html`.** Double-click it. It opens in your web browser and links to every page. (Windows may hide the `.html` ending, so look for **index**.) Click **Guided workbook (start here)**. Bookmark it, and always use the same browser.
 4. **Type your answers.** Start with **1. Set Up** and **2. Proposal**. Your draft saves automatically in this browser.
 5. **Save a backup file often.** Click **💾 Save backup file**. It saves a file such as `Eagle-workbook-backup-2026-10-16-1930.json` (date and time), usually in your Downloads folder. This file is your real save: browsers can erase saved data.
 6. **Fill the official PDF.** Click **Fill the official PDF →** and follow the four steps on that page.
@@ -34,6 +34,8 @@ Open the filled PDF, read every page, and share it with the people reviewing you
 | [`EagleWorkbook-guided.html`](EagleWorkbook-guided.html) | **Guided workbook. Start here.** Five stages with plain-language questions, examples, running totals, and progress checks. |
 | [`EagleWorkbook.html`](EagleWorkbook.html) | **Classic workbook.** The same questions, worded and ordered like the official workbook. |
 | [`FillOfficialPDF.html`](FillOfficialPDF.html) | **Fill the official PDF.** Copies your answers into the official workbook PDF. |
+| [`BackupFromPDF.html`](BackupFromPDF.html) | **Make a backup file from a PDF.** Already typed answers into the official PDF? This reads them back into a backup file for the workbook pages. |
+| [`index.html`](index.html) | **Home page.** Short instructions and links to every page. |
 | `lib/`, `vendor/`, `docs/` | Files the pages need. Don’t move or delete them. |
 | `tests/`, `tools/` | For developers. Scouts can ignore these folders. |
 
@@ -55,6 +57,12 @@ The page lists anything to double-check, such as an answer that is too long for 
 **What it never fills:** signatures and approval dates. The printed names beside the approval lines are filled from your contacts. If someone else will sign, change that contact in the workbook page, or check **Leave the printed names … blank** in Step 3.
 
 Photos and extra pages go in separate attachments, as the official workbook says.
+
+## Making a backup file from a PDF
+
+If you already typed answers into the official workbook PDF, open **Make a backup file from a PDF** (`BackupFromPDF.html`), choose that PDF, and click **💾 Save backup file**. Open the backup file in either workbook page with **📂 Open backup file**. In Chrome or Edge you can also click **Open in the Guided workbook**.
+
+The PDF must still have its fillable boxes. A copy made with “Print” → “Save as PDF” keeps only the look of the pages, so its answers can’t be read. Signatures are not part of the PDF’s boxes, so they are never copied.
 
 ## Printing a draft
 
@@ -96,13 +104,14 @@ node tests/run-tests.cjs     # mapping, page checks, and filling the real offici
 node tests/browser-e2e.cjs   # opens the pages from disk in headless Chrome and clicks through them
 ```
 
-- `run-tests.cjs` downloads the official PDF to `tests/.cache/` the first time and checks its SHA-256 (or set `EAGLE_PDF=/path/to/workbook.pdf`). If Ghostscript or Poppler is installed, it also checks that they display the typed answers.
+- `run-tests.cjs` downloads the official PDF to `tests/.cache/` the first time and checks its SHA-256 (or set `EAGLE_PDF=/path/to/workbook.pdf`). If Ghostscript or Poppler is installed, it also checks that they display the typed answers. To also round-trip one of your own backup files, set `EAGLE_LOCAL_BACKUP=/path/to/backup.json` (it prints counts only). Never commit real backup files; `.gitignore` blocks them.
 - `browser-e2e.cjs` accepts `CHROME=/path/to/chrome`, `CHROME_NO_SANDBOX=1` (only where Chrome’s sandbox cannot start), and `EAGLE_ONLINE=1` (also test the scouting.org download). On macOS it opens the filled PDF with Apple PDFKit, the engine behind Preview, and checks every answer.
 
 How it works:
 
 - `lib/workbook-common.js` holds the data model (`defaults()`) and form helpers shared by both workbook pages. `lib/guided-workbook.js` and `lib/classic-workbook.js` build the pages.
-- `lib/official-pdf.js` maps a backup file to the workbook’s form-field names (446 in No. 2023a) and fills them with [pdf.js](https://mozilla.github.io/pdf.js/). The same file runs in the browser and in the tests.
+- `lib/official-pdf.js` maps a backup file to the workbook’s form-field names (446 in No. 2023a) and fills them with [pdf.js](https://mozilla.github.io/pdf.js/). It also reads a filled PDF back into a backup file. The reverse map is worked out from the forward mapping, so plain one-box answers stay in sync automatically; phases, check boxes, and totals have small hand-written rules, covered by round-trip tests. The same file runs in the browser and in the tests.
+- Page scripts: `lib/fill-page.js` (FillOfficialPDF.html) and `lib/backup-from-pdf-page.js` (BackupFromPDF.html). `index.html` has no scripts.
 - The official PDF is encrypted, with form filling allowed. pdf.js saves the answers as an update appended to the original file, so the original pages, artwork, encryption, and permissions are unchanged.
 - `vendor/pdfjs/` holds pdf.js 5, converted from ES modules to ordinary scripts so the pages work from `file://`, plus one small fix so filled answers display in every PDF viewer. Rebuild it with `node tools/vendor-pdfjs.cjs`, which pins and checks every download. See [`vendor/pdfjs/README.md`](vendor/pdfjs/README.md).
 
