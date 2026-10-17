@@ -1,0 +1,385 @@
+{
+ "candidate": {
+  "name": "Alex Q. Sample",
+  "dob": "2008-04-12",
+  "pid": "123456789",
+  "address": "100 Example Street",
+  "city": "Springfield",
+  "state": "MA",
+  "zip": "01101",
+  "email": "alex.sample@example.org",
+  "phone": "555-0100",
+  "borDate": "2024-05-20"
+ },
+ "unit": {
+  "type": "Troop",
+  "number": "42",
+  "district": "Example District",
+  "council": "Example Council"
+ },
+ "contacts": {
+  "leader": {
+   "name": "Jordan Leader",
+   "phone": "555-0101",
+   "address": "1 Leader Lane",
+   "city": "Springfield",
+   "state": "MA",
+   "zip": "01101",
+   "email": "leader@example.org"
+  },
+  "chair": {
+   "name": "Casey Chair",
+   "phone": "555-0102",
+   "address": "",
+   "city": "",
+   "state": "",
+   "zip": "",
+   "email": "chair@example.org"
+  },
+  "advancement": {
+   "name": "",
+   "phone": "",
+   "address": "",
+   "city": "",
+   "state": "",
+   "zip": "",
+   "email": ""
+  },
+  "beneficiary": {
+   "name": "Springfield Community Boathouse",
+   "phone": "555-0103",
+   "address": "5 Pond Road",
+   "city": "Springfield",
+   "state": "MA",
+   "zip": "01102",
+   "email": "info@example.org"
+  },
+  "beneficiaryRep": {
+   "name": "Riley Rep",
+   "phone": "555-0104",
+   "address": "5 Pond Road",
+   "city": "Springfield",
+   "state": "MA",
+   "zip": "01102",
+   "email": "riley@example.org"
+  },
+  "serviceCenter": {
+   "name": "Example Council Service Center",
+   "phone": "555-0105",
+   "address": "9 Council Way",
+   "city": "Springfield",
+   "state": "MA",
+   "zip": "01103",
+   "email": "service@example.org"
+  },
+  "approvalRep": {
+   "name": "Pat Approver",
+   "phone": "555-0106",
+   "address": "",
+   "city": "",
+   "state": "",
+   "zip": "",
+   "email": "pat@example.org"
+  },
+  "coach": {
+   "name": "Morgan Coach",
+   "phone": "555-0107",
+   "address": "",
+   "city": "",
+   "state": "",
+   "zip": "",
+   "email": "coach@example.org"
+  }
+ },
+ "proposal": {
+  "projectName": "Boathouse Rack and Launch Improvements",
+  "description": "Build a weather-resistant rack for rudders and tillers, refinish 20 oars, and install an accessible kayak launch at the community boathouse.",
+  "whyNeeded": "Equipment is stored on the floor and gets damaged. The new launch lets paddlers with disabilities get on the water safely.",
+  "startDate": "2025-10-01",
+  "endDate": "2026-03-31",
+  "helperCount": "12",
+  "helperSource": "Troop members, family, and boathouse volunteers.",
+  "leadershipChallenges": "Keeping three work teams busy while they share tools.",
+  "materials": "Pressure-treated lumber, stainless screws, marine varnish.",
+  "supplies": "Sandpaper, brushes, gloves.",
+  "tools": "Drills, sanders, saws (borrowed).",
+  "otherNeeds": "Pizza for helpers.",
+  "permits": "The boathouse will confirm that no permit is needed for the launch.",
+  "costs": {
+   "materials": "2500",
+   "supplies": "500",
+   "tools": "$250",
+   "other": "200"
+  },
+  "fundraisingPlan": "Online fundraiser approved by the council.",
+  "phases": [
+   {
+    "num": "1",
+    "description": "Meet the beneficiary and measure the site"
+   },
+   {
+    "num": "2",
+    "description": "Fundraise"
+   },
+   {
+    "num": "3",
+    "description": "Build and install"
+   },
+   {
+    "num": "4",
+    "description": ""
+   },
+   {
+    "num": "5",
+    "description": ""
+   },
+   {
+    "num": "6",
+    "description": ""
+   },
+   {
+    "num": "7",
+    "description": ""
+   },
+   {
+    "num": "8",
+    "description": ""
+   },
+   {
+    "num": "9",
+    "description": ""
+   },
+   {
+    "num": "10",
+    "description": ""
+   }
+  ],
+  "logistics": "Parents will drive helpers; lumber is delivered.",
+  "safety": "Power tools used by adults only; life jackets near the water.",
+  "planning": "Meet the beneficiary, write the plan, review with my coach."
+ },
+ "plan": {
+  "startDate": "2025-11-01",
+  "endDate": "2026-03-31",
+  "reviewComments": "Add a rain date.",
+  "changesFromProposal": "None.",
+  "changeImpact": "",
+  "presentCondition": "Oars are worn; rudders lie on the floor.",
+  "phases": [
+   {
+    "num": "1",
+    "description": "Fundraise",
+    "start": "2025-11-01",
+    "end": "2026-01-31"
+   },
+   {
+    "num": "2",
+    "description": "Build rack",
+    "start": "2026-02-07",
+    "end": ""
+   },
+   {
+    "num": "3",
+    "description": "",
+    "start": "",
+    "end": ""
+   },
+   {
+    "num": "4",
+    "description": "",
+    "start": "",
+    "end": ""
+   },
+   {
+    "num": "5",
+    "description": "",
+    "start": "",
+    "end": ""
+   },
+   {
+    "num": "6",
+    "description": "",
+    "start": "",
+    "end": ""
+   },
+   {
+    "num": "7",
+    "description": "",
+    "start": "",
+    "end": ""
+   },
+   {
+    "num": "8",
+    "description": "",
+    "start": "",
+    "end": ""
+   },
+   {
+    "num": "9",
+    "description": "",
+    "start": "",
+    "end": ""
+   },
+   {
+    "num": "10",
+    "description": "",
+    "start": "",
+    "end": ""
+   }
+  ],
+  "workProcesses": "Cut, assemble, finish, install.",
+  "permits": "None required.",
+  "materials": [
+   {
+    "item": "Lumber",
+    "description": "2x4 x 8 ft",
+    "qty": "20",
+    "unitCost": "6.50",
+    "totalCost": "",
+    "source": "Hardware store"
+   },
+   {
+    "item": "Screws",
+    "description": "Box of 100",
+    "qty": "2",
+    "unitCost": "12",
+    "totalCost": "24",
+    "source": "Hardware store"
+   }
+  ],
+  "supplies": [
+   {
+    "item": "Sandpaper",
+    "description": "120 grit",
+    "qty": "10",
+    "unitCost": "1.25",
+    "totalCost": "",
+    "source": "Donated"
+   }
+  ],
+  "tools": [
+   {
+    "item": "Drill",
+    "qty": "2",
+    "unitCost": "0",
+    "totalCost": "0",
+    "source": "Borrowed",
+    "user": "Adults"
+   }
+  ],
+  "other": [
+   {
+    "item": "Food",
+    "description": "Pizza",
+    "qty": "3",
+    "unitCost": "20",
+    "totalCost": "",
+    "source": "Troop"
+   }
+  ],
+  "toBeRaised": "3000",
+  "beneficiaryContribution": "500",
+  "fundraisingPlan": "Online fundraiser and a car wash.",
+  "helpers": [
+   {
+    "job": "Sand oars",
+    "skills": "None",
+    "adultYouth": "Youth",
+    "needed": "6",
+    "soFar": "4"
+   }
+  ],
+  "briefingPlan": "Brief each team at the start.",
+  "communicationPlan": "Group text the day before.",
+  "workerTransport": "Parents drive.",
+  "materialTransport": "Delivered.",
+  "toolCondition": "Inspect before use.",
+  "workingHours": "9 AM to 3 PM",
+  "food": "Pizza",
+  "restrooms": "Boathouse",
+  "firstAid": "Kit in the boathouse office.",
+  "hazardousMaterials": "Varnish used outdoors with gloves.",
+  "hazards": [
+   {
+    "hazard": "Power saw",
+    "prevention": "Adults only"
+   },
+   {
+    "hazard": "Water",
+    "prevention": "Life jackets"
+   }
+  ],
+  "safetyComm": "Safety talk at 9 AM.",
+  "ppe": "Gloves, goggles",
+  "safetyBriefing": "9 AM each work day",
+  "safetyBriefer": "Jordan Leader",
+  "firstAidSpecialist": "Casey Chair",
+  "emergencyAccess": "Pond Road gate",
+  "contingency": "Rain date one week later.",
+  "coachComments": ""
+ },
+ "fundraising": {
+  "description": "Online fundraiser.",
+  "beginDate": "2025-11-01",
+  "dates": "Nov 1 to Jan 31",
+  "howMuch": "3000",
+  "howCollected": "Through the fundraiser site; the troop treasurer receives the funds.",
+  "contracts": "No",
+  "contractSigner": "",
+  "contractDetails": ""
+ },
+ "report": {
+  "startDate": "2025-11-01",
+  "endDate": "2026-03-31",
+  "actualStart": "2025-11-03",
+  "actualEnd": "2026-03-28",
+  "description": "Built the rack, refinished oars, installed the launch.",
+  "planning": "Met the beneficiary three times.",
+  "wentWell": "Teams finished early.",
+  "challenging": "Rain delayed one day.",
+  "changes": "Moved one work day.",
+  "leadership": "Ran three teams.",
+  "difficultLeading": "Keeping everyone busy.",
+  "rewardingLeading": "Seeing the first paddler launch.",
+  "leadershipDeveloped": "Delegating.",
+  "materialsUsed": "Two extra boards left over.",
+  "hours": [
+   {
+    "cat": "Eagle Scout candidate: planning hours",
+    "w": "1",
+    "h": "40"
+   },
+   {
+    "cat": "Eagle Scout candidate: execution hours",
+    "w": "1",
+    "h": "24"
+   },
+   {
+    "cat": "Registered BSA youth members",
+    "w": "8",
+    "h": "96"
+   },
+   {
+    "cat": "Other youth (non-BSA)",
+    "w": "",
+    "h": ""
+   },
+   {
+    "cat": "Registered BSA adult volunteers",
+    "w": "4",
+    "h": "48"
+   },
+   {
+    "cat": "Other adults (non-BSA)",
+    "w": "",
+    "h": ""
+   }
+  ],
+  "fundingSummary": "Online fundraiser.",
+  "collected": "3100",
+  "spent": "2950",
+  "excessFunds": "Expenses did not exceed the funds collected.",
+  "leftoverMaterials": "Yes. The $150 left over and two extra boards were given to the boathouse.",
+  "thanks": "Thank-you notes."
+ }
+}

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' file:; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<title>Eagle Project Workbook Helper (Guided)</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;color:#172537;line-height:1.5;font-family:ui-rounded,"Avenir Next",Avenir,system-ui,-apple-system,"Segoe UI",sans-serif;
+  background:radial-gradient(circle at 10% 0%,#dcecfb 0,transparent 28rem),radial-gradient(circle at 95% 14%,#fff0cf 0,transparent 24rem),#f6f5f0}
+.app{max-width:820px;margin:0 auto;min-height:100vh;background:rgba(255,255,255,.62);box-shadow:0 0 34px rgba(0,41,84,.09)}
+a{color:#00509e}
+:focus-visible{outline:3px solid #0066b8;outline-offset:2px}
+.visually-hidden{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+header{position:sticky;top:0;z-index:10;padding:16px 22px 14px;color:#fff;background:linear-gradient(135deg,#002f6c 0%,#005aab 58%,#1375b9 100%);border-bottom:4px solid #f6be00}
+header h1{font-size:20px;letter-spacing:-.02em;line-height:1.25}
+header .subtitle{color:#e3f0ff;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.save-status{float:right;margin:2px 0 0 10px;font-size:12px;color:#fff;font-weight:600}
+nav{position:sticky;z-index:9;display:flex;gap:2px;overflow-x:auto;padding:6px 8px 0;background:#fff;border-bottom:2px solid #003f87;box-shadow:0 3px 9px rgba(0,41,84,.08)}
+nav button{flex-shrink:0;padding:10px 13px;border:0;border-bottom:3px solid transparent;border-radius:8px 8px 0 0;background:none;color:#46566a;font:600 13px inherit;font-family:inherit;cursor:pointer}
+nav button:hover{background:#e8f2fc;color:#003f87}
+nav button.active{background:#e6f1fc;color:#003f87;border-bottom-color:#f6be00}
+main{padding:20px}
+.workbook-controls{padding:12px 16px;background:#fff;border:1px solid #dce5ef;border-radius:12px;margin:16px 0}
+.workbook-controls.top{margin:0;border-radius:0;border-width:0 0 1px;padding:10px 16px}
+.control-buttons{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn-control{display:inline-flex;align-items:center;gap:4px;padding:8px 12px;border:1px solid #003f87;border-radius:999px;background:#fff;color:#003f87;font:600 13px inherit;font-family:inherit;text-decoration:none;cursor:pointer}
+.btn-control:hover{background:#eaf2fb}
+.btn-control.fill{background:linear-gradient(135deg,#1f6b34,#2e8b47);border-color:#1f6b34;color:#fff}
+.btn-control.fill:hover{background:#1f6b34}
+.btn-control.fill.quiet{background:#fff;color:#1f6b34;border-color:#1f6b34}
+.backup-status{margin-top:6px;font-size:12.5px;color:#46566a}
+.backup-status.stale{color:#7a4a00;font-weight:600}
+.stage-card{background:#eaf2fb;border:1px solid #9bbce1;border-radius:10px;padding:16px;margin-bottom:16px}
+.stage-card h2{font-size:18px;color:#003f87;margin-bottom:4px}
+.next-step{font-weight:700;color:#003f87;font-size:14px}
+.stage-meta{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:12.5px}
+.status-pill{white-space:nowrap;background:#dceef0;color:#155c36;border-radius:999px;padding:3px 9px;font-weight:700}
+.progress{flex:1;height:8px;background:#d7e3f2;border-radius:999px;overflow:hidden}
+.progress span{display:block;height:100%;background:#2d6a30}
+.guided-note{background:#fff8df;border-left:4px solid #e0a500;border-radius:8px;padding:10px 12px;margin:0 0 14px;font-size:14px}
+.card{background:#fff;border:1px solid #dce5ef;border-radius:12px;padding:18px;margin-bottom:16px;box-shadow:0 6px 16px rgba(21,65,108,.06)}
+.sec-title{font-size:17px;font-weight:700;color:#9a0a1e;border-bottom:1px solid #f2d1d5;padding-bottom:6px;margin-bottom:10px}
+.checklist ul,.steps{padding-left:20px;font-size:14px}
+.checklist li,.steps li{margin:4px 0}
+.help{font-size:13px;color:#4f5f72;margin:2px 0 6px}
+.example{font-size:12.5px;color:#3f566d;background:#f2f7fc;border-radius:5px;padding:4px 7px;margin:4px 0}
+.official-label{display:block;color:#56677a;font-size:11.5px;font-weight:400;margin-top:1px}
+.field{margin-top:10px}
+label{display:block;font-size:13.5px;font-weight:700;color:#22364b;margin-bottom:3px}
+input,textarea{width:100%;padding:8px 10px;border:1px solid #b9cbdc;border-radius:7px;background:#f7fbff;color:#172537;font:15px/1.4 inherit;font-family:inherit}
+input:focus,textarea:focus{border-color:#0066b8;background:#fff;box-shadow:0 0 0 3px rgba(0,102,184,.16);outline:none}
+textarea{resize:vertical}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+.table-wrap{overflow-x:auto;border:1px solid #d3dce6;border-radius:6px;margin:8px 0}
+table{width:100%;min-width:600px;border-collapse:collapse;font-size:13px}
+th{background:#003f87;color:#fff;padding:6px 8px;text-align:left;font-weight:600}
+tbody th{background:#f2f6fa;color:#172537;font-weight:600;min-width:180px}
+td{padding:2px 3px}
+td input{padding:5px 6px;font-size:13px;border-color:#cfd9e3}
+.list-total{font-weight:700;color:#003f87;font-size:14px;margin-top:6px}
+.phase-row{display:flex;gap:6px;align-items:center;margin-bottom:5px}
+.phase-head{display:grid;grid-template-columns:24px 1fr 140px 140px;gap:6px;font-size:12px;color:#4f5f72;font-weight:700}
+.phase-head span:first-child{grid-column:2}
+.phase-num{width:20px;text-align:right;flex-shrink:0;font-size:12px;font-weight:700;color:#56677a}
+.phase-row input{flex:1}
+.phase-row input.phase-date{flex:0 0 140px}
+.phase-actions{padding:6px 0}
+.btn-add{padding:7px 10px;border:1px solid #003f87;border-radius:6px;background:#fff;color:#003f87;font:600 13px inherit;font-family:inherit;cursor:pointer}
+details.more-fields{background:#fff;border:1px solid #d3dce6;border-radius:12px;margin-bottom:16px;padding:0 14px}
+details.more-fields summary{cursor:pointer;padding:12px 0;font-weight:700;color:#003f87}
+.detail-content{padding-bottom:12px}
+.nav-btns{display:flex;justify-content:space-between;gap:10px;padding:8px 0}
+.btn{display:inline-block;padding:10px 18px;border:0;border-radius:999px;font:600 14px inherit;font-family:inherit;text-decoration:none;cursor:pointer;box-shadow:0 2px 5px rgba(0,0,0,.13)}
+.btn-prev{background:#e4e8ec;color:#26384b}
+.btn-next{background:linear-gradient(135deg,#003f87,#006cbd);color:#fff}
+.btn:disabled{opacity:.35;cursor:default;box-shadow:none}
+.page-footer{margin:24px 0 8px;padding-top:12px;border-top:1px solid #d3dce6;font-size:12.5px;color:#46566a}
+.page-footer p{margin:4px 0}
+.link-button{border:0;background:none;color:#00509e;text-decoration:underline;font:inherit;cursor:pointer;padding:0}
+.loading{padding:40px 20px;font-size:15px}
+.print-only-bar{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:12px 16px;background:#fff8df;border-bottom:1px solid #e0a500;position:sticky;top:0;z-index:5}
+.print-header{text-align:center;padding:16px;border-bottom:2px solid #003f87}
+.print-header h1{font-size:22px;color:#003f87}
+.draft-mark{display:inline-block;border:2px solid #9a0a1e;color:#9a0a1e;font-weight:800;letter-spacing:.04em;padding:2px 10px;margin-bottom:6px}
+.print-section-title{font-size:20px;color:#003f87;margin:16px 0 8px}
+.print-footer{display:none}
+.print-value{white-space:pre-wrap;border-bottom:1px solid #ccd5df;min-height:1.4em;padding:2px 0 4px;font-size:14px}
+.print-list{padding-left:22px;font-size:14px}
+@media(max-width:620px){
+  main{padding:12px}.card{padding:14px}.row{grid-template-columns:1fr}
+  .stage-meta{flex-direction:column;align-items:flex-start}.progress{flex:0 0 8px;width:100%}
+  .phase-row{flex-wrap:wrap}.phase-row input{flex:1 1 100%}.phase-row input.phase-date{flex:1 1 45%}.phase-head{display:none}
+  nav{-webkit-mask-image:linear-gradient(90deg,#000 85%,transparent);mask-image:linear-gradient(90deg,#000 85%,transparent)}
+}
+@media print{
+  body{background:#fff;font:10.5pt/1.35 Georgia,"Times New Roman",serif}
+  .app{max-width:100%;box-shadow:none;background:#fff}
+  header,nav,.nav-btns,.workbook-controls,.page-footer,.print-only-bar,.phase-actions,.stage-card,.guided-note,.example,.help,.official-label{display:none!important}
+  main{padding:0}
+  .card{box-shadow:none;border:1px solid #bbb;page-break-inside:avoid;padding:10px;margin-bottom:8px}
+  details.more-fields{border:0;padding:0}details.more-fields summary{display:none}
+  input,textarea{border:0;border-bottom:1px solid #999;border-radius:0;background:none;box-shadow:none;padding:2px 0;font:inherit}
+  textarea{resize:none;overflow:visible}
+  th{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .table-wrap{overflow:visible;border:0}table{min-width:0}
+  .print-footer{display:block;position:fixed;bottom:0;left:0;right:0;text-align:center;font-size:8.5pt;color:#555;border-top:1px solid #999;padding-top:2px;background:#fff}
+}
+</style>
+</head>
+<body>
+<div class="app" id="app"><p class="loading">Loading… If this message stays, this page cannot find its helper files. Keep this file in the same folder as the “lib” folder it came with. If you downloaded a ZIP file, unzip (extract) it first.</p></div>
+<script src="lib/official-pdf.js"></script>
+<script src="lib/workbook-common.js"></script>
+<script src="lib/guided-workbook.js"></script>
+</body>
+</html>

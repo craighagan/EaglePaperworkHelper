@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' file:; style-src 'unsafe-inline'; img-src 'none'; connect-src https://www.scouting.org/wp-content/uploads/2023/01/EagleProjectWorkbook2023a.pdf; form-action 'none'; base-uri 'none'">
+<title>Fill the Official Eagle Workbook PDF</title>
+<style>
+:root{--blue:#003f87;--blue2:#0066b8;--gold:#f6be00;--ink:#172537;--muted:#46566a;--line:#c5d5e5;--mist:#f2f7fc;--red:#9a0a1e;--green:#155c36}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;color:var(--ink);background:radial-gradient(circle at 10% 0,#dcecfb,transparent 28rem),radial-gradient(circle at 95% 14%,#fff0cf,transparent 24rem),#f6f5f0;font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{width:min(760px,calc(100% - 24px));margin:28px auto 40px;background:#fff;border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 14px 34px rgb(13 59 105/.12)}
+header{padding:22px 28px 18px;color:#fff;background:linear-gradient(135deg,#002f6c,#005aab 58%,#1375b9);border-bottom:5px solid var(--gold)}
+h1{margin:0 0 4px;font-size:clamp(1.4rem,4vw,1.9rem);line-height:1.2}
+header p{margin:0;color:#e3f0ff}
+.content{padding:20px 28px 26px}
+a{color:#00509e}
+.note{margin:0 0 16px;padding:11px 14px;background:#fff8df;border-left:4px solid #e0a500;border-radius:6px;font-size:.93rem}
+.step{margin-top:16px;padding:18px;border:1px solid var(--line);border-radius:12px;background:linear-gradient(150deg,#fbfdff,#f3f8fd)}
+.step h2{margin:0 0 6px;color:var(--blue);font-size:1.1rem}
+.step p{margin:0 0 12px;color:var(--muted);font-size:.93rem}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.btn{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:999px;padding:10px 16px;color:#fff;background:linear-gradient(135deg,var(--blue),var(--blue2));box-shadow:0 2px 7px rgb(0 63 135/.22);font:700 .95rem system-ui,-apple-system,sans-serif;cursor:pointer;text-decoration:none}
+.btn.secondary{background:#fff;color:var(--blue);border:1px solid var(--blue);box-shadow:none}
+.btn.go{background:linear-gradient(135deg,#1f6b34,#2e8b47);font-size:1.05rem;padding:12px 20px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid #0066b8;outline-offset:2px}
+.file{position:relative}
+.file:focus-within{outline:3px solid #0066b8;outline-offset:2px}
+.file input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+.chosen{font-size:.92rem;color:var(--muted);overflow-wrap:anywhere;margin-top:8px!important}
+.chosen.ok{color:var(--green);font-weight:600}
+#drafts{display:flex;flex-direction:column;align-items:flex-start;gap:8px;margin-top:10px}
+label.text{display:grid;gap:5px;font-weight:700;font-size:.92rem}
+input[type=text]{width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:8px;background:#fff;font:inherit;font-weight:400;color:var(--ink)}
+label.check{display:flex;gap:8px;align-items:flex-start;margin-top:12px;font-size:.92rem;color:var(--ink)}
+label.check input{margin-top:4px}
+.status{min-height:1.4em;margin:10px 0 0;font-size:.95rem;overflow-wrap:anywhere}
+.status.error{color:var(--red);font-weight:600}
+.status.ok{color:var(--green);font-weight:600}
+.report{margin-top:12px;padding:12px 14px;border-radius:8px;background:var(--mist);font-size:.92rem}
+.report h3{margin:0 0 6px;font-size:1rem}
+.report ul{margin:6px 0 0;padding-left:20px}
+.report li{margin:3px 0}
+ol.next{margin:8px 0 10px;padding-left:20px}
+footer{margin-top:20px;font-size:.85rem;color:var(--muted)}
+details{margin-top:14px;font-size:.88rem;color:var(--muted)}
+summary{cursor:pointer;font-weight:700;color:#33495f}
+[hidden]{display:none!important}
+@media(max-width:560px){header,.content{padding-left:18px;padding-right:18px}.step{padding:14px}}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Fill the Official Eagle Workbook PDF</h1>
+    <p>Copy your workbook answers into the official Eagle Scout Service Project Workbook.</p>
+  </header>
+  <div class="content">
+    <p class="note"><strong>Your answers stay on this computer.</strong> Nothing you type is uploaded. The only thing this page can download is the blank official workbook from scouting.org, and only if you click “Get the official PDF for me.”</p>
+
+    <section class="step" aria-labelledby="step1">
+      <h2 id="step1">Step 1. Get the official workbook PDF</h2>
+      <p>This fills the official Eagle Scout Service Project Workbook No. 2023a from Scouting America.</p>
+      <div class="row">
+        <button class="btn" id="fetch-pdf" type="button">Get the official PDF for me</button>
+        <span class="btn secondary file">I already have it: choose the PDF file<input id="pdf-file" type="file" accept="application/pdf,.pdf" aria-label="Choose the official workbook PDF file"></span>
+      </div>
+      <p class="chosen" id="pdf-chosen" role="status" aria-live="polite">No PDF chosen yet.</p>
+      <p>No internet? <a id="official-link" target="_blank" rel="noopener noreferrer">Download the official PDF</a> when you can. If it opens in a browser tab, click the download icon (⤓) to save it. It usually goes to your Downloads folder.</p>
+    </section>
+
+    <section class="step" aria-labelledby="step2">
+      <h2 id="step2">Step 2. Choose your answers</h2>
+      <p>Choose the backup file you saved with <strong>Save backup file</strong> in a workbook page. It ends in <code>.json</code> and is usually in your Downloads folder.</p>
+      <div class="row">
+        <span class="btn secondary file">Choose the backup file<input id="json-file" type="file" accept="application/json,.json" aria-label="Choose the workbook backup file"></span>
+      </div>
+      <div id="drafts" hidden></div>
+      <p class="chosen" id="json-chosen" aria-live="polite">No answers chosen yet.</p>
+    </section>
+
+    <section class="step" aria-labelledby="step3">
+      <h2 id="step3">Step 3. Check the project name</h2>
+      <p>This goes on the cover page. To keep a change, also type it in the workbook page (Proposal → Project name).</p>
+      <label class="text">Project name
+        <input id="project-name" type="text" maxlength="120" autocomplete="off" placeholder="Example: Dock and Storage Improvements at Jamaica Pond">
+      </label>
+      <label class="check"><input id="skip-names" type="checkbox"> Leave the printed names next to the approval signature lines blank (the people who sign will print their own names).</label>
+    </section>
+
+    <section class="step" aria-labelledby="step4">
+      <h2 id="step4">Step 4. Create the filled PDF</h2>
+      <p>Your browser saves a new copy of the official workbook with your answers typed in. The PDF you chose is not changed.</p>
+      <button class="btn go" id="create" type="button" disabled>Create my filled PDF</button>
+      <p class="status" id="status" role="status" aria-live="polite"></p>
+      <div class="report" id="report" hidden></div>
+    </section>
+
+    <details>
+      <summary>Help</summary>
+      <p><strong>A button does nothing, or the page says helper files are missing.</strong> Unzip (extract) the download first, and keep this page in the same folder as the <code>lib</code> and <code>vendor</code> folders.</p>
+      <p><strong>“This PDF is not the official workbook.”</strong> Use the PDF from Step 1. This tool fills workbook No. 2023a (February 2023).</p>
+      <p><strong>Privacy.</strong> The filled PDF contains names, birth dates, phone numbers, and addresses. Share it only with the people reviewing your project.</p>
+    </details>
+    <footer>Independent helper. Not made or endorsed by Scouting America. The official workbook, your council, and the required signatures are what count. Uses pdf.js (Apache License 2.0).</footer>
+  </div>
+</main>
+<script src="vendor/pdfjs/pdf.worker.js"></script>
+<script src="vendor/pdfjs/pdf.js"></script>
+<script src="lib/official-pdf.js"></script>
+<script src="lib/fill-page.js"></script>
+</body>
+</html>
