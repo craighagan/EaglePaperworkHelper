@@ -4,7 +4,7 @@ The "? Tips" panels (in [`lib/tips.js`](../lib/tips.js)) and the "keep these as 
 
 How a tip is labeled:
 
-- **No label:** it restates what the official workbook says. Each such tip names the workbook page it appears on, and a test checks that page against the real PDF.
+- **No label:** it restates what the official workbook says. Each such tip says which printed page the box is on (a rule it cites may be on another page), and a test checks that page against the real PDF.
 - **"Common advice, not a rule":** it comes from councils, coaches, or Scout-written guides. These are habits that help, not things the workbook requires.
 
 The official workbook (No. 2023a) is the authority. Where a source disagreed with it, we followed the workbook (see "Where we followed the workbook" below).
@@ -14,7 +14,6 @@ The official workbook (No. 2023a) is the authority. Where a source disagreed wit
 **Official**
 - Eagle Scout Service Project Workbook No. 2023a, Scouting America: <https://www.scouting.org/wp-content/uploads/2023/01/EagleProjectWorkbook2023a.pdf>
 - Guide to Advancement to date (2025 PDF, topic 9.0.2.10 on p. 71): <https://filestore.scouting.org/filestore/pdf/33088.pdf>
-- Guide to Advancement, topic 9.0.2 (the Eagle Scout service project), as excerpted in Scouting America forum posts and an older council copy: <https://discussions.scouting.org/t/eagle-project/128261/10>, <https://stlbsa.org/wp-content/uploads/2020/07/Guide-to-Advancement-Eagle-Scout-Section-Only.pdf>. We did not reach a current official Guide to Advancement page when this was researched (October 2026), so rules come from the workbook text.
 
 **Council, district, and coach guides (common advice)**
 - Greater St. Louis Area Council, Eagle Project Approval Checklist: <https://stlbsa.org/wp-content/uploads/2020/06/EagleProjectApprovalChecklist.pdf>
@@ -41,8 +40,8 @@ The official workbook (No. 2023a) is the authority. Where a source disagreed wit
 - **Length:** one guide suggests a 3–5 page report. The workbook sets no length and says short answers are fine, so no tip mentions page counts.
 - **Costs:** one coach wants itemized, researched prices in the proposal. The workbook asks only for a reasonable estimate, so the tip says real prices "make it believable" (marked as advice).
 - **Hazards:** one council slide wants only hazards in the proposal box. The workbook asks to describe hazards and safety concerns, so the tip says to name hazards and briefly how you will handle each.
-- **Safety responsibility:** the workbook says minors cannot be held responsible for safety. Tips say you plan for safe work and adult leaders are responsible.
-- **Fundraising thresholds:** some councils require an application above a dollar amount or for any gift. The workbook says councils may set thresholds, so tips say councils may set a threshold and state no number. Council exemptions are not in the workbook text, so the tip does not claim them.
+- **Safety responsibility:** the workbook says minors cannot be held responsible for safety. Tips say adults, including property owners, are responsible, and that the plan should say what happens if someone is hurt.
+- **Fundraising exemptions and thresholds:** Fundraising Page B (#8) and Guide 9.0.2.10 say a council may exempt some fundraisers (such as bake sales and car washes) or set a dollar threshold. The `proposal.fundraisingPlan` tip says other sources "may need" an application and gives no number; the exemption wording is in the form text.
 - **Thank-you notes and receipts:** neither is required. The workbook asks only how donors were thanked, and says receipts come from the beneficiary.
 - **Dates:** one council prefers seasons to exact dates. The workbook does not require either.
 - **Local rules** (a coach's "weekend" size rule, uniform or binder rules, local phone numbers) are left out.

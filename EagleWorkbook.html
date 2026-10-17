@@ -29,6 +29,7 @@ main{padding:16px}
 label{display:block;font-size:13px;font-weight:700;color:#333;margin-bottom:3px}
 .official-label{display:block;color:#4e5a66;font-size:11.5px;font-weight:400}
 input,textarea{width:100%;padding:8px 10px;border:1px solid #b8b8b8;border-radius:4px;font:15px/1.4 Georgia,serif;background:#f0f4fa;color:#1a1a1a}
+input::placeholder,textarea::placeholder{color:#5f6b7a;opacity:1}
 input:focus,textarea:focus{outline:none;border-color:#003f87;background:#fff;box-shadow:0 0 0 2px rgba(0,63,135,.2)}
 textarea{resize:vertical}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
@@ -101,7 +102,7 @@ td input{padding:5px 6px;font-size:13px;border-color:#ccc}
 .keep-list{margin:0 0 14px}
 @media(max-width:620px){.btn-control,nav button,.btn-add,.btn,.link-button{min-height:44px}.btn-control{padding-top:10px;padding-bottom:10px}}
 @media(forced-colors:active){.tip-q{border-color:ButtonText}.tip{border:1px solid CanvasText}}
-@media print{.tip,.tip-btn,.tip-wrap,.keep-safe,.keep-list{display:none!important}}
+@media print{input::placeholder,textarea::placeholder{color:transparent}.tip,.tip-btn,.tip-wrap,.keep-safe,.keep-list{display:none!important}}
 </style>
 </head>
 <body>
