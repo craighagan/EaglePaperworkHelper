@@ -39,6 +39,7 @@ label.check input{margin-top:4px}
 .status{min-height:1.4em;margin:10px 0 0;font-size:.95rem;overflow-wrap:anywhere}
 .status.error{color:var(--red);font-weight:600}
 .status.ok{color:var(--green);font-weight:600}
+.small{font-size:.85rem!important}
 .report{margin-top:12px;padding:12px 14px;border-radius:8px;background:var(--mist);font-size:.92rem}
 .report h3{margin:0 0 6px;font-size:1rem}
 .report ul{margin:6px 0 0;padding-left:20px}
@@ -105,6 +106,16 @@ summary{cursor:pointer;font-weight:700;color:#33495f}
       <div class="report" id="report" hidden></div>
     </section>
 
+    <section class="step" aria-labelledby="step5">
+      <h2 id="step5">Step 5 (optional). Make a submission copy with your signed pages</h2>
+      <p>This makes one more PDF: the whole filled workbook, with each signed page you added put right after the official page it belongs to, then a page that lists your attachments and links, then the attachments. Nothing is replaced. Add scans and photos on the workbook’s <strong>Signed Pages</strong> tab, then save a backup file.</p>
+      <p class="chosen" id="attach-summary">Choose your answers in Step 2 first.</p>
+      <button class="btn" id="create-submission" type="button" disabled>Create the submission copy</button>
+      <p class="status" id="submission-status" role="status" aria-live="polite"></p>
+      <p>The submission copy is a printed copy. <strong>Its boxes can’t be edited</strong>, and “Make a backup file from a PDF” can’t read it, so keep your backup file as your working copy.</p>
+      <p class="small">Both the submission copy and your backup file hold pictures of the adults’ signatures as well as your personal details. Share them only with your parent or guardian, your unit leader, and the people reviewing your project. Ask your unit leader or council how they want things turned in; if they want only a signed page, send the scan or photo you took.</p>
+    </section>
+
     <details>
       <summary>Help</summary>
       <p><strong>A button does nothing, or the page says helper files are missing.</strong> Unzip (extract) the download first, and keep this page in the same folder as the <code>lib</code> and <code>vendor</code> folders.</p>
@@ -117,6 +128,7 @@ summary{cursor:pointer;font-weight:700;color:#33495f}
 <script src="vendor/pdfjs/pdf.worker.js"></script>
 <script src="vendor/pdfjs/pdf.js"></script>
 <script src="lib/official-pdf.js"></script>
+<script src="lib/attachments.js"></script>
 <script src="lib/fill-page.js"></script>
 </body>
 </html>

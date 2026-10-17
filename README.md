@@ -26,6 +26,7 @@ Free, offline helpers for the **Eagle Scout Service Project Workbook**. Type you
 4. **Type your answers.** Start with **1. Set Up** and **2. Proposal**. Your draft saves automatically in this browser. Click **? Tips** next to a box for an example and what to avoid.
 5. **Save a backup file often.** Click **💾 Save backup file**. It saves a file such as `Eagle-workbook-backup-2026-10-16-1930.json` (date and time), usually in your Downloads folder. This file is your real save: browsers can erase saved data. Then copy it somewhere safe, such as Google Drive, Dropbox, or OneDrive, or email it to yourself. On many phones, tablets, Chromebooks, and some desktop browsers you will see **📤 Share backup file…**, which opens the device’s share menu. On a phone that usually lists Drive, Dropbox, and email. On a computer it often doesn’t, so dragging the file into Drive is the dependable way. The page “How to keep your work safe” (at the bottom of each workbook page) has the steps.
 6. **Fill the official PDF.** Click **Fill the official PDF →** and follow the four steps on that page.
+7. **Add signed pages.** Print the pages that need signatures from your filled PDF and get them signed (this helper works with pages signed on paper). Scan them or take a clear photo, and add them on the **Signed Pages** tab, with any permits, other attachments, and links. Save a backup file. If someone asks for the whole workbook, Step 5 on the Fill page can make a submission copy (optional; see below).
 
 Open the filled PDF, read every page, and share it with the people reviewing your project.
 
@@ -60,6 +61,17 @@ The page lists anything to double-check, such as an answer that is too long for 
 
 Photos and extra pages go in separate attachments, as the official workbook says.
 
+## Signed pages and the submission copy
+
+Three pages of workbook No. 2023a need signatures: **Proposal Page H**, **Fundraising Application Page A** (only if you need a fundraising application), and **Project Report Page C**. On the workbook’s **Signed Pages** tab you can add a scan or photo of each one (JPEG, PNG, or PDF), plus permits, permission letters, council forms, receipts, photos, and links such as a budget spreadsheet.
+
+Step 5 on **Fill the official PDF** then makes a **submission copy**: the whole filled workbook, with each signed page inserted right after the official page it belongs to (nothing is replaced), then a page that lists every attachment and link, then the other attachments.
+
+- The official PDF doesn’t allow adding pages, so the submission copy is a printed copy of the filled workbook, like “Print to PDF.” Its boxes can’t be edited and **Make a backup file from a PDF** can’t read it. Keep your backup file as your working copy.
+- Scans are saved in this browser (IndexedDB) and in your backup file. **Once you add a scan, your backup file holds pictures of the adults’ signatures.** Keep it private, as with the rest of the backup file.
+- A submission copy is usually 5 to 10 MB.
+- Ask your unit leader or council how they want things turned in. If they want only a signed page, send the scan or photo you took. Keep your signed originals.
+
 ## Making a backup file from a PDF
 
 If you already typed answers into the official workbook PDF, open **Make a backup file from a PDF** (`BackupFromPDF.html`), choose that PDF, and click **💾 Save backup file**. Open the backup file in either workbook page with **📂 Open backup file**. In Chrome or Edge you can also click **Open in the Guided workbook**.
@@ -72,14 +84,15 @@ Most boxes have a **? Tips** button. It opens a short panel with what goes in th
 
 ## Printing a draft
 
-**🖨 Print a draft** prints all five sections as a simple draft for talking it over with your unit leader or coach. The first page is marked **DRAFT: not the official Eagle Scout Service Project Workbook**, and every page’s footer says it is an unofficial draft. Use **Fill the official PDF** for anything you submit.
+**🖨 Print a draft** prints every section as a simple draft (scanned pages are listed, not printed) for talking it over with your unit leader or coach. The first page is marked **DRAFT: not the official Eagle Scout Service Project Workbook**, and every page’s footer says it is an unofficial draft. Use **Fill the official PDF** for anything you submit.
 
 ## Privacy
 
 - The pages never send your answers anywhere. The only network request is the optional **Get the official PDF for me** button, which downloads the blank workbook from scouting.org. A content security policy in each page blocks everything else.
+- Scans and photos of signed pages are saved in this browser and inside your backup file and submission copy. Treat those files as private: they hold pictures of adults’ signatures as well as everyone’s contact details.
 - Your draft is saved in this browser on this computer. Clearing browser data, private or incognito windows, school computers that reset, or a different browser can all lose it. **Save a backup file often.**
 - Backup files and filled PDFs contain names, birth dates, phone numbers, and addresses. Share them only with the people reviewing the project. Don’t post them in GitHub issues.
-- In Chrome and Edge, other web pages you open from files on your own computer (not websites) can read the saved draft. On a shared computer, save a backup file, then click **erase this draft from this browser** at the bottom of the workbook page.
+- In Chrome and Edge, other web pages you open from files on your own computer (not websites) can read the saved draft, including any scans of signed pages. On a shared computer, save a backup file, then click **erase this draft from this browser** at the bottom of the workbook page.
 
 ## Troubleshooting
 
@@ -117,6 +130,7 @@ How it works:
 
 - `lib/tips.js` holds the “? Tips” text for each box (see `docs/guidance-sources.md` for where it comes from and AGENTS.md for how to add one).
 - `lib/workbook-common.js` holds the data model (`defaults()`) and form helpers shared by both workbook pages. `lib/guided-workbook.js` and `lib/classic-workbook.js` build the pages.
+- `lib/attachments.js` handles signed pages, attachments, and links: it turns photos and PDFs into JPEG pages, keeps them in IndexedDB and in the backup file, and writes the submission copy (a small PDF writer; workbook pages are drawn with pdf.js).
 - `lib/official-pdf.js` maps a backup file to the workbook’s form-field names (446 in No. 2023a) and fills them with [pdf.js](https://mozilla.github.io/pdf.js/). It also reads a filled PDF back into a backup file. The reverse map is worked out from the forward mapping, so plain one-box answers stay in sync automatically; phases, check boxes, and totals have small hand-written rules, covered by round-trip tests. The same file runs in the browser and in the tests.
 - Page scripts: `lib/fill-page.js` (FillOfficialPDF.html) and `lib/backup-from-pdf-page.js` (BackupFromPDF.html). `index.html` has no scripts.
 - The official PDF is encrypted, with form filling allowed. pdf.js saves the answers as an update appended to the original file, so the original pages, artwork, encryption, and permissions are unchanged.

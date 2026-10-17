@@ -15,7 +15,7 @@ Breaking any of these is a defect, even if the tests pass.
 3. **No inline scripts or handlers.** Each page has a content security policy (CSP) meta tag with `script-src 'self' file:`. Put code in `lib/*.js`.
 4. **No network requests** except the optional download of the blank official PDF, pinned to the exact URL in `connect-src` of `FillOfficialPDF.html`. No CDNs, fonts, analytics, or telemetry.
 5. **Never put user data into HTML.** Build DOM with the `h()` helper (`lib/workbook-common.js`) or `el()` (page scripts), which use text nodes. No `innerHTML`, `insertAdjacentHTML`, or `document.write`.
-6. **Never fill signatures or approval dates.** Printed names beside approval lines are the only approval-area boxes filled, and the user can opt out.
+6. **Never fill signatures or approval dates.** Scans of signed pages are inserted as pictures, never altered or placed over the official page. Printed names beside approval lines are the only approval-area boxes filled, and the user can opt out.
 7. **Don't add, change, or misstate Scouting requirements.** Labels that echo the official workbook must match its text. Check against the PDF (see "Official text" below). Plain-language rewording in the Guided workbook must keep the meaning.
 8. **No real Scout data in the repo, ever.** Not in fixtures, tests, screenshots, examples, or commit messages. Use `tests/fixtures/sample-workbook.json` (fictional). `.gitignore` blocks `*.json` except the two named fixtures, and blocks all PDFs.
 9. **Keep backup-file keys stable.** Older backup files must keep opening. Add keys; never rename or remove them. `mergeWithDefaults` fills in missing keys and keeps unknown ones.
@@ -27,9 +27,10 @@ Breaking any of these is a defect, even if the tests pass.
 | Path | What it does |
 | --- | --- |
 | `index.html` | Home page. No scripts. |
-| `EagleWorkbook-guided.html` + `lib/guided-workbook.js` | Guided workbook: five stages, plain language, examples. |
+| `EagleWorkbook-guided.html` + `lib/guided-workbook.js` | Guided workbook: six stages (the last is Signed Pages), plain language, examples. |
 | `EagleWorkbook.html` + `lib/classic-workbook.js` | Classic workbook: official wording and order. |
 | `lib/workbook-common.js` | Shared by both workbooks: `defaults()` (the data model), browser storage, backup files (save, open, share), the "keep your work safe" panel, print draft, form helpers (`createForm`, including the "? Tips" buttons), `h()`. |
+| `lib/attachments.js` | Signed pages, attachments, and links: the three signature slots (`SLOTS`, PDF pages 15, 23, 29), photo and PDF → JPEG pages, IndexedDB storage, pictures in backup files (`withPictures`, `absorb`), and the submission copy (`buildSubmission`, a small JPEG-and-text PDF writer). Runs in the browser and in Node tests. |
 | `lib/tips.js` | The text behind each "? Tips" button, keyed by backup-file path. Limits on length and the official page of each box are checked by tests. |
 | `FillOfficialPDF.html` + `lib/fill-page.js` | Fill the official PDF from a backup file or a saved draft. |
 | `BackupFromPDF.html` + `lib/backup-from-pdf-page.js` | Read a filled (fillable) workbook PDF back into a backup file. Flattened PDFs are intentionally unsupported. |
@@ -39,9 +40,11 @@ Breaking any of these is a defect, even if the tests pass.
 | `tools/screenshots.cjs` | Regenerates `docs/*.png` from the fictional sample. |
 | `tests/` | `run-tests.cjs` (unit + real PDF), `browser-e2e.cjs` (headless Chrome), `pdfkit-check.swift` (macOS Preview engine), fixtures. |
 
-Script load order matters. Workbook pages load `lib/official-pdf.js`, then `lib/tips.js`, then `lib/workbook-common.js`, then the page script. The PDF pages load `vendor/pdfjs/pdf.worker.js`, then `vendor/pdfjs/pdf.js`, then `lib/official-pdf.js`, then the page script. pdf.js runs its worker on the main thread through `globalThis.pdfjsWorker`; there is no Web Worker.
+Script load order matters. Workbook pages load `lib/official-pdf.js`, then `lib/tips.js`, then `lib/attachments.js`, then `lib/workbook-common.js`, then the page script; they load pdf.js only when someone adds a PDF scan. `FillOfficialPDF.html` loads `vendor/pdfjs/pdf.worker.js`, then `vendor/pdfjs/pdf.js`, then `lib/official-pdf.js`, then `lib/attachments.js`, then its page script. pdf.js runs its worker on the main thread through `globalThis.pdfjsWorker`; there is no Web Worker.
 
-Browser storage keys: `eagle_workbook_guided_v1` and `eagle_workbook_v1` (drafts), each with `_saved` and `_backup` timestamps.
+Browser storage keys: `eagle_workbook_guided_v1` and `eagle_workbook_v1` (drafts), each with `_saved` and `_backup` timestamps. Scanned pages are JPEGs in IndexedDB database `eagle_workbook_files` (store `pages`, keyed by page id), never in localStorage. Backup files carry them as base64 in `attachments[].pages[].jpeg`.
+
+The official PDF forbids adding pages (document assembly), so the submission copy is a new PDF of drawn pages, like printing. Don't try to insert pages into the official file.
 
 ## Commands
 

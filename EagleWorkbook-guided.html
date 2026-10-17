@@ -129,6 +129,28 @@ details.more-fields summary{cursor:pointer;padding:12px 0;font-weight:700;color:
 .keep-list{margin:0 0 14px}
 @media(max-width:620px){.btn-control,nav button,.btn-add,.btn,.link-button{min-height:44px}.btn-control{padding-top:10px;padding-bottom:10px}}
 @media(forced-colors:active){.tip-q{border-color:ButtonText}.tip{border:1px solid CanvasText}}
+.privacy-warning{margin:0 0 16px;padding:12px 14px;background:#fff1f1;border:1px solid #e3a3a3;border-left:5px solid #9a0a1e;border-radius:8px;font-size:14px}
+.attachments .steps{margin:4px 0 0 20px;font-size:14px}
+.attachments .row-actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:10px}
+.attachments .file-pick{position:relative;display:inline-flex;align-items:center;min-height:44px}
+.attachments .file-pick input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+.attachments .file-pick:focus-within{outline:3px solid #0066b8;outline-offset:2px}
+.attachments .file-pick.disabled{opacity:.5;pointer-events:none}
+.thumbs{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px}
+.thumb-wrap{display:flex;flex-direction:column;align-items:center;gap:2px}
+.thumb{margin:0;text-align:center;font-size:12px;color:#46566a}
+.thumb img{display:block;max-width:120px;max-height:155px;border:1px solid #b9cbdc;background:#fff}
+.thumb-missing{width:110px;height:140px;display:flex;align-items:center;justify-content:center;padding:6px;border:1px dashed #9a0a1e;color:#9a0a1e;font-size:12px}
+.attachment{padding:10px 0;border-top:1px solid #e3ebf3}
+.attachment label.mini{display:grid;gap:4px;font-weight:600;font-size:14px}
+.link-row{display:grid;grid-template-columns:1fr 2fr auto;gap:8px;align-items:center;margin:8px 0}
+.link-row .warn{grid-column:1/-1;color:#9a0a1e;margin:0}
+.attach-status{margin:12px 0;font-size:14px;color:#46566a}
+.attachments .more-help{margin-top:8px}.attachments .more-help summary{cursor:pointer;font-weight:600;font-size:14px;color:#33495f}
+.attachments button:disabled{opacity:.5;cursor:not-allowed}
+.card-status{margin:8px 0 0;font-size:14px;font-weight:600;color:#155c36}
+.card-status.error{color:#9a0a1e}
+@media(max-width:560px){.link-row{grid-template-columns:1fr}}
 @media print{input::placeholder,textarea::placeholder{color:transparent}.tip,.tip-btn,.tip-wrap,.keep-safe,.keep-list{display:none!important}}
 </style>
 </head>
@@ -136,6 +158,7 @@ details.more-fields summary{cursor:pointer;padding:12px 0;font-weight:700;color:
 <div class="app" id="app"><p class="loading">Loading… If this message stays, this page cannot find its helper files. Keep this file in the same folder as the “lib” folder it came with. If you downloaded a ZIP file, unzip (extract) it first.</p></div>
 <script src="lib/official-pdf.js"></script>
 <script src="lib/tips.js"></script>
+<script src="lib/attachments.js"></script>
 <script src="lib/workbook-common.js"></script>
 <script src="lib/guided-workbook.js"></script>
 </body>

@@ -304,6 +304,123 @@ function everyAnswer() {
     }
   });
 
+  console.log('Signed pages and attachments');
+  {
+    const A = require(path.join(ROOT, 'lib/attachments.js'));
+    const portrait = new Uint8Array(fs.readFileSync(path.join(__dirname, 'fixtures/scan-portrait.jpg')));
+    const landscape = new Uint8Array(fs.readFileSync(path.join(__dirname, 'fixtures/scan-landscape.jpg')));
+    const W = workbookCommon();
+    const withExtras = () => {
+      const d = W.mergeWithDefaults(W.defaults(), sample);
+      d.attachments = [
+        { id: 'signedproph01', place: 'proposalH', label: 'Signed Proposal Page H', pages: [{ id: 'pageph000001', width: 85, height: 110, jpeg: A.toBase64(portrait) }] },
+        { id: 'permitpark01', place: 'end', label: 'Park permit', pages: [{ id: 'pagepermit01', width: 110, height: 85, jpeg: A.toBase64(landscape) }, { id: 'pagepermit02', width: 85, height: 110, jpeg: A.toBase64(portrait) }] },
+        { id: 'signedrepc01', place: 'reportC', label: '', pages: [{ id: 'pagerc000001', width: 85, height: 110, jpeg: A.toBase64(portrait) }] }
+      ];
+      d.links = [{ title: 'Budget spreadsheet', url: 'https://example.org/budget-sheet-for-the-bike-rack-project-with-a-very-long-address-that-wraps?id=12345' }, { title: 'Bad', url: 'javascript:alert(1)' }];
+      return d;
+    };
+    await test('signature slots are the three signed pages of workbook 2023a', () => {
+      assert.deepEqual(A.SLOTS.map((s) => [s.afterPage, PAGE_LABELS[s.afterPage]]), [[15, 'Proposal Page H'], [23, 'Fundraising Application Page A'], [29, 'Project Report Page C']]);
+    });
+    await test('attachments and links survive a backup file and bad entries are dropped', () => {
+      const d = W.mergeWithDefaults(W.defaults(), { candidate: {}, proposal: {}, attachments: [{ id: 'ok0000001', place: 'nowhere', label: 5, pages: [{ id: 'p0000001', width: 10, height: 20, jpeg: 'not base64!' }, { id: 'x', width: 1, height: 1 }] }, 'junk', { id: '../etc' }], links: [{ title: 'A', url: 'https://example.org' }, 7] });
+      A.sanitize(d);
+      assert.deepEqual(d.attachments, [{ id: 'ok0000001', place: 'end', label: '5', pages: [{ id: 'p0000001', width: 10, height: 20, bytes: 0 }] }]);
+      assert.deepEqual(d.links, [{ title: 'A', url: 'https://example.org' }]);
+      assert.equal(JSON.stringify(W.defaults().attachments), "[]");
+    });
+    await test('only http and https links are kept', () => {
+      assert.equal(A.cleanUrl('javascript:alert(1)'), '');
+      assert.equal(A.cleanUrl('file:///etc/passwd'), '');
+      assert.equal(A.cleanUrl('docs.google.com/x'), 'https://docs.google.com/x');
+      assert.equal(A.cleanUrl('http://example.org/a b'), '', 'spaces mean it is a description');
+      assert.equal(A.cleanUrl('my budget'), '');
+      assert.equal(A.cleanUrl('drive'), '');
+      assert.equal(A.cleanUrl('https://example.org/a(b)'), 'https://example.org/a(b)');
+    });
+    await test('signed pages are inserted after their page, nothing is replaced, and attachments follow the list page', () => {
+      const order = A.planPages(withExtras(), 1);
+      const at = (i) => (order[i].kind === 'workbook' ? `w${order[i].n}` : order[i].kind === 'index' ? 'index' : order[i].page.id);
+      assert.equal(order.filter((o) => o.kind === 'workbook').length, 32);
+      assert.deepEqual([14, 15, 16].map(at), ['w15', 'pageph000001', 'w16']);
+      assert.deepEqual([29, 30, 31].map(at), ['w29', 'pagerc000001', 'w30']);
+      assert.deepEqual(order.slice(-4).map((o, i) => at(order.length - 4 + i)), ['w32', 'index', 'pagepermit01', 'pagepermit02']);
+    });
+    await test('makes a valid submission copy with the list page and working links', async () => {
+      const d = withExtras();
+      const drawPage = async () => ({ jpeg: portrait, width: 85, height: 110 });
+      const { bytes, pageCount } = await A.buildSubmission({ data: d, drawPage, today: 'October 18, 2026' });
+      assert.equal(pageCount, 32 + 2 + 1 + 2);
+      const file = path.join(os.tmpdir(), `eph-submission-${process.pid}.pdf`);
+      fs.writeFileSync(file, bytes);
+      try {
+        const pdfjsLib = loadPdfjs();
+        const doc = await pdfjsLib.getDocument({ data: new Uint8Array(bytes), verbosity: 0, isEvalSupported: false }).promise;
+        assert.equal(doc.numPages, 37);
+        const index = await doc.getPage(35);
+        const text = (await index.getTextContent()).items.map((i) => i.str).join(' ');
+        assert.match(text, /Signed Proposal Page H: page 16 \(after workbook page 15\)/);
+        assert.match(text, /Signed Project Report Page C: page 31 \(after workbook page 29\)/);
+        assert.match(text, /Park permit: pages 36.37/);
+        assert.match(text, /Budget spreadsheet/);
+        assert.doesNotMatch(text, /javascript/);
+        const links = (await index.getAnnotations()).filter((a) => a.subtype === 'Link').map((a) => a.url);
+        assert.ok(links.length >= 1 && links.every((u) => u === d.links[0].url), JSON.stringify(links));
+        const landscapePage = (await doc.getPage(36)).view;
+        assert.deepEqual(landscapePage, [0, 0, 792, 612], 'wide scans get a landscape page');
+        await doc.destroy();
+        if (has('qpdf')) execFileSync('qpdf', ['--check', file], { stdio: 'ignore' });
+      } finally { fs.rmSync(file, { force: true }); }
+    });
+    await test('pictures from a backup file lose their metadata and use their real size', () => {
+      // An APP1 (EXIF) segment holding a made-up GPS note, inserted after the JFIF header.
+      const exif = new Uint8Array([0xff, 0xe1, 0x00, 0x10, ...Buffer.from('Exif\0\0GPS-HOME')]);
+      const tagged = new Uint8Array([...portrait.subarray(0, 20), ...exif, ...portrait.subarray(20)]);
+      assert.ok(Buffer.from(tagged).includes('GPS-HOME'));
+      const clean = A.stripJpeg(tagged);
+      assert.ok(!Buffer.from(clean).includes('GPS-HOME'));
+      assert.deepEqual(A.jpegInfo(clean), { width: 85, height: 110, components: 3 });
+      const d = { attachments: [{ id: 'aaaaaaaaaa', place: 'end', label: 'x', pages: [{ id: 'bbbbbbbbbb', width: 999, height: 5, jpeg: A.toBase64(tagged) }] }] };
+      return A.absorb(d).then(() => assert.deepEqual([d.attachments[0].pages[0].width, d.attachments[0].pages[0].height], [85, 110]));
+    });
+    await test('gray pictures, padding bytes, and data after the picture are handled', () => {
+      const gray = new Uint8Array(fs.readFileSync(path.join(__dirname, 'fixtures/scan-gray.jpg')));
+      assert.deepEqual(A.jpegInfo(gray), { width: 60, height: 80, components: 1 });
+      assert.match(Buffer.from(A.writePdf([{ jpeg: gray, width: 1, height: 1 }])).toString('latin1'), /\/Width 60\/Height 80\/ColorSpace\/DeviceGray/);
+      const exif = [0xff, 0xff, 0xff, 0xe1, 0x00, 0x10, ...Buffer.from('Exif\0\0GPS-HOME')]; // with padding bytes before the marker
+      const padded = new Uint8Array([...portrait.subarray(0, 20), ...exif, ...portrait.subarray(20), ...Buffer.from('TRAILER-GPS')]);
+      const clean = Buffer.from(A.stripJpeg(padded));
+      assert.ok(!clean.includes('GPS-HOME') && !clean.includes('TRAILER-GPS'));
+      assert.ok(A.jpegInfo(new Uint8Array(clean)));
+      const second = new Uint8Array([...portrait.subarray(0, 20), 0xff, 0xe1, 0x00, 0x0e, ...Buffer.from('Exif\0\0SECOND'), ...portrait.subarray(20)]);
+      const twoPictures = new Uint8Array([...portrait, ...second]); // a phone-style second picture after the first
+      assert.ok(!Buffer.from(A.stripJpeg(twoPictures)).includes('SECOND'));
+      assert.equal(A.stripJpeg(twoPictures).length, portrait.length);
+      const lossless = new Uint8Array(portrait); const sof = Buffer.from(lossless).indexOf(Buffer.from([0xff, 0xc0])); lossless[sof + 1] = 0xc3;
+      assert.equal(A.jpegInfo(lossless), null, 'lossless JPEGs are refused');
+    });
+    await test('damaged pictures and letters the font lacks are handled', () => {
+      assert.equal(A.jpegInfo(new Uint8Array([0xff, 0xd8, 0x3c, 0x73, 0x76, 0x67, 0, 0])), null);
+      assert.throws(() => A.writePdf([{ jpeg: new Uint8Array([0xff, 0xd8, 0, 0, 0, 0, 0, 0]), width: 1, height: 1 }]), /damaged/);
+      const pdf = Buffer.from(A.writePdf([{ text: [{ x: 72, y: 700, text: 'Nguyễn Ā (Test) \\ 李', size: 12 }] }])).toString('latin1');
+      assert.match(pdf, /\(Nguyen A \\\(Test\\\) \\\\ \?\) Tj/);
+    });
+    await test('a missing picture stops the submission copy with a clear message', async () => {
+      const d = withExtras();
+      delete d.attachments[1].pages[0].jpeg;
+      await assert.rejects(A.buildSubmission({ data: d, drawPage: async () => ({ jpeg: portrait, width: 85, height: 110 }), today: 'x' }), /Park permit.*isn’t in this backup file/);
+    });
+    await test('backup copies carry pictures, the draft does not', async () => {
+      const d = withExtras();
+      await A.absorb(d);
+      assert.ok(A.pagesOf(d).every((p) => !('jpeg' in p)), 'absorb moves pictures out of the draft');
+      const { data: full, missing } = A.withPictures(d);
+      assert.deepEqual(missing, []);
+      assert.ok(A.pagesOf(full).every((p) => A.isJpeg(A.fromBase64(p.jpeg))));
+    });
+  }
+
   console.log('Pages');
   for (const file of PAGES) {
     await test(`${file}: no inline scripts and a strict content security policy`, () => {
