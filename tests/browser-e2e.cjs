@@ -155,6 +155,30 @@ async function run() {
       filledPdf = path.join(os.tmpdir(), `eph-filled-${process.pid}.pdf`);
       fs.copyFileSync(file, filledPdf);
     });
+    await test('flags a blank name or project name without blocking the PDF', async () => {
+      const blank = path.join(downloads, 'blank-names.json');
+      const d = JSON.parse(fs.readFileSync(SAMPLE, 'utf8'));
+      d.proposal.projectName = ''; d.candidate.name = '';
+      fs.writeFileSync(blank, JSON.stringify(d));
+      await open('FillOfficialPDF.html', '!!window.EagleOfficialPdf');
+      await setFile('#pdf-file', PDF);
+      await setFile('#json-file', blank);
+      await waitFor('!document.getElementById("create").disabled');
+      const note = await evaluate('document.getElementById("heads-up").hidden ? "" : document.getElementById("heads-up").textContent');
+      assert.match(note, /Your name is blank/);
+      assert.match(note, /project name is blank/);
+      clearDownloads();
+      await evaluate('document.getElementById("create").click()');
+      await waitFor('/\\b(ok|error)\\b/.test(document.getElementById("status").className)', 60000);
+      assert.match(await evaluate('document.getElementById("status").textContent'), /^Done\./, 'still made the PDF');
+      const results = await evaluate('document.getElementById("report").textContent');
+      assert.match(results, /Your name is blank/, 'the name note is listed in the results');
+      assert.equal(results.split(/project name (on the cover page )?is blank/i).length - 1, 2, 'the blank project name is listed once, not twice');
+      await evaluate('(() => { const i = document.getElementById("project-name"); i.value = "Typed Here"; i.dispatchEvent(new Event("input", { bubbles: true })); })()');
+      const after = await evaluate('document.getElementById("heads-up").textContent');
+      assert.doesNotMatch(after, /project name is blank/, 'typing a name clears that note');
+      fs.rmSync(blank, { force: true });
+    });
     await test('Apple PDFKit (Preview) shows every answer (macOS only)', async () => {
       if (process.platform !== 'darwin') return 'skip';
       assert.ok(filledPdf, 'needs the PDF from the previous test');
@@ -497,6 +521,13 @@ async function run() {
       await evaluate(`${lastTab}.click()`);
       await waitFor('document.querySelectorAll(".thumb img").length === 3', 10000);
       assert.equal(await evaluate('document.querySelector(".link-row input[type=url]").value'), 'https://example.org/budget');
+      await evaluate('document.querySelector(".thumb-open").click()');
+      await waitFor('!!document.querySelector("dialog.picture-viewer[open] img")');
+      assert.match(await evaluate('document.querySelector("dialog.picture-viewer img").alt'), /Signed Proposal Page H, page 1/);
+      assert.ok(await evaluate('document.querySelector("dialog.picture-viewer img").naturalWidth') > 0, 'the full picture loads');
+      await evaluate('document.querySelector("dialog.picture-viewer").dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); document.querySelector("dialog.picture-viewer").close(); true');
+      await waitFor('!document.querySelector("dialog.picture-viewer")');
+      assert.equal(await evaluate('document.activeElement.className'), 'thumb-open', 'focus returns to the thumbnail');
       const draft = await evaluate('localStorage.getItem("eagle_workbook_guided_v1")');
       assert.doesNotMatch(draft, /"jpeg"/, 'pictures are not in localStorage');
       clearDownloads();
@@ -579,6 +610,13 @@ async function run() {
       let dark = 0;
       for (let y = Math.round(hgt * 40 / 550); y < Math.round(hgt * 240 / 550); y++) for (let x = Math.round(w * 30 / 425); x < Math.round(w * 395 / 425); x++) if (pgm[start + y * w + x] < 110) dark++;
       assert.ok(dark > 30, `expected typed text in the description box, found ${dark} dark pixels`);
+      // The cover page's artwork (the medal, mountains, and logo) is JPEG 2000. It must be drawn, not left blank.
+      const cover = execFileSync('pdftoppm', ['-f', '1', '-l', '1', '-r', '40', '-gray', file]);
+      const [, cw, ch] = cover.toString('latin1', 0, 40).match(/^P5\s+(\d+)\s+(\d+)\s+255\s/);
+      const cstart = cover.length - cw * ch;
+      let ink = 0;
+      for (let y = 0; y < Math.round(ch * 0.23); y++) for (let x = Math.round(cw * 0.52); x < Math.round(cw * 0.8); x++) if (cover[cstart + y * cw + x] < 235) ink++;
+      assert.ok(ink > 300, `expected the medal artwork at the top of the cover page, found ${ink} non-white pixels`);
       assert.deepEqual(problems, []);
     });
     await test('opening a different backup file forgets the old scans in this browser', async () => {

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' file:; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' file: 'wasm-unsafe-eval'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'">
 <title>Eagle Project Workbook Helper (Classic)</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -113,6 +113,12 @@ td input{padding:5px 6px;font-size:13px;border-color:#ccc}
 .thumb-wrap{display:flex;flex-direction:column;align-items:center;gap:2px}
 .thumb{margin:0;text-align:center;font-size:12px;color:#46566a}
 .thumb img{display:block;max-width:120px;max-height:155px;border:1px solid #b9cbdc;background:#fff}
+.thumb-open{display:block;padding:0;border:0;background:none;cursor:zoom-in;border-radius:2px}
+.thumb-open:hover img{border-color:#003f87;box-shadow:0 0 0 2px #cfe2f7}
+.picture-viewer{margin:auto;padding:0;border:0;border-radius:10px;max-width:min(96vw,1000px);max-height:96vh;background:#fff;box-shadow:0 10px 40px rgba(0,0,0,.4)}
+.picture-viewer::backdrop{background:rgba(10,20,35,.7)}
+.picture-viewer .viewer-bar{position:sticky;top:0;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 12px;background:#fff;border-bottom:1px solid #dce5ef;font-weight:600;font-size:14px}
+.picture-viewer img{display:block;max-width:100%;max-height:calc(96vh - 60px);margin:0 auto;object-fit:contain}
 .thumb-missing{width:110px;height:140px;display:flex;align-items:center;justify-content:center;padding:6px;border:1px dashed #9a0a1e;color:#9a0a1e;font-size:12px}
 .attachment{padding:10px 0;border-top:1px solid #e3ebf3}
 .attachment label.mini{display:grid;gap:4px;font-weight:600;font-size:14px}

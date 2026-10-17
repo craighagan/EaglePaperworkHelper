@@ -10,6 +10,9 @@ That script explains the changes it makes:
 - One fix in `pdf.worker.js` (marked "EaglePaperworkHelper font fallback"): when a form field asks for a font the PDF
   does not define, the saved appearance now includes a standard Helvetica font under that name. Without it, some viewers
   and printers show the answer blank.
+- One change in `pdf.worker.js` (marked "EaglePaperworkHelper"): JPEG 2000 images (the workbook's cover art and logo)
+  are decoded by `openjpeg-wasm.js`, the WebAssembly decoder from the same package written out as base64 text, instead
+  of being fetched at run time, which cannot work from `file://`. OpenJPEG is BSD-2-Clause (see `LICENSE_OPENJPEG` and `LICENSE_PDFJS_OPENJPEG`, the notice for Mozilla's wrapper around it). OpenJPEG parses the JPEG 2000 images inside any PDF you add, so check its security advisories when upgrading.
 
 The legacy build bundles [core-js](https://github.com/zloirock/core-js) (MIT License); its notice is kept in the files.
 
@@ -18,4 +21,5 @@ Before upgrading, check GitHub security advisories for pdfjs-dist, then update t
 | File | Source in pdfjs-dist | Source SHA-256 | Output SHA-256 |
 | --- | --- | --- | --- |
 | `pdf.js` | `legacy/build/pdf.min.mjs` | `a7a8724af7516e99f2616938246713d8043697fb5340df884496e762b45d0418` | `1fa456932f6cc12ef2adcc5960708cbe2ec54f177f980a47d9512bd0467177bf` |
-| `pdf.worker.js` | `legacy/build/pdf.worker.min.mjs` | `90b49a1bf7b6c4d689d7d7bc0a52869bb3b1bc5935a0fa0ea6413b49f85ac8de` | `03bbc417dc00adf8260fb80fc5e9554cf76a371dc441953291dcd80cb77d7c6e` |
+| `pdf.worker.js` | `legacy/build/pdf.worker.min.mjs` | `90b49a1bf7b6c4d689d7d7bc0a52869bb3b1bc5935a0fa0ea6413b49f85ac8de` | `fe680b16bedf63197fc86576f06a2000a36ed6cc48abc68558a911b37d7a8f02` |
+| `openjpeg-wasm.js` | `wasm/openjpeg.wasm` | `67b8e2b162da472e98cb48d3d32e3e38fff481b9b32ff4818e78bb248af88ab2` | `8985002e92eb44faa99b0622a76292a2d79401e25ec2cd4ac6ebd13541001cd5` |

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' file:; style-src 'unsafe-inline'; img-src 'none'; connect-src https://www.scouting.org/wp-content/uploads/2023/01/EagleProjectWorkbook2023a.pdf; form-action 'none'; base-uri 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' file: 'wasm-unsafe-eval'; style-src 'unsafe-inline'; img-src 'none'; connect-src https://www.scouting.org/wp-content/uploads/2023/01/EagleProjectWorkbook2023a.pdf; form-action 'none'; base-uri 'none'">
 <title>Fill the Official Eagle Workbook PDF</title>
 <style>
 :root{--blue:#003f87;--blue2:#0066b8;--gold:#f6be00;--ink:#172537;--muted:#46566a;--line:#c5d5e5;--mist:#f2f7fc;--red:#9a0a1e;--green:#155c36}
@@ -40,6 +40,7 @@ label.check input{margin-top:4px}
 .status.error{color:var(--red);font-weight:600}
 .status.ok{color:var(--green);font-weight:600}
 .small{font-size:.85rem!important}
+.heads-up{margin:10px 0 0!important;padding:9px 12px;background:#fff8df;border-left:4px solid #e0a500;border-radius:6px;color:var(--ink)!important;font-size:.9rem!important}
 .report{margin-top:12px;padding:12px 14px;border-radius:8px;background:var(--mist);font-size:.92rem}
 .report h3{margin:0 0 6px;font-size:1rem}
 .report ul{margin:6px 0 0;padding-left:20px}
@@ -95,6 +96,7 @@ summary{cursor:pointer;font-weight:700;color:#33495f}
       <label class="text">Project name
         <input id="project-name" type="text" maxlength="120" autocomplete="off" placeholder="Example: Raised Garden Beds at Lakeside Park">
       </label>
+      <p class="heads-up" id="heads-up" role="status" aria-live="polite" hidden></p>
       <label class="check"><input id="skip-names" type="checkbox"> Leave the printed names next to the approval signature lines blank (the people who sign will print their own names).</label>
     </section>
 
@@ -122,9 +124,10 @@ summary{cursor:pointer;font-weight:700;color:#33495f}
       <p><strong>“This PDF is not the official workbook.”</strong> Use the PDF from Step 1. This tool fills workbook No. 2023a (February 2023).</p>
       <p><strong>Privacy.</strong> The filled PDF contains names, birth dates, phone numbers, and addresses. Share it only with the people reviewing your project.</p>
     </details>
-    <footer>Independent helper. Not made or endorsed by Scouting America. The official workbook, your council, and the required signatures are what count. Uses pdf.js (Apache License 2.0).</footer>
+    <footer>Independent helper. Not made or endorsed by Scouting America. The official workbook, your council, and the required signatures are what count. Uses pdf.js (Apache License 2.0) and OpenJPEG (BSD 2-Clause).</footer>
   </div>
 </main>
+<script src="vendor/pdfjs/openjpeg-wasm.js"></script>
 <script src="vendor/pdfjs/pdf.worker.js"></script>
 <script src="vendor/pdfjs/pdf.js"></script>
 <script src="lib/official-pdf.js"></script>

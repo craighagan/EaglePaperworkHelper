@@ -12,7 +12,7 @@ Breaking any of these is a defect, even if the tests pass.
 
 1. **No build, no install, no server code.** Pages must work when double-clicked (`file://`) and from a plain static https server.
 2. **Classic scripts only.** Browsers block ES modules on `file://`. No `import`/`export`, no `type="module"`, no bundler.
-3. **No inline scripts or handlers.** Each page has a content security policy (CSP) meta tag with `script-src 'self' file:`. Put code in `lib/*.js`.
+3. **No inline scripts or handlers.** Each page has a content security policy (CSP) meta tag with `script-src 'self' file:`. Put code in `lib/*.js`. The pages that draw PDFs also allow `'wasm-unsafe-eval'` in `script-src`, only so the bundled JPEG 2000 decoder (`vendor/pdfjs/openjpeg-wasm.js`) can run; never add `'unsafe-inline'` or `'unsafe-eval'`.
 4. **No network requests** except the optional download of the blank official PDF, pinned to the exact URL in `connect-src` of `FillOfficialPDF.html`. No CDNs, fonts, analytics, or telemetry.
 5. **Never put user data into HTML.** Build DOM with the `h()` helper (`lib/workbook-common.js`) or `el()` (page scripts), which use text nodes. No `innerHTML`, `insertAdjacentHTML`, or `document.write`.
 6. **Never fill signatures or approval dates.** Scans of signed pages are inserted as pictures, never altered or placed over the official page. Printed names beside approval lines are the only approval-area boxes filled, and the user can opt out.
@@ -35,7 +35,7 @@ Breaking any of these is a defect, even if the tests pass.
 | `FillOfficialPDF.html` + `lib/fill-page.js` | Fill the official PDF from a backup file or a saved draft. |
 | `BackupFromPDF.html` + `lib/backup-from-pdf-page.js` | Read a filled (fillable) workbook PDF back into a backup file. Flattened PDFs are intentionally unsupported. |
 | `lib/official-pdf.js` | Backup → PDF field mapping (`buildFieldValues`), filling (`fillOfficialPdf`), reading back (`readBackupFromPdf`, `reverseMap`), totals, date and money parsing, warnings in plain words (`describeField`). Runs in the browser and in Node tests. |
-| `vendor/pdfjs/` | pdf.js 5.4.296, converted to classic scripts plus one font fix. Generated. |
+| `vendor/pdfjs/` | pdf.js 5.4.296, converted to classic scripts plus a font fix and a patch that reads the JPEG 2000 decoder (`openjpeg-wasm.js`, base64) from a bundled script instead of fetching it. Without it, the cover art and logo vanish from the submission copy. Generated. |
 | `tools/vendor-pdfjs.cjs` | Rebuilds `vendor/pdfjs/` from pinned, SHA-256-checked downloads. |
 | `tools/screenshots.cjs` | Regenerates `docs/*.png` from the fictional sample. |
 | `tests/` | `run-tests.cjs` (unit + real PDF), `browser-e2e.cjs` (headless Chrome), `pdfkit-check.swift` (macOS Preview engine), fixtures. |
