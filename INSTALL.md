@@ -31,7 +31,7 @@ LICENSE
 Leave these out. They are for developers only:
 
 ```text
-tests/  tools/  .gitignore  .git/
+tests/  tools/  todo/  AGENTS.md  INSTALL.md  .gitignore  .git/
 ```
 
 Never upload backup files (`.json`) or filled PDFs. They contain Scouts’ personal information.
@@ -54,7 +54,7 @@ The `--delete` option removes files on the server that are no longer in the proj
 3. Under **Build and deployment**, choose **Deploy from a branch**, then **main** and **/ (root)**, and click **Save**.
 4. After a minute, the site is at `https://<account>.github.io/EaglePaperworkHelper/`.
 
-The `tests/` and `tools/` folders are published too, which is harmless: they contain only fictional sample data.
+The developer files (`tests/`, `tools/`, `todo/`, `AGENTS.md`) are published too, which is harmless: they contain only code, notes, and fictional sample data.
 
 ## 3. Check it
 
