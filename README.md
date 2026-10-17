@@ -10,6 +10,8 @@ Free, offline helpers for the **Eagle Scout Service Project Workbook**. Type you
 
 > This project is not made, endorsed, or supported by Scouting America. Read the entire official workbook (and its “Message to Scouts and Parents or Guardians” with a parent or guardian). The official workbook, your council’s procedures, and the required signatures are what count.
 
+**Try it online:** <http://www.cih.com/troop6/eagle/>. It works the same as the downloaded copy, and your answers still stay in your own browser.
+
 ![The Guided workbook, showing the Proposal stage with fictional sample answers](docs/guided-workbook.png)
 
 ## Quick start
@@ -91,7 +93,7 @@ The PDF must still have its fillable boxes. A copy made with “Print” → “
 
 ## Hosting on a website (optional)
 
-It is just copying the files to any web server that serves plain files over **https**. No server scripts or database are needed, and the server never receives anyone’s answers or PDF. See [INSTALL.md](INSTALL.md) for which files to copy, where to host it (its own web address, because browsers let every page at the same address read saved drafts), GitHub Pages steps, and how to check it works.
+It is just copying the files to any web server that serves plain files over **https**. No server scripts or database are needed, and the server never receives anyone’s answers or PDF. For an example, see <http://www.cih.com/troop6/eagle/>. See [INSTALL.md](INSTALL.md) for which files to copy, where to host it (its own web address, because browsers let every page at the same address read saved drafts), GitHub Pages steps, and how to check it works.
 
 ## For developers
 
