@@ -32,7 +32,7 @@ const ROOT = path.resolve(__dirname, '..');
 const lib = require(path.join(ROOT, 'lib/official-pdf.js'));
 const sample = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/sample-workbook.json'), 'utf8'));
 const officialFields = new Set(JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/official-2023a-fields.json'), 'utf8')));
-const PAGES = ['EagleWorkbook.html', 'EagleWorkbook-guided.html', 'FillOfficialPDF.html'];
+const PAGES = ['index.html', 'EagleWorkbook.html', 'EagleWorkbook-guided.html', 'FillOfficialPDF.html', 'BackupFromPDF.html'];
 
 let passed = 0;
 let skipped = 0;
@@ -98,6 +98,29 @@ async function readValues(pdfjsLib, bytes) {
   }
   await doc.destroy();
   return values;
+}
+
+/** Every answer as "path" -> text, ignoring row numbers and labels, for comparing backups. */
+function answers(data, out = {}, prefix = '') {
+  for (const [k, v] of Object.entries(data)) {
+    const path = prefix ? `${prefix}.${k}` : k;
+    if (v && typeof v === 'object') answers(v, out, path);
+    else if (k !== 'num' && k !== 'cat' && String(v ?? '').trim()) out[path] = String(v).trim();
+  }
+  return out;
+}
+const sameAnswer = (a, b) => a === b || (lib.parseAmount(a) !== null && !Number.isNaN(lib.parseAmount(a)) && lib.parseAmount(a) === lib.parseAmount(b));
+/** Paths that differ after a round trip, allowing a typed row total equal to Qty × Unit $ to come back blank. */
+function differences(want, got, data) {
+  return Object.keys(want).filter((k) => {
+    if (sameAnswer(want[k], got[k] || '')) return false;
+    const m = /^(plan\.\w+\.\d+)\.totalCost$/.exec(k);
+    if (m && !got[k]) {
+      const row = m[1].split('.').reduce((o, key) => o[key], data);
+      return lib.rowCost({ ...row, totalCost: '' }).amount !== lib.parseAmount(want[k]);
+    }
+    return true;
+  });
 }
 
 /** A backup with every answer filled in, built from the workbook pages' own data model. */
@@ -247,7 +270,7 @@ function everyAnswer() {
       assert.ok(csp, 'CSP meta tag');
       assert.match(csp[1], /default-src 'none'/);
       assert.doesNotMatch(csp[1], /script-src[^;]*unsafe/);
-      const connect = /connect-src ([^;]+);/.exec(csp[1])[1];
+      const connect = (/connect-src ([^;]+);/.exec(csp[1]) || [null, "'none'"])[1]; // default-src 'none' covers a missing connect-src
       assert.ok(connect === "'none'" || connect === lib.OFFICIAL_PDF_URL, `connect-src ${connect}`);
     });
   }
@@ -369,6 +392,71 @@ function everyAnswer() {
       const result = await lib.checkWorkbookPdf(pdfjsLib, new Uint8Array(Buffer.from('%PDF-1.4\n%%EOF')));
       assert.equal(result.ok, false);
     });
+    console.log('Reading a filled PDF back into a backup file');
+    const W = workbookCommon();
+    await test('a filled PDF reads back into the same backup', async () => {
+      const original = W.mergeWithDefaults(W.defaults(), sample);
+      const { data, report } = await lib.readBackupFromPdf({ pdfjsLib, pdfBytes: filled.bytes.slice(), defaults: W.defaults });
+      const want = answers(original), got = answers(data);
+      delete want['report.hours.0.w']; delete want['report.hours.1.w'];
+      const wrong = differences(want, got, original);
+      assert.deepEqual(wrong, [], wrong.map((k) => `${k}: ${want[k]} -> ${got[k]}`).join('\n'));
+      assert.equal(data.unit.type, 'Troop');
+      assert.equal(data.plan.phases[0].start, '2025-11-01', 'dates come back in date-picker format');
+      assert.equal(data.plan.materials[0].totalCost, '', 'a computed row total stays blank so it keeps updating');
+      assert.deepEqual(report.warnings, [], report.warnings.join('\n'));
+    });
+    await test('reading back keeps phase words, checks dates, and prefers the proposal unit type', () => {
+      const values = new Map([
+        ['Plan-Phase1', 'Paint (front to back)'], ['Plan-Phase2', 'Sand to finish'], ['Plan-Phase3', 'starts slowly'],
+        ['Plan-Phase4', 'Fix (see note) (10/1/2025 to 10/15/2025)'], ['Plan-Phase5', 'starts 2/7/2026'],
+        ['Plan-StartDate', '2/31/2025'], ['Report-ActualStartDate', 'October 1, 2025'],
+        ['Proposal-UnitType', 'Proposal-Trooop'], ['Fund-UnitType', 'Fund-Crew'], ['Proposal-LeaderType', 'Proposal-Scoutmaster'],
+        ['Proposal-TotalCost', '$500.00']
+      ]);
+      const { data, unreadFields, totalsWithoutParts } = lib.backupFromValues(values, W.defaults);
+      const ph = data.plan.phases;
+      assert.deepEqual([ph[0].description, ph[0].start, ph[0].end], ['Paint (front to back)', '', '']);
+      assert.deepEqual([ph[1].description, ph[1].start], ['Sand to finish', '']);
+      assert.deepEqual([ph[2].description, ph[2].start], ['starts slowly', '']);
+      assert.deepEqual([ph[3].description, ph[3].start, ph[3].end], ['Fix (see note)', '2025-10-01', '2025-10-15']);
+      assert.deepEqual([ph[4].description, ph[4].start], ['', '2026-02-07']);
+      assert.equal(data.plan.startDate, '2/31/2025', 'an impossible date stays as text');
+      assert.equal(data.report.actualStart, '2025-10-01');
+      assert.equal(data.unit.type, 'Troop');
+      assert.deepEqual(unreadFields, []);
+      assert.deepEqual(totalsWithoutParts, ['Proposal-TotalCost']);
+    });
+    await test('every possible answer reads back', async () => {
+      const data = everyAnswer();
+      const result = await lib.fillOfficialPdf({ pdfjsLib, pdfBytes: original.slice(), data });
+      const back = await lib.readBackupFromPdf({ pdfjsLib, pdfBytes: result.bytes.slice(), defaults: W.defaults });
+      const merged = W.mergeWithDefaults(W.defaults(), data);
+      const want = answers(merged), got = answers(back.data);
+      for (const k of Object.keys(want)) if (/^report\.hours\.[01]\.w$/.test(k)) delete want[k];
+      const wrong = differences(want, got, merged);
+      assert.deepEqual(wrong, []);
+    });
+    await test('a blank workbook is reported as having no answers', async () => {
+      await assert.rejects(lib.readBackupFromPdf({ pdfjsLib, pdfBytes: original.slice(), defaults: W.defaults }), /no answers typed in yet/);
+    });
+    await test('a PDF without fillable boxes gets a clear message', async () => {
+      const flat = Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj 3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF');
+      await assert.rejects(lib.readBackupFromPdf({ pdfjsLib, pdfBytes: new Uint8Array(flat), defaults: W.defaults }), /no fillable boxes/);
+    });
+    // Optional check against your own files, which must never be committed. Prints counts only.
+    if (process.env.EAGLE_LOCAL_BACKUP) {
+      await test('local backup file round-trips (EAGLE_LOCAL_BACKUP)', async () => {
+        const local = W.mergeWithDefaults(W.defaults(), JSON.parse(fs.readFileSync(process.env.EAGLE_LOCAL_BACKUP, 'utf8')));
+        const result = await lib.fillOfficialPdf({ pdfjsLib, pdfBytes: original.slice(), data: local });
+        const back = await lib.readBackupFromPdf({ pdfjsLib, pdfBytes: result.bytes.slice(), defaults: W.defaults });
+        const want = answers(local), got = answers(back.data);
+        for (const k of Object.keys(want)) if (/^report\.hours\.[01]\.w$/.test(k)) delete want[k];
+        const wrong = differences(want, got, local);
+        console.log(`       ${Object.keys(want).length} answers, ${result.report.filled} boxes filled, ${wrong.length} differ, ${result.report.warnings.length} warnings`);
+        assert.deepEqual(wrong.length, 0, wrong.join(', '));
+      });
+    }
     if (process.env.WRITE_SAMPLE) {
       fs.writeFileSync(process.env.WRITE_SAMPLE, filled.bytes);
       console.log(`  wrote ${process.env.WRITE_SAMPLE}`);

@@ -9,7 +9,8 @@
 :root{--blue:#003f87;--blue2:#0066b8;--gold:#f6be00;--ink:#172537;--muted:#46566a;--line:#c5d5e5;--mist:#f2f7fc;--red:#9a0a1e;--green:#155c36}
 *{box-sizing:border-box}
 body{margin:0;min-height:100vh;color:var(--ink);background:radial-gradient(circle at 10% 0,#dcecfb,transparent 28rem),radial-gradient(circle at 95% 14%,#fff0cf,transparent 24rem),#f6f5f0;font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
-main{width:min(760px,calc(100% - 24px));margin:28px auto 40px;background:#fff;border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 14px 34px rgb(13 59 105/.12)}
+.topnav{width:min(760px,calc(100% - 24px));margin:16px auto 0;display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.9rem}
+main{width:min(760px,calc(100% - 24px));margin:10px auto 40px;background:#fff;border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 14px 34px rgb(13 59 105/.12)}
 header{padding:22px 28px 18px;color:#fff;background:linear-gradient(135deg,#002f6c,#005aab 58%,#1375b9);border-bottom:5px solid var(--gold)}
 h1{margin:0 0 4px;font-size:clamp(1.4rem,4vw,1.9rem);line-height:1.2}
 header p{margin:0;color:#e3f0ff}
@@ -51,6 +52,12 @@ summary{cursor:pointer;font-weight:700;color:#33495f}
 </style>
 </head>
 <body>
+<nav class="topnav" aria-label="EaglePaperworkHelper pages">
+  <a href="index.html">Home and help</a>
+  <a href="EagleWorkbook-guided.html">Guided workbook</a>
+  <a href="EagleWorkbook.html">Classic workbook</a>
+  <a href="BackupFromPDF.html">Make a backup file from a PDF</a>
+</nav>
 <main>
   <header>
     <h1>Fill the Official Eagle Workbook PDF</h1>
@@ -77,6 +84,7 @@ summary{cursor:pointer;font-weight:700;color:#33495f}
         <span class="btn secondary file">Choose the backup file<input id="json-file" type="file" accept="application/json,.json" aria-label="Choose the workbook backup file"></span>
       </div>
       <div id="drafts" hidden></div>
+      <p>No backup file, but you already typed answers into the official PDF? <a href="BackupFromPDF.html">Make a backup file from that PDF</a>.</p>
       <p class="chosen" id="json-chosen" aria-live="polite">No answers chosen yet.</p>
     </section>
 
@@ -84,7 +92,7 @@ summary{cursor:pointer;font-weight:700;color:#33495f}
       <h2 id="step3">Step 3. Check the project name</h2>
       <p>This goes on the cover page. To keep a change, also type it in the workbook page (Proposal → Project name).</p>
       <label class="text">Project name
-        <input id="project-name" type="text" maxlength="120" autocomplete="off" placeholder="Example: Dock and Storage Improvements at Jamaica Pond">
+        <input id="project-name" type="text" maxlength="120" autocomplete="off" placeholder="Example: Accessible Kayak Launch at Lakeside Park">
       </label>
       <label class="check"><input id="skip-names" type="checkbox"> Leave the printed names next to the approval signature lines blank (the people who sign will print their own names).</label>
     </section>

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' file:; style-src 'unsafe-inline'; img-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<title>Make a Backup File From a Workbook PDF</title>
+<style>
+:root{--blue:#003f87;--blue2:#0066b8;--gold:#f6be00;--ink:#172537;--muted:#46566a;--line:#c5d5e5;--mist:#f2f7fc;--red:#9a0a1e;--green:#155c36}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;color:var(--ink);background:radial-gradient(circle at 10% 0,#dcecfb,transparent 28rem),radial-gradient(circle at 95% 14%,#fff0cf,transparent 24rem),#f6f5f0;font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+.topnav{width:min(760px,calc(100% - 24px));margin:16px auto 0;display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.9rem}
+main{width:min(760px,calc(100% - 24px));margin:10px auto 40px;background:#fff;border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 14px 34px rgb(13 59 105/.12)}
+header{padding:22px 28px 18px;color:#fff;background:linear-gradient(135deg,#002f6c,#005aab 58%,#1375b9);border-bottom:5px solid var(--gold)}
+h1{margin:0 0 4px;font-size:clamp(1.4rem,4vw,1.9rem);line-height:1.2}
+header p{margin:0;color:#e3f0ff}
+.content{padding:20px 28px 26px}
+a{color:#00509e}
+.note{margin:0 0 16px;padding:11px 14px;background:#fff8df;border-left:4px solid #e0a500;border-radius:6px;font-size:.93rem}
+.step{margin-top:16px;padding:18px;border:1px solid var(--line);border-radius:12px;background:linear-gradient(150deg,#fbfdff,#f3f8fd)}
+.step h2{margin:0 0 6px;color:var(--blue);font-size:1.1rem}
+.step p{margin:0 0 12px;color:var(--muted);font-size:.93rem}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.btn{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:999px;padding:10px 16px;color:#fff;background:linear-gradient(135deg,var(--blue),var(--blue2));box-shadow:0 2px 7px rgb(0 63 135/.22);font:700 .95rem system-ui,-apple-system,sans-serif;cursor:pointer;text-decoration:none}
+.btn.secondary{background:#fff;color:var(--blue);border:1px solid var(--blue);box-shadow:none}
+.btn.go{background:linear-gradient(135deg,#1f6b34,#2e8b47)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid #0066b8;outline-offset:2px}
+.file{position:relative}
+.file:focus-within{outline:3px solid #0066b8;outline-offset:2px}
+.file input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+.chosen{font-size:.92rem;color:var(--muted);overflow-wrap:anywhere;margin-top:8px!important}
+.status{min-height:1.4em;margin:10px 0 0;font-size:.95rem;overflow-wrap:anywhere}
+.status.error{color:var(--red);font-weight:600}
+.status.ok{color:var(--green);font-weight:600}
+#warnings ul{margin:6px 0 0;padding-left:20px;font-size:.92rem}
+#warnings li{margin:3px 0}
+footer{margin-top:20px;font-size:.85rem;color:var(--muted)}
+[hidden]{display:none!important}
+@media(max-width:560px){header,.content{padding-left:18px;padding-right:18px}.step{padding:14px}}
+</style>
+</head>
+<body>
+<nav class="topnav" aria-label="EaglePaperworkHelper pages">
+  <a href="index.html">Home and help</a>
+  <a href="EagleWorkbook-guided.html">Guided workbook</a>
+  <a href="EagleWorkbook.html">Classic workbook</a>
+  <a href="FillOfficialPDF.html">Fill the official PDF</a>
+</nav>
+<main>
+  <header>
+    <h1>Make a Backup File From a Workbook PDF</h1>
+    <p>Already filled in the official workbook PDF? Bring those answers into the workbook pages.</p>
+  </header>
+  <div class="content">
+    <p class="note"><strong>Your answers stay on this computer.</strong> Nothing is uploaded.</p>
+
+    <section class="step" aria-labelledby="step1">
+      <h2 id="step1">Step 1. Choose your filled workbook PDF</h2>
+      <p>Choose the Eagle Scout Service Project Workbook No. 2023a PDF with your answers typed in. It must still have its fillable boxes (a copy printed to PDF does not).</p>
+      <span class="btn file">Choose the filled PDF<input id="pdf-file" type="file" accept="application/pdf,.pdf" aria-label="Choose your filled workbook PDF"></span>
+      <p class="chosen" id="pdf-chosen">No PDF chosen yet.</p>
+      <p class="status" id="read-status" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="step" id="result" aria-labelledby="step2" hidden>
+      <h2 id="step2">Step 2. Save your answers</h2>
+      <div id="warnings"></div>
+      <div class="row">
+        <button class="btn go" id="save-backup" type="button">💾 Save backup file</button>
+        <button class="btn secondary" id="open-guided" type="button">Open in the Guided workbook</button>
+        <button class="btn secondary" id="open-classic" type="button">Open in the Classic workbook</button>
+      </div>
+      <p class="status" id="save-status" role="status" aria-live="polite"></p>
+      <p>The “Open in” buttons work when this page and the workbook pages share saved drafts (Chrome or Edge, or the same website). If the workbook page opens empty, use “Save backup file” and then “Open backup file” there.</p>
+      <p>Then read through every page of the workbook. Signatures are not part of the PDF’s boxes, so get them on paper or as your council directs.</p>
+    </section>
+
+    <footer>Independent helper. Not made or endorsed by Scouting America. The official workbook, your council, and the required signatures are what count. Uses pdf.js (Apache License 2.0).</footer>
+  </div>
+</main>
+<script src="vendor/pdfjs/pdf.worker.js"></script>
+<script src="vendor/pdfjs/pdf.js"></script>
+<script src="lib/official-pdf.js"></script>
+<script src="lib/workbook-common.js"></script>
+<script src="lib/backup-from-pdf-page.js"></script>
+</body>
+</html>

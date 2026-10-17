@@ -314,6 +314,50 @@ async function run() {
       });
     }
 
+    console.log('BackupFromPDF.html (file://)');
+    await test('reads a filled PDF into a backup file and opens it in the Guided workbook', async () => {
+      assert.ok(filledPdf, 'needs the PDF from the fill test');
+      await open('BackupFromPDF.html', '!!window.EagleOfficialPdf');
+      await setFile('#pdf-file', filledPdf);
+      await waitFor('/\\b(ok|error)\\b/.test(document.getElementById("read-status").className)', 60000);
+      assert.match(await evaluate('document.getElementById("read-status").textContent'), /^Found \d+ answers\.$/);
+      assert.match(await evaluate('document.getElementById("warnings").textContent'), /No problems found/);
+      clearDownloads();
+      await evaluate('document.getElementById("save-backup").click()');
+      const backup = JSON.parse(fs.readFileSync(await waitForDownload('.json'), 'utf8'));
+      const sample = JSON.parse(fs.readFileSync(SAMPLE, 'utf8'));
+      assert.equal(backup.candidate.name, sample.candidate.name);
+      assert.equal(backup.proposal.description, sample.proposal.description);
+      assert.equal(backup.plan.phases[0].start, '2025-11-01');
+      await evaluate('localStorage.removeItem("eagle_workbook_guided_v1")');
+      await evaluate('document.getElementById("open-guided").click()');
+      await waitFor(`location.pathname.endsWith("EagleWorkbook-guided.html") && document.querySelector("header h1") && document.querySelector("header h1").textContent === ${JSON.stringify(sample.candidate.name)}`);
+      assert.deepEqual(problems, []);
+    });
+    await test('explains a PDF that has no fillable boxes', async () => {
+      const flat = path.join(downloads, 'printed-copy.pdf');
+      fs.writeFileSync(flat, '%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj 3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF');
+      await open('BackupFromPDF.html', '!!window.EagleOfficialPdf');
+      await setFile('#pdf-file', flat);
+      await waitFor('document.getElementById("read-status").textContent.includes("no fillable boxes")');
+    });
+
+    console.log('index.html (file://)');
+    await test('home page links to every page and shows its picture', async () => {
+      await open('index.html');
+      const hrefs = await evaluate('[...document.querySelectorAll("a")].map(a => a.getAttribute("href"))');
+      for (const page of ['EagleWorkbook-guided.html', 'EagleWorkbook.html', 'FillOfficialPDF.html', 'BackupFromPDF.html', lib.OFFICIAL_PDF_URL]) assert.ok(hrefs.includes(page), page);
+      await waitFor('document.querySelector("figure img").complete');
+      assert.ok(await evaluate('document.querySelector("figure img").naturalWidth') > 0, 'screenshot loads');
+      assert.deepEqual(problems, []);
+    });
+    await test('every page links back home', async () => {
+      for (const file of ['EagleWorkbook-guided.html', 'EagleWorkbook.html', 'FillOfficialPDF.html', 'BackupFromPDF.html']) {
+        await open(file);
+        assert.ok(await evaluate('[...document.querySelectorAll("a")].some(a => a.getAttribute("href") === "index.html")'), file);
+      }
+    });
+
     console.log('Drafts in the filler');
     await test('offers the newest saved draft without showing a name', async () => {
       await open('EagleWorkbook-guided.html', '!!document.querySelector("nav button")');
