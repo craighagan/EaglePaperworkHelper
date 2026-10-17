@@ -1,0 +1,15 @@
+# Personal workbook data and generated documents. Never commit real Scout data.
+*.json
+!tests/fixtures/*.json
+*.pdf
+*.docx
+*.odt
+
+# Test download cache (official PDF)
+tests/.cache/
+
+# Python and OS files
+__pycache__/
+*.py[cod]
+.venv/
+.DS_Store

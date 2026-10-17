@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' file:; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<title>Eagle Project Workbook Helper (Classic)</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Georgia,'Times New Roman',serif;background:#f5f5f0;color:#1a1a1a;line-height:1.5}
+.app{max-width:820px;margin:0 auto}
+a{color:#00509e}
+:focus-visible{outline:3px solid #0066b8;outline-offset:2px}
+.visually-hidden{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+header{position:sticky;top:0;z-index:10;background:#003f87;color:#fff;padding:14px 20px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+header h1{font-size:18px;font-weight:700}
+header .subtitle{color:#d6e7fa;font-size:12.5px}
+.save-status{float:right;font-size:12px;color:#fff;margin-top:3px}
+nav{position:sticky;z-index:9;background:#fff;border-bottom:2px solid #003f87;display:flex;overflow-x:auto}
+nav button{flex-shrink:0;padding:10px 16px;border:none;background:none;font:600 13px Georgia,serif;cursor:pointer;border-bottom:3px solid transparent;color:#4a4a4a}
+nav button.active{color:#003f87;border-bottom-color:#003f87}
+nav button:hover{color:#003f87}
+main{padding:16px}
+.intro{font-size:14px;color:#333;background:#fffbea;border-left:4px solid #c9a227;padding:8px 12px;margin-bottom:14px}
+.card{background:#fff;border:1px solid #ddd;border-radius:8px;padding:18px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.sec-title{font-size:16px;font-weight:700;color:#a50e22;border-bottom:1px solid #f0d0d0;padding-bottom:6px;margin-bottom:10px}
+.help{font-size:12.5px;color:#4e5a66;margin:2px 0 6px}
+.field{margin-top:10px}
+label{display:block;font-size:13px;font-weight:700;color:#333;margin-bottom:3px}
+.official-label{display:block;color:#4e5a66;font-size:11.5px;font-weight:400}
+input,textarea{width:100%;padding:8px 10px;border:1px solid #b8b8b8;border-radius:4px;font:15px/1.4 Georgia,serif;background:#f0f4fa;color:#1a1a1a}
+input:focus,textarea:focus{outline:none;border-color:#003f87;background:#fff;box-shadow:0 0 0 2px rgba(0,63,135,.2)}
+textarea{resize:vertical}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+.table-wrap{overflow-x:auto;margin:8px 0}
+table{width:100%;min-width:600px;border-collapse:collapse;font-size:13px}
+th{background:#003f87;color:#fff;padding:6px 8px;text-align:left;font-weight:600}
+tbody th{background:#eef2f7;color:#1a1a1a;font-weight:600;min-width:180px}
+td{padding:2px 3px}
+td input{padding:5px 6px;font-size:13px;border-color:#ccc}
+.list-total{font-weight:700;color:#003f87;font-size:14px;margin-top:6px}
+.phase-row{display:flex;gap:6px;align-items:center;margin-bottom:4px}
+.phase-num{font-size:12px;font-weight:700;color:#555;width:22px;text-align:right;flex-shrink:0}
+.phase-row input{flex:1}
+.phase-row input.phase-date{flex:0 0 140px}
+.nav-btns{display:flex;justify-content:space-between;gap:10px;padding:8px 0}
+.btn{display:inline-block;padding:10px 20px;border:none;border-radius:6px;font:600 14px Georgia,serif;cursor:pointer;text-decoration:none}
+.btn-prev{background:#e0e0e0;color:#333}
+.btn-next{background:#003f87;color:#fff}
+.btn:disabled{opacity:.35;cursor:default}
+.workbook-controls{background:#fff;border:1px solid #ddd;border-radius:8px;padding:12px;margin:16px 0}
+.workbook-controls.top{margin:0;border-radius:0;border-width:0 0 1px}
+.control-buttons{display:flex;flex-wrap:wrap;gap:8px}
+.btn-control{display:inline-block;padding:8px 14px;border:1px solid #003f87;border-radius:6px;background:#fff;color:#003f87;font:600 13px Georgia,serif;cursor:pointer;text-decoration:none}
+.btn-control:hover{background:#eef2f7}
+.btn-control.fill{background:#2d6a30;border-color:#2d6a30;color:#fff}
+.btn-control.fill.quiet{background:#fff;color:#2d6a30}
+.backup-status{margin-top:6px;font-size:12.5px;color:#4e5a66}
+.backup-status.stale{color:#7a4a00;font-weight:700}
+.page-footer{margin:24px 0 8px;padding-top:12px;border-top:1px solid #ccc;font-size:12.5px;color:#4e5a66}
+.page-footer p{margin:4px 0}
+.link-button{border:0;background:none;color:#00509e;text-decoration:underline;font:inherit;cursor:pointer;padding:0}
+.loading{padding:40px 20px}
+.print-only-bar{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:12px 16px;background:#fffbea;border-bottom:1px solid #c9a227;position:sticky;top:0;z-index:5}
+.print-header{text-align:center;padding:16px;border-bottom:2px solid #003f87}
+.print-header h1{font-size:22px;color:#003f87}
+.draft-mark{display:inline-block;border:2px solid #a50e22;color:#a50e22;font-weight:800;letter-spacing:.04em;padding:2px 10px;margin-bottom:6px}
+.print-section-title{font-size:20px;color:#003f87;margin:16px 0 8px}
+.print-value{white-space:pre-wrap;border-bottom:1px solid #ccc;min-height:1.4em;padding:2px 0 4px;font-size:14px}
+.print-list{padding-left:22px;font-size:14px}
+.print-footer{display:none}
+@media(max-width:600px){.row{grid-template-columns:1fr}main{padding:12px}.phase-row{flex-wrap:wrap}.phase-row input{flex:1 1 100%}.phase-row input.phase-date{flex:1 1 45%}}
+@media print{
+  header,nav,.nav-btns,.workbook-controls,.page-footer,.print-only-bar,.help,.intro,.official-label{display:none!important}
+  body{background:#fff;font-size:10.5pt}
+  .app{max-width:100%}
+  main{padding:0}
+  .card{box-shadow:none;border:1px solid #bbb;page-break-inside:avoid;padding:10px;margin-bottom:8px}
+  th{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .table-wrap{overflow:visible}table{min-width:0}
+  .print-footer{display:block;position:fixed;bottom:0;left:0;right:0;text-align:center;font-size:8.5pt;color:#555;border-top:1px solid #999;padding-top:2px;background:#fff}
+}
+</style>
+</head>
+<body>
+<div class="app" id="app"><p class="loading">Loading… If this message stays, this page cannot find its helper files. Keep this file in the same folder as the “lib” folder it came with. If you downloaded a ZIP file, unzip (extract) it first.</p></div>
+<script src="lib/official-pdf.js"></script>
+<script src="lib/workbook-common.js"></script>
+<script src="lib/classic-workbook.js"></script>
+</body>
+</html>
