@@ -410,12 +410,12 @@ async function run() {
         await waitFor('document.querySelectorAll("nav button")[1].classList.contains("active")');
         assert.equal(await evaluate('document.querySelector(".keep-safe").open'), false, 'closed on other tabs');
       });
-      await test('Send backup appears only where the device can share files', async () => {
+      await test('Share backup file appears only where the device can share files', async () => {
         // Desktop Chrome can share files, so first pretend this browser cannot.
         const off = await send('Page.addScriptToEvaluateOnNewDocument', { source: `Object.defineProperty(navigator, 'canShare', { value: undefined, configurable: true });` });
         try {
           await open(file, ready);
-          assert.equal(await evaluate('[...document.querySelectorAll("button")].some(b => b.textContent.includes("Send backup"))'), false, 'hidden when the browser cannot share files');
+          assert.equal(await evaluate('[...document.querySelectorAll("button")].some(b => b.textContent.includes("Share backup file"))'), false, 'hidden when the browser cannot share files');
         } finally {
           await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: off.identifier });
         }
@@ -424,8 +424,8 @@ async function run() {
           await open(file, ready);
           await evaluate('localStorage.clear()');
           await open(file, ready);
-          assert.equal(await evaluate('[...document.querySelectorAll("button")].some(b => b.textContent.includes("Send backup"))'), true);
-          await click('Send backup');
+          assert.equal(await evaluate('[...document.querySelectorAll("button")].some(b => b.textContent.includes("Share backup file"))'), true);
+          await click('Share backup file');
           await waitFor('typeof window.__shared === "string"');
           assert.match(await evaluate('window.__shared'), /^Eagle-workbook-backup-\d{4}-\d{2}-\d{2}-\d{4}\.json$/);
           await waitFor(`Number(localStorage.getItem(${JSON.stringify(key + '_backup')})) > 0`);
