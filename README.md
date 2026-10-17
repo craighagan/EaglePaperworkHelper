@@ -91,9 +91,7 @@ The PDF must still have its fillable boxes. A copy made with “Print” → “
 
 ## Hosting on a website (optional)
 
-Copy the whole folder to any web server that serves plain files over **https** (GitHub Pages does by default). No server scripts or database are needed, and the server never receives anyone’s answers or PDF.
-
-Host it at **its own web address**, such as `eagle.example.org` or a GitHub Pages site for an account or organization used only for this. Browsers let every page at the same address read saved drafts, so don’t put it beside other projects (for example, under the same `username.github.io`) or on a site that runs ads or other people’s scripts.
+It is just copying the files to any web server that serves plain files over **https**. No server scripts or database are needed, and the server never receives anyone’s answers or PDF. See [INSTALL.md](INSTALL.md) for which files to copy, where to host it (its own web address, because browsers let every page at the same address read saved drafts), GitHub Pages steps, and how to check it works.
 
 ## For developers
 
