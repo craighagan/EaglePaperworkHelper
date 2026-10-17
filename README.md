@@ -3,7 +3,7 @@
 Free, offline helpers for the **Eagle Scout Service Project Workbook**. Type your answers into a friendly web page, then copy them into the official workbook PDF in one step.
 
 - Nothing to install. No account.
-- Your answers stay on your computer. Nothing you type is uploaded.
+- These pages never send your answers anywhere. Backup files and PDFs contain personal details, so they go wherever you copy or share them.
 - The finished PDF is the official Scouting America workbook, with your answers typed into its own boxes.
 
 **Official workbook:** [Eagle Scout Service Project Workbook No. 2023a (PDF)](https://www.scouting.org/wp-content/uploads/2023/01/EagleProjectWorkbook2023a.pdf), from Scouting America’s [workbook page](https://www.scouting.org/programs/scouts-bsa/advancement-and-awards/eagle-scout-workbook/). Check that page for the current version before you submit.
@@ -23,8 +23,8 @@ Free, offline helpers for the **Eagle Scout Service Project Workbook**. Type you
 
    You get a folder named something like `EaglePaperworkHelper-main`. Move it somewhere easy to find, such as Documents. Keep everything in it together.
 3. **Open `index.html`.** Double-click it. It opens in your web browser and links to every page. (Windows may hide the `.html` ending, so look for **index**.) Click **Guided workbook (start here)**. Bookmark it, and always use the same browser.
-4. **Type your answers.** Start with **1. Set Up** and **2. Proposal**. Your draft saves automatically in this browser.
-5. **Save a backup file often.** Click **💾 Save backup file**. It saves a file such as `Eagle-workbook-backup-2026-10-16-1930.json` (date and time), usually in your Downloads folder. This file is your real save: browsers can erase saved data.
+4. **Type your answers.** Start with **1. Set Up** and **2. Proposal**. Your draft saves automatically in this browser. Click **? Tips** next to a box for an example and what to avoid.
+5. **Save a backup file often.** Click **💾 Save backup file**. It saves a file such as `Eagle-workbook-backup-2026-10-16-1930.json` (date and time), usually in your Downloads folder. This file is your real save: browsers can erase saved data. Then copy it somewhere safe, such as Google Drive, Dropbox, or OneDrive, or email it to yourself. On many phones, tablets, Chromebooks, and some desktop browsers you will see **📤 Send backup to Drive or email**, which sends the file straight to those apps. The page “How to keep your work safe” (at the bottom of each workbook page) has the steps.
 6. **Fill the official PDF.** Click **Fill the official PDF →** and follow the four steps on that page.
 
 Open the filled PDF, read every page, and share it with the people reviewing your project.
@@ -38,7 +38,7 @@ Open the filled PDF, read every page, and share it with the people reviewing you
 | [`FillOfficialPDF.html`](FillOfficialPDF.html) | **Fill the official PDF.** Copies your answers into the official workbook PDF. |
 | [`BackupFromPDF.html`](BackupFromPDF.html) | **Make a backup file from a PDF.** Already typed answers into the official PDF? This reads them back into a backup file for the workbook pages. |
 | [`index.html`](index.html) | **Home page.** Short instructions and links to every page. |
-| `lib/`, `vendor/`, `docs/` | Files the pages need. Don’t move or delete them. |
+| `lib/`, `vendor/`, `docs/` | Files the pages need (`docs/` has pictures and the list of sources for the tips). Don’t move or delete them. |
 | `tests/`, `tools/`, `todo/`, `AGENTS.md` | For developers. Scouts can ignore these. |
 
 Both workbooks use the same backup file. A backup file saved in one opens in the other with **📂 Open backup file**.
@@ -66,13 +66,17 @@ If you already typed answers into the official workbook PDF, open **Make a backu
 
 The PDF must still have its fillable boxes. A copy made with “Print” → “Save as PDF” keeps only the look of the pages, so its answers can’t be read. Signatures are not part of the PDF’s boxes, so they are never copied.
 
+## Tips on every box
+
+Most boxes have a **? Tips** button. It opens a short panel with what goes in the box, a made-up example, and one mistake to avoid, and says which page of the official workbook the box is on. Tips are guidance, not requirements. Some say “Common advice, not a rule” because they come from coaches and councils. Press the button again, or Esc, to close it. The Plan and Report stages also have a short checklist of things worth keeping as you go (hours, receipts, photos, thank-yous). Printed drafts leave all of this out. Where the tips come from: [docs/guidance-sources.md](docs/guidance-sources.md).
+
 ## Printing a draft
 
 **🖨 Print a draft** prints all five sections as a simple draft for talking it over with your unit leader or coach. The first page is marked **DRAFT: not the official Eagle Scout Service Project Workbook**, and every page’s footer says it is an unofficial draft. Use **Fill the official PDF** for anything you submit.
 
 ## Privacy
 
-- The pages send nothing anywhere. The only network request is the optional **Get the official PDF for me** button, which downloads the blank workbook from scouting.org. A content security policy in each page blocks everything else.
+- The pages never send your answers anywhere. The only network request is the optional **Get the official PDF for me** button, which downloads the blank workbook from scouting.org. A content security policy in each page blocks everything else.
 - Your draft is saved in this browser on this computer. Clearing browser data, private or incognito windows, school computers that reset, or a different browser can all lose it. **Save a backup file often.**
 - Backup files and filled PDFs contain names, birth dates, phone numbers, and addresses. Share them only with the people reviewing the project. Don’t post them in GitHub issues.
 - In Chrome and Edge, other web pages you open from files on your own computer (not websites) can read the saved draft. On a shared computer, save a backup file, then click **erase this draft from this browser** at the bottom of the workbook page.
@@ -111,6 +115,7 @@ node tests/browser-e2e.cjs   # opens the pages from disk in headless Chrome and 
 
 How it works:
 
+- `lib/tips.js` holds the “? Tips” text for each box (see `docs/guidance-sources.md` for where it comes from and AGENTS.md for how to add one).
 - `lib/workbook-common.js` holds the data model (`defaults()`) and form helpers shared by both workbook pages. `lib/guided-workbook.js` and `lib/classic-workbook.js` build the pages.
 - `lib/official-pdf.js` maps a backup file to the workbook’s form-field names (446 in No. 2023a) and fills them with [pdf.js](https://mozilla.github.io/pdf.js/). It also reads a filled PDF back into a backup file. The reverse map is worked out from the forward mapping, so plain one-box answers stay in sync automatically; phases, check boxes, and totals have small hand-written rules, covered by round-trip tests. The same file runs in the browser and in the tests.
 - Page scripts: `lib/fill-page.js` (FillOfficialPDF.html) and `lib/backup-from-pdf-page.js` (BackupFromPDF.html). `index.html` has no scripts.

@@ -107,11 +107,34 @@ details.more-fields summary{cursor:pointer;padding:12px 0;font-weight:700;color:
   .table-wrap{overflow:visible;border:0}table{min-width:0}
   .print-footer{display:block;position:fixed;bottom:0;left:0;right:0;text-align:center;font-size:8.5pt;color:#555;border-top:1px solid #999;padding-top:2px;background:#fff}
 }
+
+/* Tips ("?" buttons), backup help, and checklists */
+.label-row{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:0 8px}
+.label-row label{flex:1 1 12rem}
+.tip-btn{display:inline-flex;align-items:center;gap:5px;min-height:44px;margin:-10px -6px -8px 0;padding:0 8px;border:0;background:none;color:#00509e;font-family:inherit;font-weight:600;font-size:13px;line-height:1;cursor:pointer}
+.tip-btn:hover .tip-q{background:#e6f1fc}
+.tip-q{display:inline-grid;place-items:center;width:22px;height:22px;border:2px solid currentColor;border-radius:50%;font-size:13px;font-weight:700;line-height:1}
+.tip-btn[aria-expanded="true"] .tip-q{background:#00509e;color:#fff;border-color:#00509e}
+.tip-line{display:flex;justify-content:flex-end}.tip-line .tip-btn{margin:-6px -6px -6px 0}
+.tip{background:#f2f7fc;border-left:4px solid #0066b8;border-radius:6px;padding:8px 12px;margin:4px 0 8px;font-size:14px}
+.tip p{margin:4px 0}
+.tip-avoid strong{color:#7a4a00}
+.tip-meta{font-size:12px;color:#46566a}
+.keep-safe,.keep-list{background:#fff;border:1px solid #d3dce6;border-radius:10px;margin:16px 0;padding:0 14px}
+.keep-safe summary,.keep-list summary{cursor:pointer;padding:12px 0;font-weight:700;color:#003f87}
+.keep-safe-body,.keep-list ul,.keep-list .keep-note{padding-bottom:10px;font-size:14px}
+.keep-safe-body p{margin:6px 0}.keep-safe ol,.keep-list ul{padding-left:22px}.keep-safe li,.keep-list li{margin:5px 0}
+.keep-safe-note,.keep-note{font-size:13px;color:#46566a}
+.keep-list{margin:0 0 14px}
+@media(max-width:620px){.btn-control,nav button,.btn-add,.btn,.link-button{min-height:44px}.btn-control{padding-top:10px;padding-bottom:10px}}
+@media(forced-colors:active){.tip-q{border-color:ButtonText}.tip{border:1px solid CanvasText}}
+@media print{.tip,.tip-btn,.tip-wrap,.keep-safe,.keep-list{display:none!important}}
 </style>
 </head>
 <body>
 <div class="app" id="app"><p class="loading">Loading… If this message stays, this page cannot find its helper files. Keep this file in the same folder as the “lib” folder it came with. If you downloaded a ZIP file, unzip (extract) it first.</p></div>
 <script src="lib/official-pdf.js"></script>
+<script src="lib/tips.js"></script>
 <script src="lib/workbook-common.js"></script>
 <script src="lib/guided-workbook.js"></script>
 </body>

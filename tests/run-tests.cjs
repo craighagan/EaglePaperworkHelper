@@ -32,6 +32,10 @@ const ROOT = path.resolve(__dirname, '..');
 const lib = require(path.join(ROOT, 'lib/official-pdf.js'));
 const sample = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/sample-workbook.json'), 'utf8'));
 const officialFields = new Set(JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/official-2023a-fields.json'), 'utf8')));
+/** Printed page label of each page of the 2023a workbook that has boxes (the PDF's own footers lose letters when read as text). */
+const PAGE_LABELS = { 1: 'Workbook cover page', 9: 'Proposal Page B', 10: 'Proposal Page C', 11: 'Proposal Page D', 12: 'Proposal Page E', 13: 'Proposal Page F', 14: 'Proposal Page G', 15: 'Proposal Page H',
+  17: 'Project Plan Page A', 18: 'Project Plan Page B', 19: 'Project Plan Page C', 20: 'Project Plan Page D', 21: 'Project Plan Page E', 22: 'Project Plan Page F',
+  23: 'Fundraising Application Page A', 24: 'Fundraising Application Page B', 26: 'Project Report cover page', 27: 'Project Report Page A', 28: 'Project Report Page B', 29: 'Project Report Page C' };
 const PAGES = ['index.html', 'EagleWorkbook.html', 'EagleWorkbook-guided.html', 'FillOfficialPDF.html', 'BackupFromPDF.html'];
 
 let passed = 0;
@@ -163,7 +167,7 @@ function everyAnswer() {
   await test('maps the sample workbook', () => {
     const { text, radio, notes } = lib.buildFieldValues(sample);
     assert.equal(text['Workbook-EagleName'], 'Alex Q. Sample');
-    assert.equal(text['Workbook-ProjectName'], 'Boathouse Rack and Launch Improvements');
+    assert.equal(text['Workbook-ProjectName'], 'Bike Rack and Repair Stand');
     assert.equal(text['Contact-EagleDOB'], '4/12/2008');
     assert.equal(text['Contact-LeaderName'], 'Jordan Leader');
     assert.equal(text['Contact-ServiceEmail'], 'service@example.org');
@@ -189,7 +193,7 @@ function everyAnswer() {
     assert.match(notes.join(' '), /prospective donors/);
   });
   await test('never prints an organization name as an approver', () => {
-    const { text } = lib.buildFieldValues({ contacts: { beneficiary: { name: 'Springfield Boathouse' } } });
+    const { text } = lib.buildFieldValues({ contacts: { beneficiary: { name: 'Springfield Middle School' } } });
     assert.equal(text['Proposal-BeneName'], undefined);
     assert.equal(text['Report-ApprovalBeneName'], undefined);
   });
@@ -259,6 +263,45 @@ function everyAnswer() {
     const unknown = [...Object.keys(text), ...Object.keys(radio)].filter((name) => !officialFields.has(name));
     assert.deepEqual(unknown, []);
     assert.ok(Object.keys(text).length + Object.keys(radio).length >= 440, `mapped ${Object.keys(text).length + Object.keys(radio).length}`);
+  });
+
+  console.log('Tips');
+  const tipsWindow = {};
+  vm.runInNewContext(fs.readFileSync(path.join(ROOT, 'lib/tips.js'), 'utf8'), { window: tipsWindow });
+  const tips = tipsWindow.EagleTips;
+  const tipLimits = tips.__limits;
+  await test('every tip is for a real box and stays short', () => {
+    const W = workbookCommon();
+    const known = new Set([...lib.reverseMap(W.defaults).values()].map((t) => t.path));
+    const keys = Object.keys(tips);
+    assert.ok(keys.length >= 40, `${keys.length} tips`);
+    const problems = [];
+    for (const key of keys) {
+      const tip = tips[key];
+      const target = tip.for || key;
+      if (!known.has(target)) problems.push(`${key}: ${target} is not a box in the workbook`);
+      if (!tip.text || tip.text.length > tipLimits.text) problems.push(`${key}: text is ${tip.text && tip.text.length} characters (limit ${tipLimits.text})`);
+      if (tip.good && tip.good.length > tipLimits.good) problems.push(`${key}: example is ${tip.good.length} characters (limit ${tipLimits.good})`);
+      if (tip.avoid && tip.avoid.length > tipLimits.avoid) problems.push(`${key}: avoid is ${tip.avoid.length} characters (limit ${tipLimits.avoid})`);
+      const total = (tip.text + (tip.good || '') + (tip.avoid || '')).length;
+      if (total > tipLimits.total) problems.push(`${key}: ${total} characters in all (limit ${tipLimits.total})`);
+      if (!tip.where) problems.push(`${key}: needs a "where" page, checked against the PDF`);
+      if (!Object.keys(tip).every((k) => ['text', 'good', 'avoid', 'where', 'advice', 'for'].includes(k))) problems.push(`${key}: unknown field`);
+    }
+    assert.deepEqual(problems, []);
+  });
+  await test('every tipBox key in the page scripts has a tip', () => {
+    const missing = [];
+    for (const file of ['lib/guided-workbook.js', 'lib/classic-workbook.js']) {
+      for (const m of fs.readFileSync(path.join(ROOT, file), 'utf8').matchAll(/tipBox\('([^']+)'/g)) if (!tips[m[1]]) missing.push(`${file}: ${m[1]}`);
+    }
+    assert.deepEqual(missing, []);
+  });
+  await test('tips never use requirement words for things the workbook does not require', () => {
+    for (const [key, tip] of Object.entries(tips)) {
+      if (tip.advice) assert.doesNotMatch(tip.text + (tip.avoid || ''), /\b(you must|required|requirement)\b/i, `${key}: advice must not read like a rule`);
+      assert.doesNotMatch(JSON.stringify(tip), /@|\b\d{3}[-. ]\d{3}[-. ]\d{4}\b|\b\d{1,5} [A-Z][a-z]+ (Street|St|Road|Rd|Avenue|Ave|Drive|Dr|Lane|Ln)\b/, `${key}: tips must not contain emails, phone numbers, or street addresses`);
+    }
   });
 
   console.log('Pages');
@@ -344,7 +387,7 @@ function everyAnswer() {
       const file = path.join(os.tmpdir(), `eph-filled-${process.pid}.pdf`);
       fs.writeFileSync(file, filled.bytes);
       try {
-        const want = ['Alex Q. Sample', 'Jordan Leader', 'Build a weather-resistant rack', '$226.50', '208'];
+        const want = ['Alex Q. Sample', 'Jordan Leader', 'Build a covered bike rack', '$226.50', '208'];
         if (has('gs')) {
           const text = execFileSync('gs', ['-q', '-dNOPAUSE', '-dBATCH', '-dPrinted', '-sDEVICE=txtwrite', '-sOutputFile=-', file], { encoding: 'latin1', maxBuffer: 1 << 26 });
           for (const w of want) assert.ok(text.includes(w), `Ghostscript does not show "${w}"`);
@@ -358,6 +401,22 @@ function everyAnswer() {
           for (const w of want) assert.ok(text.includes(w), `Poppler does not show "${w}"`);
         }
       } finally { fs.rmSync(file, { force: true }); }
+    });
+    await test('each tip names the right workbook page', async () => {
+      const W = workbookCommon();
+      const doc = await pdfjsLib.getDocument({ data: original.slice(), verbosity: 0 }).promise;
+      const pageOfField = {};
+      for (let p = 1; p <= doc.numPages; p++) for (const a of await (await doc.getPage(p)).getAnnotations()) if (a.fieldName && !(a.fieldName in pageOfField)) pageOfField[a.fieldName] = p;
+      await doc.destroy();
+      const fieldOf = new Map();
+      for (const [field, { path: boxPath }] of lib.reverseMap(W.defaults)) if (!fieldOf.has(boxPath)) fieldOf.set(boxPath, field);
+      const wrong = [];
+      for (const [key, tip] of Object.entries(tips)) {
+        const field = fieldOf.get(tip.for || key);
+        const actual = PAGE_LABELS[pageOfField[field]];
+        if (actual !== tip.where) wrong.push(`${key}: says "${tip.where}", the box is on "${actual}"`);
+      }
+      assert.deepEqual(wrong, []);
     });
     await test('rejects a PDF that is not the workbook', async () => {
       const notWorkbook = Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj 3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF');

@@ -46,7 +46,7 @@
    "email": ""
   },
   "beneficiary": {
-   "name": "Springfield Community Boathouse",
+   "name": "Springfield Middle School",
    "phone": "555-0103",
    "address": "5 Pond Road",
    "city": "Springfield",
@@ -92,19 +92,19 @@
   }
  },
  "proposal": {
-  "projectName": "Boathouse Rack and Launch Improvements",
-  "description": "Build a weather-resistant rack for rudders and tillers, refinish 20 oars, and install an accessible kayak launch at the community boathouse.",
-  "whyNeeded": "Equipment is stored on the floor and gets damaged. The new launch lets paddlers with disabilities get on the water safely.",
+  "projectName": "Bike Rack and Repair Stand",
+  "description": "Build a covered bike rack for 24 bikes and a bike repair stand at the school entrance.",
+  "whyNeeded": "Students lock bikes to the fence, which blocks the walkway. The new rack gives them a safe place to park and fix bikes.",
   "startDate": "2025-10-01",
   "endDate": "2026-03-31",
   "helperCount": "12",
-  "helperSource": "Troop members, family, and boathouse volunteers.",
+  "helperSource": "Troop members, family, and school volunteers.",
   "leadershipChallenges": "Keeping three work teams busy while they share tools.",
   "materials": "Pressure-treated lumber, stainless screws, marine varnish.",
   "supplies": "Sandpaper, brushes, gloves.",
   "tools": "Drills, sanders, saws (borrowed).",
   "otherNeeds": "Pizza for helpers.",
-  "permits": "The boathouse will confirm that no permit is needed for the launch.",
+  "permits": "The school district will confirm that no permit is needed for the rack.",
   "costs": {
    "materials": "2500",
    "supplies": "500",
@@ -164,7 +164,7 @@
   "reviewComments": "Add a rain date.",
   "changesFromProposal": "None.",
   "changeImpact": "",
-  "presentCondition": "Oars are worn; rudders lie on the floor.",
+  "presentCondition": "Bikes lean on the fence; no repair area.",
   "phases": [
    {
     "num": "1",
@@ -282,7 +282,7 @@
   "fundraisingPlan": "Online fundraiser and a car wash.",
   "helpers": [
    {
-    "job": "Sand oars",
+    "job": "Sand and paint posts",
     "skills": "None",
     "adultYouth": "Youth",
     "needed": "6",
@@ -296,8 +296,8 @@
   "toolCondition": "Inspect before use.",
   "workingHours": "9 AM to 3 PM",
   "food": "Pizza",
-  "restrooms": "Boathouse",
-  "firstAid": "Kit in the boathouse office.",
+  "restrooms": "School office",
+  "firstAid": "Kit in the school office.",
   "hazardousMaterials": "Varnish used outdoors with gloves.",
   "hazards": [
    {
@@ -333,14 +333,14 @@
   "endDate": "2026-03-31",
   "actualStart": "2025-11-03",
   "actualEnd": "2026-03-28",
-  "description": "Built the rack, refinished oars, installed the launch.",
+  "description": "Built the rack and installed the repair stand.",
   "planning": "Met the beneficiary three times.",
   "wentWell": "Teams finished early.",
   "challenging": "Rain delayed one day.",
   "changes": "Moved one work day.",
   "leadership": "Ran three teams.",
   "difficultLeading": "Keeping everyone busy.",
-  "rewardingLeading": "Seeing the first paddler launch.",
+  "rewardingLeading": "Seeing the first students use the rack.",
   "leadershipDeveloped": "Delegating.",
   "materialsUsed": "Two extra boards left over.",
   "hours": [
@@ -379,7 +379,7 @@
   "collected": "3100",
   "spent": "2950",
   "excessFunds": "Expenses did not exceed the funds collected.",
-  "leftoverMaterials": "Yes. The $150 left over and two extra boards were given to the boathouse.",
+  "leftoverMaterials": "Yes. The $150 left over and two extra boards were given to the school.",
   "thanks": "Thank-you notes."
  }
 }

@@ -15,3 +15,11 @@ __pycache__/
 *.py[cod]
 .venv/
 .DS_Store
+
+# Stray working files
+*.orig
+*.clean
+*.csv
+*.xlsx
+*.zip
+client_secret*

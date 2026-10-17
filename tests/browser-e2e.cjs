@@ -131,14 +131,14 @@ async function run() {
       await setFile('#pdf-file', PDF);
       await setFile('#json-file', SAMPLE);
       await waitFor('!document.getElementById("create").disabled');
-      assert.equal(await evaluate('document.getElementById("project-name").value'), 'Boathouse Rack and Launch Improvements');
+      assert.equal(await evaluate('document.getElementById("project-name").value'), 'Bike Rack and Repair Stand');
       clearDownloads();
       await evaluate('document.getElementById("create").click()');
       await waitFor('/\\b(ok|error)\\b/.test(document.getElementById("status").className)', 60000);
       const status = await evaluate('document.getElementById("status").textContent');
       assert.match(status, /^Done\./, status);
       const file = await waitForDownload('.pdf');
-      assert.equal(path.basename(file), 'Boathouse-Rack-and-Launch-Improvements-Workbook-filled.pdf');
+      assert.equal(path.basename(file), 'Bike-Rack-and-Repair-Stand-Workbook-filled.pdf');
       const bytes = fs.readFileSync(file);
       assert.ok(bytes.subarray(0, fs.statSync(PDF).size).equals(fs.readFileSync(PDF)), 'download is the official PDF plus an update');
       const report = await evaluate('document.getElementById("report").textContent');
@@ -355,6 +355,92 @@ async function run() {
       for (const file of ['EagleWorkbook-guided.html', 'EagleWorkbook.html', 'FillOfficialPDF.html', 'BackupFromPDF.html']) {
         await open(file);
         assert.ok(await evaluate('[...document.querySelectorAll("a")].some(a => a.getAttribute("href") === "index.html")'), file);
+      }
+    });
+
+    for (const [file, key] of [['EagleWorkbook-guided.html', 'eagle_workbook_guided_v1'], ['EagleWorkbook.html', 'eagle_workbook_v1']]) {
+      console.log(`${file}: tips and backup help`);
+      const ready = '!!document.querySelector("nav button")';
+      await test('tips open and close, and are named for their box', async () => {
+        await open(file, ready);
+        await evaluate('localStorage.clear()');
+        await open(file, ready);
+        await evaluate('document.querySelectorAll("nav button")[1].click()');
+        await waitFor('!!document.getElementById("f-proposal-description")');
+        const info = await evaluate(`(() => { const b = document.querySelector('#f-proposal-description').closest('.field').querySelector('.tip-btn'); const p = document.getElementById(b.getAttribute('aria-controls')); return { name: b.textContent, expanded: b.getAttribute('aria-expanded'), hidden: p.hidden, height: b.getBoundingClientRect().height }; })()`);
+        assert.match(info.name, /Tips for .*What will you do|Tips for .*Briefly describe/);
+        assert.equal(info.expanded, 'false');
+        assert.equal(info.hidden, true);
+        assert.ok(info.height >= 44, `button is ${info.height}px tall`);
+        await evaluate(`document.querySelector('#f-proposal-description').closest('.field').querySelector('.tip-btn').click()`);
+        assert.equal(await evaluate(`document.querySelector('#f-proposal-description').closest('.field').querySelector('.tip-btn').getAttribute('aria-expanded')`), 'true');
+        assert.match(await evaluate(`document.querySelector('#f-proposal-description').closest('.field').querySelector('.tip').textContent`), /This box is on: Proposal Page C\./);
+        // Stays open when the page redraws (changing tabs and coming back).
+        await evaluate('document.querySelectorAll("nav button")[2].click()');
+        await evaluate('document.querySelectorAll("nav button")[1].click()');
+        await waitFor('!!document.getElementById("f-proposal-description")');
+        assert.equal(await evaluate(`document.querySelector('#f-proposal-description').closest('.field').querySelector('.tip-btn').getAttribute('aria-expanded')`), 'true');
+        // Escape closes it and keeps focus on the button.
+        await evaluate(`document.querySelector('#f-proposal-description').closest('.field').querySelector('.tip-btn').focus()`);
+        await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+        await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+        await waitFor(`document.querySelector('#f-proposal-description').closest('.field').querySelector('.tip-btn').getAttribute('aria-expanded') === 'false'`);
+        assert.equal(await evaluate(`document.activeElement.classList.contains('tip-btn')`), true);
+        assert.deepEqual(problems, []);
+      });
+      await test('section tips work and printed drafts have no tips', async () => {
+        await open(file, ready);
+        await evaluate('document.querySelectorAll("nav button")[2].click()');
+        await waitFor('document.querySelectorAll(".tip-wrap").length > 0');
+        assert.ok(await evaluate('document.querySelectorAll(".tip-wrap .tip-btn").length') >= 3);
+        await evaluate('window.print = () => { window.__printed = true; }');
+        await click('Print a draft');
+        await waitFor('window.__printed === true');
+        assert.equal(await evaluate('document.querySelectorAll(".tip, .tip-btn, .keep-safe, .keep-list").length'), 0);
+        await evaluate('window.dispatchEvent(new Event("afterprint"))');
+        await waitFor('!!document.querySelector("nav button")');
+      });
+      await test('backup help explains saving to Google Drive, Dropbox, or OneDrive', async () => {
+        await open(file, ready);
+        const text = await evaluate('document.querySelector(".keep-safe").textContent');
+        assert.match(text, /Google Drive.*Dropbox.*OneDrive|drive\.google\.com.*Dropbox or OneDrive/);
+        assert.match(text, /Save backup file/);
+        assert.equal(await evaluate('document.querySelector(".keep-safe").open'), true, 'open on the first tab');
+        await evaluate('document.querySelectorAll("nav button")[1].click()');
+        await waitFor('document.querySelectorAll("nav button")[1].classList.contains("active")');
+        assert.equal(await evaluate('document.querySelector(".keep-safe").open'), false, 'closed on other tabs');
+      });
+      await test('Send backup appears only where the device can share files', async () => {
+        // Desktop Chrome can share files, so first pretend this browser cannot.
+        const off = await send('Page.addScriptToEvaluateOnNewDocument', { source: `Object.defineProperty(navigator, 'canShare', { value: undefined, configurable: true });` });
+        try {
+          await open(file, ready);
+          assert.equal(await evaluate('[...document.querySelectorAll("button")].some(b => b.textContent.includes("Send backup"))'), false, 'hidden when the browser cannot share files');
+        } finally {
+          await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: off.identifier });
+        }
+        const stub = await send('Page.addScriptToEvaluateOnNewDocument', { source: `navigator.canShare = () => true; navigator.share = (d) => { window.__shared = d.files[0].name; return Promise.resolve(); };` });
+        try {
+          await open(file, ready);
+          await evaluate('localStorage.clear()');
+          await open(file, ready);
+          assert.equal(await evaluate('[...document.querySelectorAll("button")].some(b => b.textContent.includes("Send backup"))'), true);
+          await click('Send backup');
+          await waitFor('typeof window.__shared === "string"');
+          assert.match(await evaluate('window.__shared'), /^Eagle-workbook-backup-\d{4}-\d{2}-\d{2}-\d{4}\.json$/);
+          await waitFor(`Number(localStorage.getItem(${JSON.stringify(key + '_backup')})) > 0`);
+          assert.deepEqual(problems, []);
+        } finally {
+          await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: stub.identifier });
+        }
+      });
+    }
+    await test('Guided workbook offers a keep-as-you-go checklist on the Plan and Report stages', async () => {
+      await open('EagleWorkbook-guided.html', '!!document.querySelector("nav button")');
+      for (const i of [2, 4]) {
+        await evaluate(`document.querySelectorAll("nav button")[${i}].click()`);
+        await waitFor(`document.querySelectorAll("nav button")[${i}].classList.contains("active")`);
+        assert.match(await evaluate('document.querySelector(".keep-list").textContent'), /sign-in sheet.*receipt/s);
       }
     });
 
