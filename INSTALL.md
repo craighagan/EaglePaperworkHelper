@@ -99,6 +99,16 @@ Without a caching header, a browser decides for itself how long to keep each pag
 
 `tools/deploy.sh` copies `.htaccess` and, after a real copy, checks that the home page comes back with `Cache-Control: no-cache`.
 
+## Being found in search results (optional)
+
+Each page has its own title and short description, and the home page answers the questions people type (“Eagle Scout service project workbook”, “fill out the Eagle project workbook PDF”). Google ignores the old `keywords` tag, so there is nothing to add there. What helps:
+
+1. **Give Google a sitemap.** `tools/deploy.sh` writes a `sitemap.xml` for you when you pass the public address of the same folder you are copying to (`--url https://example.org/eagle/` or `DEPLOY_URL` in `.deploy.conf`; a plain `http(s)://` folder address with no spaces, quotes, `?` or `#`). Add the site in [Google Search Console](https://search.google.com/search-console) (a “URL prefix” property for that folder works, or a domain property), then submit `https://example.org/eagle/sitemap.xml`. Search Console also shows what people searched for and whether a page was indexed. Bing has the same in Bing Webmaster Tools.
+2. **Link to it from places Google already trusts.** A link from your troop’s or council’s website, a Scouting forum or Facebook group, and the GitHub repository’s description and website field matter more than anything on the page. Use the plain words people search for as the link text, for example “Eagle project workbook helper”.
+3. **If the site has a `robots.txt` at its top level**, add the line `Sitemap: https://example.org/eagle/sitemap.xml`. It only works at the top of the whole site, so the script can’t add it.
+4. **Be patient.** A new page can take days to weeks to appear, and common searches such as “Eagle project workbook” are dominated by scouting.org and council sites. More specific searches (“fill out Eagle project workbook PDF”, “Eagle project proposal help”) are where a small site can show up.
+5. **Keep it honest.** Don’t add wording that suggests the site is official or made, approved, or endorsed by Scouting America. A test blocks the obvious phrases in titles and descriptions, but it can’t read your mind: use judgment in the page text too.
+
 ## Optional server settings
 
 None are required. If your host lets you set response headers, these add protection:
