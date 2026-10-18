@@ -381,6 +381,94 @@ async function run() {
       await waitFor(`location.pathname.endsWith("EagleWorkbook-guided.html") && document.querySelector("header h1") && document.querySelector("header h1").textContent === ${JSON.stringify(sample.candidate.name)}`);
       assert.deepEqual(problems, []);
     });
+    await test('importing a PDF into a workbook keeps the signed pages and links already in that draft', async () => {
+      assert.ok(filledPdf, 'needs the PDF from the fill test');
+      // A draft with a signed page and a link (a PDF cannot hold either).
+      await open('EagleWorkbook-guided.html', '!!document.querySelector("nav button")');
+      await evaluate(`localStorage.clear(); indexedDB.deleteDatabase("eagle_workbook_files"); localStorage.setItem("eagle_workbook_guided_v1", ${JSON.stringify(fs.readFileSync(SAMPLE, 'utf8'))}); true`);
+      await open('EagleWorkbook-guided.html', '!!document.querySelector("nav button")');
+      await evaluate('document.querySelectorAll("nav button")[5].click()');
+      await waitFor('!!document.querySelector(".privacy-warning")');
+      await setFile('.attachments .file-pick input', path.join(__dirname, 'fixtures/scan-portrait.jpg'));
+      await waitFor('document.querySelectorAll(".thumb-open").length === 1');
+      await click('+ Add a link');
+      await evaluate(`(() => { const [t, u] = document.querySelectorAll(".link-row input"); t.value = "Budget"; t.dispatchEvent(new Event("input")); u.value = "https://example.org/budget"; u.dispatchEvent(new Event("input")); })()`);
+      await waitFor('(localStorage.getItem("eagle_workbook_guided_v1") || "").includes("example.org/budget")');
+      await open('BackupFromPDF.html', '!!window.EagleOfficialPdf');
+      await setFile('#pdf-file', filledPdf);
+      await waitFor('/\\b(ok|error)\\b/.test(document.getElementById("read-status").className)', 60000);
+      assert.match(await evaluate('document.getElementById("save-status").textContent + document.getElementById("result").textContent'), /signed pages, attachments, or links/i, "says a PDF cannot hold them");
+      await evaluate('document.getElementById("open-guided").click()');
+      await waitFor('location.pathname.endsWith("EagleWorkbook-guided.html") && !!document.querySelector("nav button")');
+      await evaluate('document.querySelectorAll("nav button")[5].click()');
+      await waitFor('!!document.querySelector(".privacy-warning")');
+      await waitFor('document.querySelectorAll(".thumb-open").length === 1', 10000);
+      assert.equal(await evaluate('document.querySelector(".link-row input[type=url]").value'), 'https://example.org/budget');
+      assert.equal(await evaluate('document.querySelector("header h1").textContent'), JSON.parse(fs.readFileSync(SAMPLE, 'utf8')).candidate.name, 'the PDF answers arrived too');
+    });
+    await test('opening a backup file with no signed pages warns when this page has some', async () => {
+      await open('EagleWorkbook-guided.html', '!!document.querySelector("nav button")');
+      await evaluate('document.querySelectorAll("nav button")[5].click()');
+      await waitFor('document.querySelectorAll(".thumb-open").length === 1', 10000);
+      await evaluate(`(() => { const orig = HTMLInputElement.prototype.click; HTMLInputElement.prototype.click = function () { if (this.type === 'file') { window.__picker = this; return; } return orig.call(this); }; })()`);
+      await click('Open backup file');
+      await waitFor('!!window.__picker');
+      const { root } = await send('DOM.getDocument');
+      await evaluate('document.body.appendChild(window.__picker); window.__picker.id = "picked2"; true');
+      const { nodeId } = await send('DOM.querySelector', { nodeId: root.nodeId, selector: '#picked2' });
+      dialogs = [];
+      await send('DOM.setFileInputFiles', { nodeId, files: [SAMPLE] });
+      for (let t = 0; t < 50 && !dialogs.length; t++) await sleep(100);
+      assert.match(dialogs[0] || '', /does not have 1 signed page or attachment page and 1 link that are on this page now, so they will be removed/s, dialogs[0]);
+    });
+    await test('importing a PDF for a different name asks before keeping the draft\u2019s signed pages, and removes them on Cancel', async () => {
+      const other = JSON.parse(fs.readFileSync(SAMPLE, 'utf8'));
+      other.candidate.name = 'Jordan Other';
+      await open('EagleWorkbook-guided.html', '!!document.querySelector("nav button")');
+      await evaluate(`localStorage.clear(); indexedDB.deleteDatabase("eagle_workbook_files"); localStorage.setItem("eagle_workbook_guided_v1", ${JSON.stringify(JSON.stringify(other))}); true`);
+      await open('EagleWorkbook-guided.html', '!!document.querySelector("nav button")');
+      await evaluate('document.querySelectorAll("nav button")[5].click()');
+      await waitFor('!!document.querySelector(".privacy-warning")');
+      await setFile('.attachments .file-pick input', path.join(__dirname, 'fixtures/scan-portrait.jpg'));
+      await waitFor('document.querySelectorAll(".thumb-open").length === 1');
+      await waitFor('(JSON.parse(localStorage.getItem("eagle_workbook_guided_v1")).attachments || []).length === 1');
+      const idbKeys = 'new Promise((r) => { const q = indexedDB.open("eagle_workbook_files"); q.onsuccess = () => { const g = q.result.transaction("pages").objectStore("pages").getAllKeys(); g.onsuccess = () => r(g.result.length); }; })';
+      assert.equal(await evaluate(idbKeys), 1);
+      await open('BackupFromPDF.html', '!!window.EagleOfficialPdf');
+      await setFile('#pdf-file', filledPdf);
+      await waitFor('/\\b(ok|error)\\b/.test(document.getElementById("read-status").className)', 60000);
+      // Say yes to replacing, but Cancel on the "different name" question.
+      await evaluate(`window.__asked = []; window.confirm = (m) => { window.__asked.push(m); return !/^The name on this PDF is different/.test(m); }`);
+      await evaluate('document.getElementById("open-guided").click()');
+      await waitFor('location.pathname.endsWith("EagleWorkbook-guided.html") && !!document.querySelector("nav button")');
+      const draft = JSON.parse(await evaluate('localStorage.getItem("eagle_workbook_guided_v1")'));
+      assert.equal((draft.attachments || []).length, 0, 'the other name\u2019s signed page was removed from the draft');
+      assert.equal(await evaluate('document.querySelector("header h1").textContent'), JSON.parse(fs.readFileSync(SAMPLE, 'utf8')).candidate.name);
+      for (let t = 0; t < 50 && await evaluate(idbKeys) > 0; t++) await sleep(100);
+      assert.equal(await evaluate(idbKeys), 0, 'its picture was removed from this browser');
+    });
+    await test('opening a backup file warns about each signed page or link it would remove, not only when it has none', async () => {
+      const withOtherLink = path.join(downloads, 'other-link.json');
+      const d = JSON.parse(fs.readFileSync(SAMPLE, 'utf8'));
+      d.links = [{ title: 'Something else', url: 'https://example.org/other' }];
+      fs.writeFileSync(withOtherLink, JSON.stringify(d));
+      await open('EagleWorkbook-guided.html', '!!document.querySelector("nav button")');
+      await evaluate('document.querySelectorAll("nav button")[5].click()');
+      await waitFor('!!document.querySelector(".privacy-warning")');
+      await click('+ Add a link');
+      await evaluate(`(() => { const [t, u] = document.querySelectorAll(".link-row input"); t.value = "Budget"; t.dispatchEvent(new Event("input")); u.value = "https://example.org/budget"; u.dispatchEvent(new Event("input")); })()`);
+      await waitFor('(localStorage.getItem("eagle_workbook_guided_v1") || "").includes("example.org/budget")');
+      await evaluate(`(() => { const orig = HTMLInputElement.prototype.click; HTMLInputElement.prototype.click = function () { if (this.type === 'file') { window.__picker = this; return; } return orig.call(this); }; })()`);
+      await click('Open backup file');
+      await waitFor('!!window.__picker');
+      const { root } = await send('DOM.getDocument');
+      await evaluate('document.body.appendChild(window.__picker); window.__picker.id = "picked3"; true');
+      const { nodeId } = await send('DOM.querySelector', { nodeId: root.nodeId, selector: '#picked3' });
+      dialogs = [];
+      await send('DOM.setFileInputFiles', { nodeId, files: [withOtherLink] });
+      for (let t = 0; t < 50 && !dialogs.length; t++) await sleep(100);
+      assert.match(dialogs[0] || '', /does not have 1 link that is on this page now, so it will be removed/, dialogs[0]);
+    });
     await test('explains a PDF that has no fillable boxes', async () => {
       const flat = path.join(downloads, 'printed-copy.pdf');
       fs.writeFileSync(flat, '%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj 3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF');
@@ -629,7 +717,7 @@ async function run() {
       await doc.destroy();
       // The drawn workbook pages must show the typed answers: look for dark text inside the
       // "Briefly describe your project" box on page 10 (it is blank light blue without an answer).
-      try { execFileSync('which', ['pdftoppm'], { stdio: 'ignore' }); } catch { return; }
+      try { execFileSync('which', ['pdftoppm'], { stdio: 'ignore' }); } catch { console.log('       note: pdftoppm (Poppler) is not installed, so the text and cover-art checks on the drawn pages were skipped'); return; }
       const pgm = execFileSync('pdftoppm', ['-f', '10', '-l', '10', '-r', '50', '-gray', file]);
       const [, w, hgt] = pgm.toString('latin1', 0, 40).match(/^P5\s+(\d+)\s+(\d+)\s+255\s/);
       const start = pgm.length - w * hgt;

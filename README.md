@@ -74,7 +74,7 @@ Step 5 on **Fill the official PDF** then makes a **submission copy**: the whole 
 
 ## Making a backup file from a PDF
 
-If you already typed answers into the official workbook PDF, open **Make a backup file from a PDF** (`BackupFromPDF.html`), choose that PDF, and click **💾 Save backup file**. Open the backup file in either workbook page with **📂 Open backup file**. In Chrome or Edge you can also click **Open in the Guided workbook**.
+If you already typed answers into the official workbook PDF, open **Make a backup file from a PDF** (`BackupFromPDF.html`), choose that PDF, and click **💾 Save backup file**. Open the backup file in either workbook page with **📂 Open backup file**. In Chrome or Edge you can also click **Open in the Guided workbook**, which keeps the signed pages and links already in that draft. A PDF can’t hold signed pages, attachments, or links, so a backup file made from a PDF has none, and a printed copy such as the submission copy can’t be read back at all.
 
 The PDF must still have its fillable boxes. A copy made with “Print” → “Save as PDF” keeps only the look of the pages, so its answers can’t be read. Signatures are not part of the PDF’s boxes, so they are never copied.
 
@@ -131,7 +131,7 @@ How it works:
 - `lib/tips.js` holds the “? Tips” text for each box (see `docs/guidance-sources.md` for where it comes from and AGENTS.md for how to add one).
 - `lib/workbook-common.js` holds the data model (`defaults()`) and form helpers shared by both workbook pages. `lib/guided-workbook.js` and `lib/classic-workbook.js` build the pages.
 - `lib/attachments.js` handles signed pages, attachments, and links: it turns photos and PDFs into JPEG pages, keeps them in IndexedDB and in the backup file, and writes the submission copy (a small PDF writer; workbook pages are drawn with pdf.js).
-- `lib/official-pdf.js` maps a backup file to the workbook’s form-field names (446 in No. 2023a) and fills them with [pdf.js](https://mozilla.github.io/pdf.js/). It also reads a filled PDF back into a backup file. The reverse map is worked out from the forward mapping, so plain one-box answers stay in sync automatically; phases, check boxes, and totals have small hand-written rules, covered by round-trip tests. The same file runs in the browser and in the tests.
+- `lib/official-pdf.js` maps a backup file to the workbook’s form-field names (446 in No. 2023a) and fills them with [pdf.js](https://mozilla.github.io/pdf.js/). It also reads a filled PDF back into a backup file. The reverse map is worked out from the forward mapping, so plain one-box answers stay in sync automatically; phases, radio buttons, and totals have small hand-written rules, covered by round-trip tests. The same file runs in the browser and in the tests.
 - Page scripts: `lib/fill-page.js` (FillOfficialPDF.html) and `lib/backup-from-pdf-page.js` (BackupFromPDF.html). `index.html` has no scripts.
 - The official PDF is encrypted, with form filling allowed. pdf.js saves the answers as an update appended to the original file, so the original pages, artwork, encryption, and permissions are unchanged.
 - `vendor/pdfjs/` holds pdf.js 5, converted from ES modules to ordinary scripts so the pages work from `file://`, plus one small fix so filled answers display in every PDF viewer. Rebuild it with `node tools/vendor-pdfjs.cjs`, which pins and checks every download. See [`vendor/pdfjs/README.md`](vendor/pdfjs/README.md).
