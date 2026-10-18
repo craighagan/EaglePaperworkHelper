@@ -47,6 +47,15 @@ rsync -av --delete \
 
 The `--delete` option removes files on the server that are no longer in the project. Check the target folder before you run it.
 
+If you keep a clone of this repository, `tools/deploy.sh` does the same copy without `--delete`, after checking that everything is committed and the tests pass. Run `tools/deploy.sh --help` for usage. It shows a dry run first, and copies for real only with `--go`:
+
+```bash
+tools/deploy.sh --target you@your-server:/var/www/eagle/              # dry run
+tools/deploy.sh --target you@your-server:/var/www/eagle/ --url https://example.org/eagle/ --go
+```
+
+You can keep the target in a file named `.deploy.conf` (a line `DEPLOY_TARGET=you@your-server:/var/www/eagle/`), which is ignored by git. Serve the site over `https://`: the iPhone share menu only works on secure pages.
+
 ### GitHub Pages
 
 1. Push this repository to GitHub. It must be public for free Pages; [GitHub’s Pages docs](https://docs.github.com/pages) cover the other options.
