@@ -10,7 +10,7 @@ Free, offline helpers for the **Eagle Scout Service Project Workbook**. Type you
 
 > This project is not made, endorsed, or supported by Scouting America. Read the entire official workbook (and its “Message to Scouts and Parents or Guardians” with a parent or guardian). The official workbook, your council’s procedures, and the required signatures are what count.
 
-**Try it online:** <http://www.cih.com/troop6/eagle/>. It works the same as the downloaded copy, and your answers still stay in your own browser.
+**Try it online:** <https://www.cih.com/troop6/eagle/>. It works the same as the downloaded copy, and your answers still stay in your own browser.
 
 ![The Guided workbook, showing the Proposal stage with fictional sample answers](docs/guided-workbook.png)
 
