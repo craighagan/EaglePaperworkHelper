@@ -422,6 +422,14 @@ function everyAnswer() {
   }
 
   console.log('Pages');
+  await test('home page and README say which file to use, and when', () => {
+    for (const file of ['index.html', 'README.md']) {
+      const text = fs.readFileSync(path.join(ROOT, file), 'utf8');
+      assert.match(text, /Which file to use, and when/, `${file}: heading`);
+      for (const name of ['Backup file', 'Filled official PDF', 'Submission copy', 'Printed draft']) assert.ok(text.includes(name), `${file}: ${name}`);
+      assert.match(text, /keep (the|your) backup file/i, `${file}: the rule of thumb`);
+    }
+  });
   for (const file of PAGES) {
     await test(`${file}: no inline scripts and a strict content security policy`, () => {
       const source = fs.readFileSync(path.join(ROOT, file), 'utf8');
@@ -618,7 +626,11 @@ function everyAnswer() {
     });
     await test('a PDF without fillable boxes gets a clear message', async () => {
       const flat = Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj 3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF');
-      await assert.rejects(lib.readBackupFromPdf({ pdfjsLib, pdfBytes: new Uint8Array(flat), defaults: W.defaults }), /no fillable boxes/);
+      const message = await lib.readBackupFromPdf({ pdfjsLib, pdfBytes: new Uint8Array(flat), defaults: W.defaults }).then(() => '', (e) => e.message);
+      assert.match(message, /no fillable boxes/);
+      assert.match(message, /submission copy/, 'names the kind of file Scouts are likely to have chosen');
+      assert.match(message, /Open backup file/, 'says what to use instead');
+      assert.match(message, /filled PDF/, 'says what else works');
     });
     // Optional check against your own files, which must never be committed. Prints counts only.
     if (process.env.EAGLE_LOCAL_BACKUP) {

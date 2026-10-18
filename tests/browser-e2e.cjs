@@ -234,6 +234,18 @@ async function run() {
         await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: stub.identifier });
       }
     });
+    await test('a printed copy such as a submission copy is told what to use instead', async () => {
+      const A = require(path.join(ROOT, 'lib/attachments.js'));
+      const printed = path.join(downloads, 'looks-like-a-submission-copy.pdf');
+      fs.writeFileSync(printed, A.writePdf([{ text: [{ x: 72, y: 700, text: 'Signed pages, attachments, and links', size: 14 }] }]));
+      await open('BackupFromPDF.html', '!!window.EagleOfficialPdf');
+      await setFile('#pdf-file', printed);
+      await waitFor('document.getElementById("read-status").className.includes("error")');
+      const text = await evaluate('document.getElementById("read-status").textContent');
+      assert.match(text, /submission copy/);
+      assert.match(text, /Open backup file/);
+      assert.match(await evaluate('document.querySelector("#step1").closest("section").textContent'), /Use your backup file/, 'the reminder is on this page too');
+    });
     await test('rejects a file that is not a PDF', async () => {
       await open('FillOfficialPDF.html', '!!window.EagleOfficialPdf');
       await setFile('#pdf-file', SAMPLE);
@@ -732,6 +744,12 @@ async function run() {
       for (let y = 0; y < Math.round(ch * 0.23); y++) for (let x = Math.round(cw * 0.52); x < Math.round(cw * 0.8); x++) if (cover[cstart + y * cw + x] < 235) ink++;
       assert.ok(ink > 300, `expected the medal artwork at the top of the cover page, found ${ink} non-white pixels`);
       assert.deepEqual(problems, []);
+      // A real submission copy cannot be read back by the PDF page, and the message says what to use instead.
+      await open('BackupFromPDF.html', '!!window.EagleOfficialPdf');
+      await setFile('#pdf-file', file);
+      await waitFor('document.getElementById("read-status").className.includes("error")');
+      const readBack = await evaluate('document.getElementById("read-status").textContent');
+      assert.match(readBack, /no fillable boxes.*submission copy.*Open backup file/s);
     });
     await test('opening a different backup file forgets the old scans in this browser', async () => {
       await open('EagleWorkbook-guided.html', '!!document.querySelector("nav button")');

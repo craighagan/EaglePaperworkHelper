@@ -61,13 +61,24 @@ The page lists anything to double-check, such as an answer that is too long for 
 
 Photos and extra pages go in separate attachments, as the official workbook says.
 
+## Which file to use, and when
+
+**Work in the workbook pages and keep your backup file.** Make the PDFs from it when you need them. If all you have is a submission copy, this helper can’t read your answers back from it.
+
+| File | What it is | Use it when |
+| --- | --- | --- |
+| **Backup file** (`.json`) | Your real save: all your answers, scanned signed pages, and links. | Always. Keep working with **Open backup file**, move to another computer, fill the PDF. Keep it private and safe. |
+| **Filled official PDF** | The official workbook with your answers typed in its boxes. | To read, print, and share for approvals and signatures. **Make a backup file from a PDF** can read it back (answers only, no signed pages or links; “Open in the … workbook” keeps the ones already in that page’s draft). |
+| **Submission copy** | The filled workbook with your scanned signed pages inserted, plus a list page. A printed copy. | Only when someone asks for the whole workbook with its signatures in one file. It can’t be edited or turned back into a backup file. |
+| **Printed draft** | A simple printout marked DRAFT. | To talk plans over. Don’t hand it in. |
+
 ## Signed pages and the submission copy
 
 Three pages of workbook No. 2023a need signatures: **Proposal Page H**, **Fundraising Application Page A** (only if you need a fundraising application), and **Project Report Page C**. On the workbook’s **Signed Pages** tab you can add a scan or photo of each one (JPEG, PNG, or PDF), plus permits, permission letters, council forms, receipts, photos, and links such as a budget spreadsheet.
 
 Step 5 on **Fill the official PDF** then makes a **submission copy**: the whole filled workbook, with each signed page inserted right after the official page it belongs to (nothing is replaced), then a page that lists every attachment and link, then the other attachments.
 
-- The official PDF doesn’t allow adding pages, so the submission copy is a printed copy of the filled workbook, like “Print to PDF.” Its boxes can’t be edited and **Make a backup file from a PDF** can’t read it. Keep your backup file as your working copy.
+- The official PDF doesn’t allow adding pages, so the submission copy is a printed copy of the filled workbook, like “Print to PDF.” Its boxes can’t be edited and **Make a backup file from a PDF** can’t read it, so keep your backup file as your working copy (see the table above).
 - Scans are saved in this browser (IndexedDB) and in your backup file. **Once you add a scan, your backup file holds pictures of the adults’ signatures.** Keep it private, as with the rest of the backup file.
 - A submission copy is usually 5 to 10 MB.
 - Ask your unit leader or council how they want things turned in. If they want only a signed page, send the scan or photo you took. Keep your signed originals.
