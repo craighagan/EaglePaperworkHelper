@@ -442,15 +442,25 @@ async function run() {
         assert.equal(await evaluate('document.querySelector(".keep-safe").open'), false, 'closed on other tabs');
       });
       await test('Share backup file appears only where the device can share files', async () => {
-        // Desktop Chrome can share files, so first pretend this browser cannot.
-        const off = await send('Page.addScriptToEvaluateOnNewDocument', { source: `Object.defineProperty(navigator, 'canShare', { value: undefined, configurable: true });` });
+        const shareShown = '[...document.querySelectorAll("button")].some(b => b.textContent.includes("Share backup file"))';
+        // Chrome says it can share files but refuses .json, so it must not get the button even when canShare says yes.
+        const chromium = await send('Page.addScriptToEvaluateOnNewDocument', { source: `navigator.canShare = () => true; navigator.share = () => Promise.reject(new DOMException('Permission denied', 'NotAllowedError'));` });
         try {
           await open(file, ready);
-          assert.equal(await evaluate('[...document.querySelectorAll("button")].some(b => b.textContent.includes("Share backup file"))'), false, 'hidden when the browser cannot share files');
+          assert.ok(await evaluate('!!navigator.userAgentData'), 'this test runs in a Chromium browser');
+          assert.equal(await evaluate(shareShown), false, 'hidden in Chromium browsers');
         } finally {
-          await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: off.identifier });
+          await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: chromium.identifier });
         }
-        const stub = await send('Page.addScriptToEvaluateOnNewDocument', { source: `navigator.canShare = () => true; navigator.share = (d) => { window.__shared = d.files[0].name; return Promise.resolve(); };` });
+        // Safari-like: no userAgentData. Without file sharing support there is no button.
+        const noShare = await send('Page.addScriptToEvaluateOnNewDocument', { source: `Object.defineProperty(navigator, 'userAgentData', { value: undefined, configurable: true }); Object.defineProperty(navigator, 'canShare', { value: undefined, configurable: true });` });
+        try {
+          await open(file, ready);
+          assert.equal(await evaluate(shareShown), false, 'hidden when the browser cannot share files');
+        } finally {
+          await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: noShare.identifier });
+        }
+        const stub = await send('Page.addScriptToEvaluateOnNewDocument', { source: `Object.defineProperty(navigator, 'userAgentData', { value: undefined, configurable: true }); navigator.canShare = () => true; navigator.share = (d) => { window.__shared = d.files[0].name; return Promise.resolve(); };` });
         try {
           await open(file, ready);
           await evaluate('localStorage.clear()');
