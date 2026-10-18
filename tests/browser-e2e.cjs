@@ -218,6 +218,22 @@ async function run() {
       await setFile('#pdf-file', PDF);
       await waitFor('document.getElementById("pdf-chosen").textContent.includes("It is the official workbook No. 2023a")');
     });
+    await test('says plainly, with the reason and what to do, when the official PDF cannot be fetched', async () => {
+      const stub = await send('Page.addScriptToEvaluateOnNewDocument', { source: `window.fetch = () => Promise.reject(new TypeError('Load failed'));` });
+      try {
+        await open('FillOfficialPDF.html', '!!window.EagleOfficialPdf');
+        await evaluate('document.getElementById("fetch-pdf").click()');
+        await waitFor('document.getElementById("pdf-chosen").className.includes("err")');
+        const text = await evaluate('document.getElementById("pdf-chosen").textContent');
+        assert.match(text, /Couldn’t get the PDF automatically \(Load failed\)/);
+        assert.match(text, /Save to Files/);
+        assert.doesNotMatch(text, /^!/);
+        assert.match(await evaluate('document.getElementById("fetch-pdf").textContent'), /again/);
+        assert.equal(await evaluate('document.getElementById("fetch-pdf").disabled'), false, 'the button works again');
+      } finally {
+        await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: stub.identifier });
+      }
+    });
     await test('rejects a file that is not a PDF', async () => {
       await open('FillOfficialPDF.html', '!!window.EagleOfficialPdf');
       await setFile('#pdf-file', SAMPLE);
