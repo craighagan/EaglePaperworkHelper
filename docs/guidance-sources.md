@@ -35,6 +35,15 @@ The official workbook (No. 2023a) is the authority. Where a source disagreed wit
 - Inclusive Components, Tooltips & Toggletips (why a click-to-open panel beats a hover tooltip on touch): <http://inclusive-components.design/tooltips-toggletips/>
 - MDN, Web Share API and `navigator.canShare()` (needs a click; support varies by browser and context), also <https://developer.mozilla.org/en-US/docs/Web/API/Navigator/share>: <https://developer.mozilla.org/en-US/docs/Web/API/Navigator/canShare>
 
+## Plan tips added from the web research (all marked advice)
+
+Each tip below is common advice, not a rule, and each is backed by at least two sources. Sources: Scouting America SAFE checklist <https://www.scouting.org/health-and-safety/safe/>, SAFE Service Project Planning Checklist <https://filestore.scouting.org/filestore/healthsafety/pdf/680-027.pdf>, SAFE Project Tool Use <https://filestore.scouting.org/filestore/healthsafety/pdf/680-028.pdf>, Guide to Safe Scouting, Youth Protection <https://www.scouting.org/health-and-safety/gss/gss01/>, Greater St. Louis Area Council approval checklist <https://stlbsa.org/wp-content/uploads/2020/06/EagleProjectApprovalChecklist.pdf>, EagleCoach.org checklist (2023), Mobile Area Council approval guide <https://scoutingmac.org/wp-content/uploads/2025/03/Eagle-Project-Approval-Guide.pdf>, Northeastern Pennsylvania Council guide, ScoutSmarts <https://scoutsmarts.com/eagle-project-planning/>.
+
+- `plan.communicationPlan`, `plan.workerTransport`, `plan.materialTransport` (Plan Page D): SAFE checklist, St. Louis checklist, EagleCoach.org, ScoutSmarts. The workbook asks the questions and gives no content.
+- `plan.food`, `plan.restrooms`, `plan.firstAid`, `plan.hazardousMaterials`, `plan.safetyComm`, `plan.ppe`, `plan.safetyBriefing`, `plan.emergencyAccess` (Plan Page E): Service Project Planning Checklist, SAFE checklist, tool-use chart, St. Louis checklist, EagleCoach.org, ScoutSmarts.
+- `plan.coachComments` (Plan Page F): workbook p16 (no one approves the plan), Mobile Area and Northeastern Pennsylvania councils.
+- Left out on purpose: the first-aid specialist's training level (no national source defines it), lead-paint and treated-lumber details (one source each), and exact reminder timing (one source).
+
 ## Where we followed the workbook
 
 - **Length:** one guide suggests a 3–5 page report. The workbook sets no length and says short answers are fine, so no tip mentions page counts.
