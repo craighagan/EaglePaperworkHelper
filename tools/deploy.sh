@@ -96,7 +96,7 @@ node tests/run-tests.cjs >"$LOG" 2>&1 || {
 # 4. Copy. --relative keeps the folder layout. Files are readable by everyone, writable only by you.
 FILES=(
   index.html EagleWorkbook-guided.html EagleWorkbook.html FillOfficialPDF.html BackupFromPDF.html
-  README.md INSTALL.md LICENSE
+  README.md INSTALL.md LICENSE .htaccess
   lib/ vendor/ docs/
 )
 RSYNC_SSH=()
@@ -115,6 +115,14 @@ if [ -n "$GO" ] && [ -n "$URL" ]; then
     https://*|http://*)
       code=$(curl -s -o /dev/null -m 15 -w '%{http_code}' "$URL" || true)
       echo "Home page $URL answered HTTP ${code:-none} (expect 200)."
+      cache=$(curl -s -I -m 15 "$URL" | tr -d '\r' | grep -i '^cache-control:' || true)
+      if echo "$cache" | grep -qi 'no-cache\|no-store\|max-age=0'; then
+        echo "Caching: $cache (good: browsers will check for new versions)."
+      else
+        echo "WARNING: the server did not send Cache-Control: no-cache for the home page (${cache:-no Cache-Control header at all})."
+        echo "  Browsers may keep old pages and scripts, and mix old and new versions. The .htaccess file just copied"
+        echo "  needs Apache's mod_headers and AllowOverride FileInfo; other servers: see Caching in INSTALL.md."
+      fi
       case "$URL" in http://*) echo "Note: this address is not https, so the iPhone share menu will not work there." ;; esac
       ;;
     *) echo "Skipping the address check: --url must start with http:// or https://" ;;

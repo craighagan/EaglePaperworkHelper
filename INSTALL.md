@@ -26,6 +26,7 @@ docs/          (pictures used by index.html and the README)
 README.md
 LICENSE
 .nojekyll      (GitHub Pages only; harmless elsewhere)
+.htaccess      (Apache only: makes browsers check for new versions; see Caching below)
 ```
 
 Leave these out. They are for developers only:
@@ -41,7 +42,7 @@ Example, copying from the downloaded folder to a server you reach over SSH:
 ```bash
 rsync -av --delete \
   index.html EagleWorkbook-guided.html EagleWorkbook.html FillOfficialPDF.html BackupFromPDF.html \
-  lib vendor docs README.md LICENSE .nojekyll \
+  lib vendor docs README.md LICENSE .nojekyll .htaccess \
   you@your-server:/var/www/eagle/
 ```
 
@@ -75,6 +76,28 @@ Open the site’s address in a browser, then:
 4. **Make a backup file from a PDF:** the page opens without a “missing its helper files” message.
 
 If a page says it is missing its helper files, the `lib` or `vendor` folder is missing or in the wrong place.
+
+## Caching: make browsers pick up new versions
+
+Without a caching header, a browser decides for itself how long to keep each page and script, and each file can be guessed differently. After an update, a Scout can then run an old page with newer library files, and things look broken or missing (for example, saved pages that seem to be gone) until a forced reload. Tell browsers to check every time. When nothing changed, the server answers “not modified” and sends nothing, so this costs almost nothing.
+
+- **Apache:** the `.htaccess` file in this repository does it (it needs `mod_headers`, and `AllowOverride FileInfo` for the folder). Or put the same lines in the site’s configuration:
+
+  ```apache
+  <FilesMatch "\.(html|js|md|css|txt)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+  ```
+
+- **nginx:**
+
+  ```nginx
+  location ~* \.(html|js|md|css|txt)$ { add_header Cache-Control "no-cache"; }
+  ```
+
+- **GitHub Pages and some other hosts** don’t let you set headers. Browsers keep files for a few minutes there, which is usually fine.
+
+`tools/deploy.sh` copies `.htaccess` and, after a real copy, checks that the home page comes back with `Cache-Control: no-cache`.
 
 ## Optional server settings
 

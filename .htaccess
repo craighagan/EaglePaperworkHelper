@@ -1,0 +1,10 @@
+# For Apache servers. Other servers: see "Caching" in INSTALL.md.
+#
+# Make browsers check with the server every time they open a page or script. When nothing changed,
+# the server answers "not modified" and sends nothing, so this is cheap. Without it, a browser may
+# guess how long to keep a file, and a Scout can end up running an old page with newer library files.
+<IfModule mod_headers.c>
+  <FilesMatch "\.(html|js|md|css|txt)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>
