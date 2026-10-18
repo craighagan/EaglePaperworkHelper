@@ -446,6 +446,14 @@ function everyAnswer() {
     for (const bad of ['The official Eagle helper', 'Official site for the Eagle workbook', 'BSA approved tool', 'Endorsed by BSA', 'Made by Scouting America']) assert.match(bad, claim, bad);
     for (const ok of ['Fill the official Eagle Scout Project Workbook PDF', 'Eagle Scout Service Project Workbook (No. 2023a)', 'free helper, independent of Scouting America']) assert.doesNotMatch(ok, claim, ok);
   });
+  await test('fundraising tips say to get approval first, and say nothing about raffles or games of chance', () => {
+    for (const file of ['lib/tips.js', 'lib/guided-workbook.js', 'lib/classic-workbook.js', 'index.html', 'README.md']) {
+      assert.doesNotMatch(fs.readFileSync(path.join(ROOT, file), 'utf8'), /raffle|games? of chance/i, `${file}: leave raffles and games of chance out (the maintainer's decision)`);
+    }
+    const tip = tips['fundraising.description'];
+    assert.match(tip.avoid, /before your fundraising is approved/i, 'the fundraising box tip tells Scouts to wait for approval');
+    assert.match(tip.avoid, /council/i, 'and to ask their council');
+  });
   await test('home page and README say which file to use, and when', () => {
     for (const file of ['index.html', 'README.md']) {
       const text = fs.readFileSync(path.join(ROOT, file), 'utf8');
