@@ -30,7 +30,10 @@ a{color:#00509e}
 .file:focus-within{outline:3px solid #0066b8;outline-offset:2px}
 .file input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
 .chosen{font-size:.92rem;color:var(--muted);overflow-wrap:anywhere;margin-top:8px!important}
-.chosen.ok{color:var(--green);font-weight:600}
+.chosen.ok{padding:8px 11px;border:1px solid #9cd0ae;border-radius:8px;background:#eef9f1;color:var(--green);font-weight:600}
+.chosen.ok::before{content:"✓ "}
+.chosen.err{padding:8px 11px;border:1px solid #e3a3a3;border-radius:8px;background:#fff1f1;color:var(--red);font-weight:600}
+.chosen.err::before{content:"⚠ "}
 #drafts{display:flex;flex-direction:column;align-items:flex-start;gap:8px;margin-top:10px}
 label.text{display:grid;gap:5px;font-weight:700;font-size:.92rem}
 input[type=text]{width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:8px;background:#fff;font:inherit;font-weight:400;color:var(--ink)}
@@ -76,7 +79,7 @@ summary{cursor:pointer;font-weight:700;color:#33495f}
         <span class="btn secondary file">I already have it: choose the PDF file<input id="pdf-file" type="file" accept="application/pdf,.pdf" aria-label="Choose the official workbook PDF file"></span>
       </div>
       <p class="chosen" id="pdf-chosen" role="status" aria-live="polite">No PDF chosen yet.</p>
-      <p>No internet? <a id="official-link" target="_blank" rel="noopener noreferrer">Download the official PDF</a> when you can. If it opens in a browser tab, click the download icon (⤓) to save it. It usually goes to your Downloads folder.</p>
+      <p>Not working, or no internet? <a id="official-link" target="_blank" rel="noopener noreferrer">Download the official PDF</a> when you can. It may open in a browser tab instead of downloading: on a computer click the download icon (⤓); on an iPhone or iPad tap the Share button, then <strong>Save to Files</strong>. Then come back and choose that file with “I already have it.”</p>
     </section>
 
     <section class="step" aria-labelledby="step2">
