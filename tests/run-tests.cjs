@@ -567,6 +567,25 @@ function everyAnswer() {
       }
       assert.deepEqual(wrong, []);
     });
+    await test('the Classic leftover-money question matches the official Report Page C, word for word', async () => {
+      const doc = await pdfjsLib.getDocument({ data: original.slice(), verbosity: 0, isEvalSupported: false }).promise;
+      const words = (text) => text.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+      const pageText = words((await (await doc.getPage(29)).getTextContent()).items.map((i) => i.str).join(' '));
+      await doc.destroy();
+      const source = fs.readFileSync(path.join(ROOT, 'lib/classic-workbook.js'), 'utf8');
+      const label = /f\.field\('([^']+)', 'report\.leftoverMaterials'/.exec(source);
+      assert.ok(label, 'the Classic box is present');
+      assert.ok(pageText.includes(words(label[1])), `the Classic label is not the official wording: "${label[1]}"`);
+    });
+    await test('leftover money is covered only by the Report box and its tip (no extra help or steps)', () => {
+      for (const file of ['lib/guided-workbook.js', 'lib/classic-workbook.js']) {
+        const lines = fs.readFileSync(path.join(ROOT, file), 'utf8').split('\n').filter((l) => /left ?over/i.test(l));
+        for (const line of lines) assert.ok(/'report\.leftoverMaterials'/.test(line) && /f\.field\(/.test(line) && !/help:/.test(line), `${file}: extra leftover-money text: ${line.trim().slice(0, 100)}`);
+      }
+      const hits = Object.entries(tips).filter(([, t]) => /left ?over/i.test(JSON.stringify(t))).map(([k]) => k);
+      assert.deepEqual(hits, ['report.leftoverMaterials']);
+      assert.doesNotMatch(tips['report.leftoverMaterials'].text, /materials/i, 'the Report question asks about money only');
+    });
     await test('rejects a PDF that is not the workbook', async () => {
       const notWorkbook = Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj 3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF');
       await assert.rejects(lib.fillOfficialPdf({ pdfjsLib, pdfBytes: new Uint8Array(notWorkbook), data: sample }), /not the official Eagle Scout Service Project Workbook/);
