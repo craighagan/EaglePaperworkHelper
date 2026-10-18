@@ -422,6 +422,30 @@ function everyAnswer() {
   }
 
   console.log('Pages');
+  await test('every page has its own title and description for search results', () => {
+    const titles = new Set(), descriptions = new Set();
+    for (const file of PAGES) {
+      const source = fs.readFileSync(path.join(ROOT, file), 'utf8');
+      const title = (/<title>([^<]+)<\/title>/.exec(source) || [])[1] || '';
+      const description = (/<meta name="description" content="([^"]+)"/.exec(source) || [])[1] || '';
+      assert.ok(title.length >= 30 && title.length <= 70, `${file}: title is ${title.length} characters (30-70 shows fully in results)`);
+      assert.ok(description.length >= 70 && description.length <= 175, `${file}: description is ${description.length} characters (70-175)`);
+      // Calling the site official, or saying Scouting America or the BSA made, approved, or endorsed it, is not allowed.
+      const claim = /\b(?:endorsed|approved|sponsored|affiliated|authorized)\b|\bofficial\s+(?:\w+\s+){0,4}(?:site|website|tool|helper|app|partner|guide)\b|(?:made|created|provided|published) by (?:the )?(?:BSA|Boy Scouts|Scouting America)/i;
+      assert.doesNotMatch(title + ' ' + description, claim, `${file}: must not suggest it is official or made or endorsed by Scouting America`);
+      const og = (name) => (new RegExp(`<meta property="og:${name}" content="([^"]*)"`).exec(source) || [])[1] || '';
+      assert.ok(og('title') && og('description') && og('type'), `${file}: Open Graph title, description, and type`);
+      assert.equal(og('description'), description, `${file}: Open Graph description matches`);
+      assert.ok(title.length <= 66 && description.length <= 170, `${file}: title ${title.length} / description ${description.length} would be cut off in results`);
+      assert.ok(!titles.has(title) && !descriptions.has(description), `${file}: title and description must differ from the other pages`);
+      titles.add(title); descriptions.add(description);
+    }
+    assert.match(fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8'), /Eagle Scout service project/i, 'the home page uses the words people search for');
+    // The checker itself: it must catch real endorsement claims and allow honest wording.
+    const claim = /\b(?:endorsed|approved|sponsored|affiliated|authorized)\b|\bofficial\s+(?:\w+\s+){0,4}(?:site|website|tool|helper|app|partner|guide)\b|(?:made|created|provided|published) by (?:the )?(?:BSA|Boy Scouts|Scouting America)/i;
+    for (const bad of ['The official Eagle helper', 'Official site for the Eagle workbook', 'BSA approved tool', 'Endorsed by BSA', 'Made by Scouting America']) assert.match(bad, claim, bad);
+    for (const ok of ['Fill the official Eagle Scout Project Workbook PDF', 'Eagle Scout Service Project Workbook (No. 2023a)', 'free helper, independent of Scouting America']) assert.doesNotMatch(ok, claim, ok);
+  });
   await test('home page and README say which file to use, and when', () => {
     for (const file of ['index.html', 'README.md']) {
       const text = fs.readFileSync(path.join(ROOT, file), 'utf8');

@@ -109,6 +109,44 @@ rsync -avh --relative --itemize-changes ${MODE[@]+"${MODE[@]}"} ${RSYNC_SSH[@]+"
   --exclude='.DS_Store' \
   "${FILES[@]}" "$TARGET"
 
+# 4b. If a public address is known, also copy a sitemap.xml so search engines can find every page.
+#     (robots.txt can only live at the top of the whole site, so this script does not make one.)
+#     --url must be the folder's address (it should end in /), the same folder as --target.
+if [ -n "$URL" ]; then
+  case "$URL" in
+    https://*|http://*)
+      case "$URL" in
+        *[[:space:]\"\'\<\>\?\#\\]*) echo "Skipping the sitemap: --url may not contain spaces, quotes, < > ? # or backslashes." >&2 ;;
+        *)
+          BASE="${URL%/}/"
+          case "${URL%/}" in
+            *.html|*.htm) echo "Skipping the sitemap: --url should be the folder's address, not a page." >&2; BASE="" ;;
+          esac
+          if [ -n "$BASE" ]; then
+            SITEMAP_DIR="$(mktemp -d -t eagle-sitemap.XXXXXX)"
+            trap 'rm -f "$LOG"; rm -rf "$SITEMAP_DIR"' EXIT
+            XML_BASE="${BASE//&/&amp;}"
+            {
+              echo '<?xml version="1.0" encoding="UTF-8"?>'
+              echo '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+              for page in "" EagleWorkbook-guided.html EagleWorkbook.html FillOfficialPDF.html BackupFromPDF.html; do
+                echo "  <url><loc>${XML_BASE}${page}</loc></url>"
+              done
+              echo '</urlset>'
+            } > "$SITEMAP_DIR/sitemap.xml"
+            rsync -avh --itemize-changes ${MODE[@]+"${MODE[@]}"} ${RSYNC_SSH[@]+"${RSYNC_SSH[@]}"} --chmod=F644 "$SITEMAP_DIR/sitemap.xml" "$TARGET"
+            if [ -n "$GO" ]; then
+              echo "Sitemap: ${BASE}sitemap.xml  (submit it in Google Search Console; add a line 'Sitemap: ${BASE}sitemap.xml' to the site's robots.txt if you can)"
+            else
+              echo "Sitemap (dry run, not copied): ${BASE}sitemap.xml"
+            fi
+          fi
+          ;;
+      esac
+      ;;
+  esac
+fi
+
 # 5. After a real copy, fetch the home page as an anonymous visitor.
 if [ -n "$GO" ] && [ -n "$URL" ]; then
   case "$URL" in

@@ -99,6 +99,8 @@ Keep the terms consistent everywhere (pages, messages, README, index):
 - **official workbook** or **official PDF**: the scouting.org file.
 - **filled PDF** (answers typed in the official PDF's boxes; can be read back) vs **submission copy** (printed copy with signed pages inserted; one-way, optional, only when someone asks for the whole workbook with signatures). The "Which file to use, and when" table in `index.html` and `README.md` is the reminder; keep it, the PDF-page notes, and the flat-PDF error message in `lib/official-pdf.js` in agreement.
 
+Each page has its own `<title>` (about 60 characters), `<meta name="description">` (about 160), and matching Open Graph tags; a test checks lengths, uniqueness, and that nothing calls the site official or says Scouting America made, approved, or endorsed it. Don't add a `keywords` tag (search engines ignore it) and don't claim more than the code does (for example "tips on every box").
+
 Write for a 15-year-old: short sentences, everyday words, and the next action stated plainly. Error messages say what happened and what to do next.
 
 ### Official text
