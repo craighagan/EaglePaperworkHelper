@@ -34,3 +34,6 @@ client_secret*
 !tests/fixtures/scan-portrait.jpg
 !tests/fixtures/scan-landscape.jpg
 !tests/fixtures/scan-gray.jpg
+
+# Local deploy settings (server address)
+.deploy.conf
