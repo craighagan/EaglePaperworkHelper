@@ -279,6 +279,43 @@ async function run() {
         await waitFor(`document.querySelector("nav button.active").textContent !== ${JSON.stringify(before)}`);
         assert.deepEqual(problems, []);
       });
+      await test('Who to ask card shows entered contacts safely, with default text when none', async () => {
+        const sample = fs.readFileSync(SAMPLE, 'utf8');
+        const tabBtn = (i) => `document.querySelectorAll("nav button")[${i}].click()`;
+        await open(file, ready);
+        await evaluate(`localStorage.clear(); localStorage.setItem(${JSON.stringify(key)}, ${JSON.stringify(sample)}); true`);
+        await open(file, ready);
+        for (const i of [1, 2, 3, 4]) {
+          await evaluate(tabBtn(i));
+          await waitFor('!!document.querySelector(".ask-help")');
+          assert.equal(await evaluate('document.querySelector(".ask-help").open'), false);
+        }
+        assert.match(await evaluate('document.querySelector(".ask-help").textContent'), /Ask your unit leader first/);
+        assert.match(await evaluate('document.querySelector(".ask-help").textContent'), /Jordan Leader/);
+        assert.equal(await evaluate('document.querySelectorAll(".ask-help a[href^=\\"tel:\\"]").length > 0'), true);
+        await evaluate(tabBtn(0));
+        await waitFor('!document.querySelector(".ask-help")');
+        const hostile = JSON.parse(sample);
+        hostile.contacts.leader.phone = '555-call-me';
+        hostile.contacts.leader.email = 'x"><img src=x onerror=alert(1)>@a.b';
+        hostile.contacts.coach.name = '<b>Coach</b>';
+        await evaluate(`localStorage.setItem(${JSON.stringify(key)}, ${JSON.stringify(JSON.stringify(hostile))}); true`);
+        await open(file, ready);
+        await evaluate(tabBtn(1));
+        await waitFor('!!document.querySelector(".ask-help")');
+        assert.equal(await evaluate('document.querySelectorAll(".ask-help img, .ask-help b").length'), 0);
+        assert.equal(await evaluate('document.querySelectorAll(".ask-help a[href*=\\"onerror\\"], .ask-help a[href=\\"tel:555-call-me\\"]").length'), 0);
+        const none = JSON.parse(sample);
+        for (const k of Object.keys(none.contacts)) for (const f of Object.keys(none.contacts[k])) none.contacts[k][f] = '';
+        await evaluate(`localStorage.setItem(${JSON.stringify(key)}, ${JSON.stringify(JSON.stringify(none))}); true`);
+        await open(file, ready);
+        await evaluate(tabBtn(1));
+        await waitFor('!!document.querySelector(".ask-help")');
+        const t = await evaluate('document.querySelector(".ask-help").textContent');
+        assert.match(t, /haven.t added any contacts yet/);
+        assert.match(t, /Ask your unit leader first/);
+        assert.deepEqual(problems, []);
+      });
       await test('the tab bar stays just below the header while scrolling', async () => {
         await open(file, ready);
         await evaluate('document.querySelectorAll("nav button")[2].click()');
