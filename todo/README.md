@@ -10,4 +10,5 @@ When an item is done, delete its file in the same commit as the work. When an id
 | [Google Drive](google-drive.md) | Undecided: maintainer is considering it |
 | [Test other browsers and Adobe Acrobat](browser-testing.md) | Ready to do |
 | [example site: remaining server settings](example-site.md) | Ready to do (hosting, not code) |
+| [Get the site found in search results](search-setup.md) | Ready to do (site owner steps, not code) |
 | [Small polish](polish.md) | Ready to do |

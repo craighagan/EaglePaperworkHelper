@@ -121,7 +121,7 @@ Most boxes have a **? Tips** button. It opens a short panel with what goes in th
 
 ## Hosting on a website (optional)
 
-It is just copying the files to any web server that serves plain files over **https**. No server scripts or database are needed, and the server never receives anyone’s answers or PDF. For an example, see <http://www.cih.com/troop6/eagle/>. See [INSTALL.md](INSTALL.md) for which files to copy, where to host it (its own web address, because browsers let every page at the same address read saved drafts), GitHub Pages steps, and how to check it works.
+It is just copying the files to any web server that serves plain files over **https**. No server scripts or database are needed, and the server never receives anyone’s answers or PDF. For an example, see <https://www.cih.com/troop6/eagle/>. See [INSTALL.md](INSTALL.md) for which files to copy, where to host it (its own web address, because browsers let every page at the same address read saved drafts), GitHub Pages steps, how to be found in search results, and how to check it works. `tools/deploy.sh` copies the right files with rsync (a dry run first, then `--go`) and writes a sitemap; run `tools/deploy.sh --help`.
 
 ## For developers
 
