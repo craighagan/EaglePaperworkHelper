@@ -12,7 +12,7 @@ Breaking any of these is a defect, even if the tests pass.
 
 1. **No build, no install, no server code.** Pages must work when double-clicked (`file://`) and from a plain static https server.
 2. **Classic scripts only.** Browsers block ES modules on `file://`. No `import`/`export`, no `type="module"`, no bundler.
-3. **No inline scripts or handlers.** Each page has a content security policy (CSP) meta tag with `script-src 'self' file:`. Put code in `lib/*.js`. The pages that draw PDFs also allow `'wasm-unsafe-eval'` in `script-src`, only so the bundled JPEG 2000 decoder (`vendor/pdfjs/openjpeg-wasm.js`) can run; never add `'unsafe-inline'` or `'unsafe-eval'`.
+3. **No inline scripts or handlers.** Each page has a content security policy (CSP) meta tag with `script-src 'self' file:`. Put code in `lib/*.js`. The pages that draw PDFs also allow `'wasm-unsafe-eval'` in `script-src`, only so the bundled JPEG 2000 decoder (`vendor/pdfjs/openjpeg-wasm.js`) can run; never add `'unsafe-inline'` or `'unsafe-eval'`. `BackupFromPDF.html` deliberately does not have `wasm-unsafe-eval` (it only reads form fields and never draws a page); don't add it or copy the wasm script there.
 4. **No network requests** except the optional download of the blank official PDF, pinned to the exact URL in `connect-src` of `FillOfficialPDF.html`. No CDNs, fonts, analytics, or telemetry.
 5. **Never put user data into HTML.** Build DOM with the `h()` helper (`lib/workbook-common.js`) or `el()` (page scripts), which use text nodes. No `innerHTML`, `insertAdjacentHTML`, or `document.write`.
 6. **Never fill signatures or approval dates.** Scans of signed pages are inserted as pictures, never altered or placed over the official page. Printed names beside approval lines are the only approval-area boxes filled, and the user can opt out.
@@ -34,15 +34,18 @@ Breaking any of these is a defect, even if the tests pass.
 | `lib/tips.js` | The text behind each "? Tips" button, keyed by backup-file path. Limits on length and the official page of each box are checked by tests. |
 | `FillOfficialPDF.html` + `lib/fill-page.js` | Fill the official PDF from a backup file or a saved draft. |
 | `BackupFromPDF.html` + `lib/backup-from-pdf-page.js` | Read a filled (fillable) workbook PDF back into a backup file. Flattened PDFs are intentionally unsupported. |
+| `docs/`, `todo/`, `INSTALL.md`, `.nojekyll`, `LICENSE` | Screenshots and the sources behind the tips; open work; hosting guide; GitHub Pages marker; MIT license. |
 | `lib/official-pdf.js` | Backup → PDF field mapping (`buildFieldValues`), filling (`fillOfficialPdf`), reading back (`readBackupFromPdf`, `reverseMap`), totals, date and money parsing, warnings in plain words (`describeField`). Runs in the browser and in Node tests. |
 | `vendor/pdfjs/` | pdf.js 5.4.296, converted to classic scripts plus a font fix and a patch that reads the JPEG 2000 decoder (`openjpeg-wasm.js`, base64) from a bundled script instead of fetching it. Without it, the cover art and logo vanish from the submission copy. Generated. |
 | `tools/vendor-pdfjs.cjs` | Rebuilds `vendor/pdfjs/` from pinned, SHA-256-checked downloads. |
 | `tools/screenshots.cjs` | Regenerates `docs/*.png` from the fictional sample. |
+| `tools/deploy.sh` | Copies the pages to a server or folder with rsync. Dry run unless `--go`. No built-in host: `--target`, `DEPLOY_TARGET`, or `.deploy.conf` (git-ignored). Refuses a dirty tree or failing tests, and checks the live `Cache-Control` header afterward. |
+| `.htaccess` | Apache only: `Cache-Control: no-cache` for pages and scripts, so browsers can't mix old pages with new library files. Other servers: see `INSTALL.md`. |
 | `tests/` | `run-tests.cjs` (unit + real PDF), `browser-e2e.cjs` (headless Chrome), `pdfkit-check.swift` (macOS Preview engine), fixtures. |
 
-Script load order matters. Workbook pages load `lib/official-pdf.js`, then `lib/tips.js`, then `lib/attachments.js`, then `lib/workbook-common.js`, then the page script; they load pdf.js only when someone adds a PDF scan. `FillOfficialPDF.html` loads `vendor/pdfjs/pdf.worker.js`, then `vendor/pdfjs/pdf.js`, then `lib/official-pdf.js`, then `lib/attachments.js`, then its page script. pdf.js runs its worker on the main thread through `globalThis.pdfjsWorker`; there is no Web Worker.
+Script load order matters. Workbook pages load `lib/official-pdf.js`, then `lib/tips.js`, then `lib/attachments.js`, then `lib/workbook-common.js`, then the page script; they load pdf.js only when someone adds a PDF scan. `FillOfficialPDF.html` loads `vendor/pdfjs/openjpeg-wasm.js`, then `vendor/pdfjs/pdf.worker.js`, then `vendor/pdfjs/pdf.js`, then `lib/official-pdf.js`, then `lib/attachments.js`, then its page script. pdf.js runs its worker on the main thread through `globalThis.pdfjsWorker`; there is no Web Worker.
 
-Browser storage keys: `eagle_workbook_guided_v1` and `eagle_workbook_v1` (drafts), each with `_saved` and `_backup` timestamps. Scanned pages are JPEGs in IndexedDB database `eagle_workbook_files` (store `pages`, keyed by page id), never in localStorage. Backup files carry them as base64 in `attachments[].pages[].jpeg`.
+Browser storage keys: `eagle_workbook_guided_v1` and `eagle_workbook_v1` (drafts), each with `_saved` and `_backup` timestamps. They are listed in three places that must agree: `DRAFT_KEYS` in `lib/attachments.js`, `DRAFTS` in `lib/fill-page.js`, and the loop in `lib/backup-from-pdf-page.js`. `BackupFromPDF.html` loads `pdf.worker.js`, `pdf.js`, `official-pdf.js`, `attachments.js`, `workbook-common.js`, then its page script (no `tips.js`), and writes the draft straight to localStorage. Scanned pages are JPEGs in IndexedDB database `eagle_workbook_files` (store `pages`, keyed by page id), never in localStorage. Backup files carry them as base64 in `attachments[].pages[].jpeg`. **Pictures are garbage-collected:** `sweep` and `forgetUnused` delete any IndexedDB picture that no draft references, so any code that writes or replaces a draft must keep the page ids it still wants (carry over `attachments`), and `sweep` must run after pictures are dropped on purpose.
 
 The official PDF forbids adding pages (document assembly), so the submission copy is a new PDF of drawn pages, like printing. Don't try to insert pages into the official file.
 
@@ -61,7 +64,7 @@ node tools/vendor-pdfjs.cjs     # rebuild vendor/pdfjs (network)
 - `CHROME_NO_SANDBOX=1`: only in disposable environments (containers, agent sandboxes) where Chrome's sandbox can't start. Never on a personal machine. `CHROME=/path`: a non-default Chrome.
 - `EAGLE_ONLINE=1` also tests "Get the official PDF for me" against scouting.org.
 - `EAGLE_LOCAL_BACKUP=/path/to/backup.json` round-trips one of the maintainer's own files and prints counts only. Never copy that file into the repo.
-- Ghostscript (`gs`) and Poppler (`pdftotext`), if installed, are used to check that typed answers are visible. On macOS the browser tests also check Apple PDFKit.
+- Ghostscript (`gs`) and Poppler (`pdftotext`, `pdftoppm`), if installed, are used to check that typed answers are visible and that the submission copy shows the typed answers and the cover art. `EAGLE_PDF_ALLOW_NEW=1` tests against a changed official PDF whose hash isn't known yet. On macOS the browser tests also check Apple PDFKit.
 
 Both test scripts must pass before you commit.
 
@@ -107,7 +110,7 @@ qpdf --json --json-key=acroform /tmp/dec.pdf          # field names, pages, posi
 
 ### Upgrade pdf.js
 
-Check pdfjs-dist security advisories first. In `tools/vendor-pdfjs.cjs`, update `VERSION`, the source hashes in `SOURCES`, and `LICENSE_SHA256`. If the script reports that the `FONT_FALLBACK` target was not found exactly once, update its `find` string for the new version. Then run it and both test scripts.
+Check pdfjs-dist and OpenJPEG security advisories first. In `tools/vendor-pdfjs.cjs`, update `VERSION`, the source hashes in `SOURCES`, `LICENSE_SHA256`, and the wasm and license hashes (`WASM_SHA256`, `WASM_LICENSE_SHA256`, `WRAPPER_LICENSE_SHA256`). If the script reports that the `FONT_FALLBACK` or `WASM_PATCH` target was not found exactly once, update its `find` string for the new version. Then run it and both test scripts.
 
 ### A new official workbook
 
@@ -116,6 +119,17 @@ Field names may change. Update `OFFICIAL_PDF_URL`, `OFFICIAL_SHA256`, `WORKBOOK_
 ### Screenshots
 
 Run `node tools/screenshots.cjs` after any visible change to the Guided Proposal stage or the Fill page. It uses only the fictional sample.
+
+## Gotchas (learned the hard way)
+
+- **`file://` is not production.** Chrome treats a local file as a secure context, so features that need https (the share menu, `crypto.subtle`) work in the tests and fail on a real `http://` site. Check the live https site too after a deploy.
+- **Browsers cache by guesswork without `Cache-Control`.** After an update a phone ran an old page with new library files and saved pages looked lost. Keep `.htaccess` (or the nginx rule in `INSTALL.md`) in the deploy, and when something "disappears" on a device, force-reload before debugging.
+- **Chrome and Edge refuse to share `.json` files** (`Permission denied`) even when `canShare` says yes. The share button is offered only where `navigator.userAgentData` is absent (Safari's engine). Don't "fix" this by sharing as `.txt`.
+- **JPEG 2000 art needs the bundled decoder.** Without `openjpeg-wasm.js` the cover medal and logo silently vanish from the submission copy. A browser test checks the cover for ink, but only if Poppler's `pdftoppm` is installed; otherwise it prints a note and skips.
+- **A PDF can't carry scans or links.** Reading a filled PDF back gives a backup with no signed pages. "Open in the … workbook" (on `BackupFromPDF.html`) keeps the draft's own, and asks first if the PDF's name differs from the draft's. "Open backup file" lists every signed page or link on the page that the file doesn't have, and removes them only if the Scout says yes.
+- **macOS ships bash 3.2.** In shell scripts use `${arr[@]+"${arr[@]}"}` for lists that may be empty under `set -u`, and avoid `mapfile` and `${var,,}`.
+- **When editing files with here-doc Python, quote the delimiter (`<<'EOF'`)** and prefer a script file over nested triple quotes; a failed edit can look like success if you don't check.
+- **A failing test you wrote first is worth keeping.** Several bugs here (missing cover art, duplicate signed pages) were only caught once a test failed before the fix and passed after.
 
 ## Review panel
 
