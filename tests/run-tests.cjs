@@ -396,6 +396,50 @@ function everyAnswer() {
     });
   }
 
+  console.log('Deploy script');
+  {
+    const { spawnSync } = require('child_process');
+    /** Run tools/deploy.sh in a throwaway repo with a fake rsync that records its arguments. */
+    const runDeploy = (args, { conf = '', env = {} } = {}) => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'eph-deploy-'));
+      try {
+        fs.mkdirSync(path.join(dir, 'tools')); fs.mkdirSync(path.join(dir, 'tests')); fs.mkdirSync(path.join(dir, 'bin'));
+        for (const d of ['lib', 'vendor', 'docs']) { fs.mkdirSync(path.join(dir, d)); fs.writeFileSync(path.join(dir, d, 'keep.txt'), 'x'); }
+        for (const f of ['index.html', 'EagleWorkbook-guided.html', 'EagleWorkbook.html', 'FillOfficialPDF.html', 'BackupFromPDF.html', 'README.md', 'INSTALL.md', 'LICENSE', '.htaccess', '.nojekyll']) fs.writeFileSync(path.join(dir, f), 'x');
+        fs.copyFileSync(path.join(ROOT, 'tools/deploy.sh'), path.join(dir, 'tools/deploy.sh'));
+        fs.writeFileSync(path.join(dir, 'tests/run-tests.cjs'), 'process.exit(0);\n');
+        fs.writeFileSync(path.join(dir, 'bin/rsync'), '#!/bin/sh\nprintf "%s\\n" "$@" >> "$RSYNC_LOG"\nprintf -- "--call--\\n" >> "$RSYNC_LOG"\n', { mode: 0o755 });
+        if (conf) fs.writeFileSync(path.join(dir, '.deploy.conf'), conf);
+        const git = (...a) => spawnSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { cwd: dir });
+        git('init', '-q'); fs.writeFileSync(path.join(dir, '.gitignore'), '.deploy.conf\n'); git('add', '-A'); git('commit', '-qm', 'x');
+        const log = path.join(dir, 'rsync.log');
+        const r = spawnSync('bash', ['tools/deploy.sh', ...args], { cwd: dir, encoding: 'utf8', env: { ...process.env, PATH: `${path.join(dir, 'bin')}:${process.env.PATH}`, RSYNC_LOG: log, DEPLOY_TARGET: '', DEPLOY_URL: '', DEPLOY_SSH: '', DEPLOY_SSH_EXTRA: '', ...env } });
+        const calls = fs.existsSync(log) ? fs.readFileSync(log, 'utf8') : '';
+        const eFlag = (calls.match(/^-e\n(.*)$/m) || [])[1] || null;
+        return { status: r.status, out: r.stdout + r.stderr, eFlag };
+      } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+    };
+    await test('deploy: no ssh options means no -e flag', () => {
+      const r = runDeploy(['--target', 'me@host:/var/www/eagle/']);
+      assert.equal(r.status, 0, r.out); assert.equal(r.eFlag, null);
+    });
+    await test('deploy: --ssh sets the ssh options for one run and replaces the saved ones', () => {
+      const r = runDeploy(['--target', 'me@host:/var/www/eagle/', '--ssh', '-p 2222'], { conf: 'DEPLOY_SSH=-i ~/.ssh/key\n' });
+      assert.equal(r.eFlag, 'ssh -p 2222');
+    });
+    await test('deploy: a leading "ssh" in --ssh is accepted, and a jump host chain passes through untouched', () => {
+      const chain = 'hagan-desktop2.aka.corp.amazon.com,ubuntu@35.173.251.6';
+      assert.equal(runDeploy(['--target', 'me@host:/var/www/eagle/', '--ssh', `ssh -J ${chain}`]).eFlag, `ssh -J ${chain}`, 'not "ssh ssh -J"');
+      assert.equal(runDeploy(['--target', 'me@host:/var/www/eagle/', '--ssh', `-J ${chain}`]).eFlag, `ssh -J ${chain}`);
+      assert.equal(runDeploy(['--target', 'me@host:/var/www/eagle/', '--ssh', 'ssh']).eFlag, null, 'just "ssh" means no extra options');
+    });
+    await test('deploy: the same ssh options are used for the sitemap copy, and a dry run says nothing was changed', () => {
+      const r = runDeploy(['--target', 'me@host:/var/www/eagle/', '--url', 'https://example.org/eagle/', '--ssh', 'ssh -J me@bastion']);
+      assert.equal(r.status, 0, r.out);
+      assert.match(r.out, /Dry run/);
+    });
+  }
+
   console.log('Keeping copies in step');
   {
     const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');

@@ -11,6 +11,8 @@
 #      repository folder (it is in .gitignore, so it is never committed)
 # Optional, same three places:  --url / DEPLOY_URL  = the public address, checked after a real copy
 #                               --ssh / DEPLOY_SSH  = extra ssh options, for example "-p 2222 -i ~/.ssh/mykey"
+#                                 or a jump host: --ssh "-J me@bastion,ubuntu@10.0.0.5". --ssh replaces any
+#                                 DEPLOY_SSH saved in .deploy.conf for that run, so repeat any -i key you also need.
 #
 # There is no built-in host. Only the files a visitor needs are copied; tests, tools, todo notes,
 # AGENTS.md, and git data stay behind. Nothing on the server is deleted.
@@ -54,6 +56,9 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
+
+# Be forgiving: "--ssh 'ssh -J bastion'" and "--ssh '-J bastion'" mean the same thing (the script adds "ssh" itself).
+case "$SSH_OPTS" in ssh) SSH_OPTS="" ;; "ssh "*) SSH_OPTS="${SSH_OPTS#ssh }" ;; esac
 
 if [ -z "$TARGET" ]; then
   echo "Say where to copy the files: --target USER@HOST:/path/to/folder/" >&2
