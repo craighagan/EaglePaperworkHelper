@@ -364,6 +364,83 @@ function everyAnswer() {
     });
   }
 
+  console.log('Draft saving');
+  {
+    /** A workbook-common.js running against a fake localStorage, with handlers we can fire by hand. */
+    const harness = (items = {}, { failWrites = false } = {}) => {
+      const handlers = { window: {}, document: {} };
+      const store = new Map(Object.entries(items));
+      const localStorage = {
+        getItem: (k) => (store.has(k) ? store.get(k) : null),
+        setItem: (k, v) => { if (failWrites) throw new Error('full'); store.set(k, String(v)); },
+        removeItem: (k) => store.delete(k)
+      };
+      const window = { addEventListener: (type, fn) => { (handlers.window[type] = handlers.window[type] || []).push(fn); } };
+      const document = { visibilityState: 'visible', addEventListener: (type, fn) => { (handlers.document[type] = handlers.document[type] || []).push(fn); } };
+      vm.runInNewContext(fs.readFileSync(path.join(ROOT, 'lib/workbook-common.js'), 'utf8'), { window, document, localStorage, console, setTimeout, clearTimeout });
+      return { W: window.EagleWorkbook, store, localStorage, handlers, document, fire: (where, type, e = {}) => (handlers[where][type] || []).forEach((fn) => fn(e)) };
+    };
+    const KEY = 'eagle_workbook_guided_v1';
+    await test('saving: leaving the page writes a draft that was still waiting for its timer', () => {
+      for (const [where, type, before] of [['window', 'pagehide'], ['document', 'visibilitychange', (h) => { h.document.visibilityState = 'hidden'; }]]) {
+        const h = harness();
+        const s = h.W.createStore(KEY);
+        const d = h.W.defaults(); d.candidate.name = 'Last Words';
+        s.save(d);
+        assert.equal(h.store.get(KEY), undefined, 'not written yet: the timer is pending');
+        if (before) before(h);
+        h.fire(where, type);
+        assert.match(h.store.get(KEY) || '', /Last Words/, `${type} writes it`);
+        assert.ok(h.store.get(`${KEY}_saved`), 'and marks it saved');
+      }
+    });
+    await test('saving: becoming visible again does not write anything', () => {
+      const h = harness();
+      const s = h.W.createStore(KEY);
+      s.save(h.W.defaults());
+      h.fire('document', 'visibilitychange');
+      assert.equal(h.store.get(KEY), undefined);
+    });
+    await test('saving: flush tells the page it saved, or that it could not', () => {
+      const ok = harness(); const a = ok.W.createStore(KEY); const seen = [];
+      a.onChange((x) => seen.push(x));
+      a.save(ok.W.defaults()); a.flush(ok.W.defaults());
+      assert.deepEqual(seen, ['saving', 'saved'], 'no stuck "Saving…"');
+      const bad = harness({}, { failWrites: true }); const b = bad.W.createStore(KEY); const seen2 = [];
+      b.onChange((x) => seen2.push(x));
+      b.flush(bad.W.defaults());
+      assert.deepEqual(seen2, ['failed']);
+    });
+    await test('saving: an unreadable draft is copied aside before anything can overwrite it', () => {
+      const text = '{"candidate":{"name":"Real"},"proposal":';
+      const h = harness({ [KEY]: text });
+      const s = h.W.createStore(KEY);
+      assert.equal(s.load(h.W.defaults), null);
+      assert.equal(h.store.get(`${KEY}_corrupt`), text, 'a copy is kept');
+      assert.equal(s.corrupt, true);
+      s.save(h.W.defaults()); s.flush(h.W.defaults());
+      assert.equal(h.store.get(`${KEY}_corrupt`), text, 'the copy survives the next save');
+      s.erase();
+      assert.equal(h.store.has(`${KEY}_corrupt`), false, 'erasing the draft erases the copy too');
+      const fine = harness(); const f = fine.W.createStore(KEY);
+      assert.equal(f.load(fine.W.defaults), null);
+      assert.equal(f.corrupt, false, 'an empty browser is not a corrupt draft');
+    });
+    await test('saving: a change made in another tab stops this tab from overwriting it', () => {
+      const h = harness();
+      const s = h.W.createStore(KEY); const seen = [];
+      s.onChange((x) => seen.push(x));
+      h.fire('window', 'storage', { key: KEY, storageArea: h.localStorage });
+      assert.equal(s.state, 'conflict');
+      s.save(h.W.defaults()); s.flush(h.W.defaults());
+      assert.equal(h.store.get(KEY), undefined, 'nothing is written after a conflict');
+      assert.ok(seen.includes('conflict'));
+      const other = harness(); const o = other.W.createStore(KEY);
+      other.fire('window', 'storage', { key: 'something_else', storageArea: other.localStorage });
+      assert.notEqual(o.state, 'conflict', 'other keys do not matter');
+    });
+  }
+
   console.log('Your path');
   {
     const W = workbookCommon();
