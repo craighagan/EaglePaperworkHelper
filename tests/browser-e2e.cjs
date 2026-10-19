@@ -332,6 +332,23 @@ async function run() {
         assert.match(t, /Ask your unit leader first/);
         assert.deepEqual(problems, []);
       });
+      await test('the Scoutly window fits a phone screen and its buttons are easy to tap', async () => {
+        await open(file, ready);
+        await evaluate('localStorage.clear()');
+        await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 760, deviceScaleFactor: 2, mobile: true });
+        try {
+          await open(file, ready);
+          await evaluate('document.querySelectorAll("nav button")[1].click()');
+          await waitFor('!!document.querySelector(".ask-help")');
+          await evaluate('document.querySelector(".ask-help summary").click(); document.querySelector(".ask-scoutly button").click()');
+          await waitFor('!!document.querySelector(".scoutly-win iframe")');
+          const m = await evaluate(`(() => { const r = document.querySelector(".scoutly-win").getBoundingClientRect(); const b = [...document.querySelectorAll(".scoutly-btn")].map((x) => { const q = x.getBoundingClientRect(); return Math.min(q.width, q.height); }); return { l: r.left, t: r.top, r: r.right, b: r.bottom, vw: innerWidth, vh: innerHeight, btn: Math.min(...b), scrollW: document.documentElement.scrollWidth }; })()`);
+          assert.ok(m.l >= 0 && m.r <= m.vw && m.t >= 0 && m.b <= m.vh, `window off screen: ${JSON.stringify(m)}`);
+          assert.ok(m.btn >= 32, `minimize/close buttons are ${m.btn}px`);
+          assert.ok(m.scrollW <= m.vw, `page scrolls sideways: ${JSON.stringify(m)}`);
+          if (process.env.SHOT) fs.writeFileSync(process.env.SHOT, Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+        } finally { await send('Emulation.clearDeviceMetricsOverride'); }
+      });
       await test('the tab bar stays just below the header while scrolling', async () => {
         await open(file, ready);
         await evaluate('document.querySelectorAll("nav button")[2].click()');
