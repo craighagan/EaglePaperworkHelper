@@ -1103,8 +1103,9 @@ function everyAnswer() {
         const result = await lib.fillOfficialPdf({ pdfjsLib, pdfBytes: original.slice(), data: local });
         const back = await lib.readBackupFromPdf({ pdfjsLib, pdfBytes: result.bytes.slice(), defaults: W.defaults });
         const want = answers(local), got = answers(back.data);
-        for (const k of Object.keys(want)) if (/^report\.hours\.[01]\.w$/.test(k)) delete want[k];
+        for (const k of Object.keys(want)) if (/^report\.hours\.[01]\.w$/.test(k) || /^(attachments|links|journey)\./.test(k)) delete want[k];   // a PDF cannot hold scans, links, or Your path notes
         const wrong = differences(want, got, local);
+        if (process.env.EAGLE_LOCAL_SHOW_WARNINGS) console.log(result.report.warnings.map((w) => '       - ' + w.slice(0, 160)).join('\n'));
         console.log(`       ${Object.keys(want).length} answers, ${result.report.filled} boxes filled, ${wrong.length} differ, ${result.report.warnings.length} warnings`);
         assert.deepEqual(wrong.length, 0, wrong.join(', '));
       });
