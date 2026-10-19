@@ -472,6 +472,9 @@ function everyAnswer() {
       assert.doesNotMatch(csp[1], /script-src[^;]*'unsafe-(inline|eval)'/); // 'wasm-unsafe-eval' (JPEG 2000 decoder) is allowed on pages that draw PDFs
       const connect = (/connect-src ([^;]+);/.exec(csp[1]) || [null, "'none'"])[1]; // default-src 'none' covers a missing connect-src
       assert.ok(connect === "'none'" || connect === lib.OFFICIAL_PDF_URL, `connect-src ${connect}`);
+      const frame = (/frame-src ([^;]+);/.exec(csp[1]) || [null, "'none'"])[1]; // default-src 'none' covers a missing frame-src
+      const mayFrame = file === 'EagleWorkbook-guided.html' || file === 'EagleWorkbook.html';
+      assert.equal(frame, mayFrame ? 'https://scoutly.scouting.org' : "'none'", `frame-src ${frame}`);
     });
   }
   await test('pages reference files that exist', () => {
