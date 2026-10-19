@@ -631,7 +631,7 @@ async function run() {
       await open('EagleWorkbook-guided.html', '!!document.querySelector("nav button")');
       assert.doesNotMatch(await pick(SAMPLE), /Your path/, 'an unticked step is not a note');
     });
-    await test('importing a PDF for a different name asks before keeping the draft\u2019s signed pages, and removes them on Cancel', async () => {
+    await test('importing a PDF for a different name asks before keeping the draft\u2019s signed pages, and Cancel stops without changing anything', async () => {
       const other = JSON.parse(fs.readFileSync(SAMPLE, 'utf8'));
       other.candidate.name = 'Jordan Other';
       await open('EagleWorkbook-guided.html', '!!document.querySelector("nav button")');
@@ -650,18 +650,21 @@ async function run() {
       // Say yes to replacing, but Cancel on the "different name" question.
       await evaluate(`window.__asked = []; window.confirm = (m) => { window.__asked.push(m); return !/^The name on this PDF is different/.test(m); }`);
       await evaluate('document.getElementById("open-guided").click()');
-      await waitFor('location.pathname.endsWith("EagleWorkbook-guided.html") && !!document.querySelector("nav button")');
+      await sleep(1000);
+      assert.equal(await evaluate('location.pathname.endsWith("BackupFromPDF.html")'), true, 'Cancel stayed on this page');
+      assert.ok((await evaluate('window.__asked.length')) >= 2, 'both questions were asked');
       const draft = JSON.parse(await evaluate('localStorage.getItem("eagle_workbook_guided_v1")'));
-      assert.equal((draft.attachments || []).length, 0, 'the other name\u2019s signed page was removed from the draft');
-      assert.equal(await evaluate('document.querySelector("header h1").textContent'), JSON.parse(fs.readFileSync(SAMPLE, 'utf8')).candidate.name);
-      for (let t = 0; t < 50 && await evaluate(idbKeys) > 0; t++) await sleep(100);
-      assert.equal(await evaluate(idbKeys), 0, 'its picture was removed from this browser');
+      assert.equal((draft.attachments || []).length, 1, 'the draft kept its signed page');
+      assert.equal(draft.candidate.name, 'Jordan Other', 'and its own answers');
+      assert.equal(await evaluate(idbKeys), 1, 'and its picture is still in this browser');
     });
     await test('opening a backup file warns about each signed page or link it would remove, not only when it has none', async () => {
       const withOtherLink = path.join(downloads, 'other-link.json');
       const d = JSON.parse(fs.readFileSync(SAMPLE, 'utf8'));
       d.links = [{ title: 'Something else', url: 'https://example.org/other' }];
       fs.writeFileSync(withOtherLink, JSON.stringify(d));
+      await open('EagleWorkbook-guided.html', '!!document.querySelector("nav button")');
+      await evaluate(`localStorage.clear(); indexedDB.deleteDatabase("eagle_workbook_files"); localStorage.setItem("eagle_workbook_guided_v1", ${JSON.stringify(fs.readFileSync(SAMPLE, 'utf8'))}); true`);
       await open('EagleWorkbook-guided.html', '!!document.querySelector("nav button")');
       await evaluate('document.querySelectorAll("nav button")[5].click()');
       await waitFor('!!document.querySelector(".privacy-warning")');
@@ -948,6 +951,28 @@ async function run() {
       await waitFor('document.getElementById("read-status").className.includes("error")');
       const readBack = await evaluate('document.getElementById("read-status").textContent');
       assert.match(readBack, /no fillable boxes.*submission copy.*Open backup file/s);
+    });
+
+    await test('a changed copy of the workbook is called out in Step 1, and the submission copy mentions the heads-ups', async () => {
+      assert.ok(backupWithScans, 'needs the backup from the earlier test');
+      const changed = path.join(os.tmpdir(), `eph-changed-${process.pid}.pdf`);
+      fs.writeFileSync(changed, Buffer.concat([fs.readFileSync(PDF), Buffer.from('\n%edited')]));
+      try {
+        await open('FillOfficialPDF.html', '!!window.EagleOfficialPdf');
+        await setFile('#pdf-file', changed);
+        await waitFor('/Using/.test(document.getElementById("pdf-chosen").textContent)', 30000);
+        const chosen = await evaluate('document.getElementById("pdf-chosen").textContent');
+        assert.match(chosen, /not the exact file Scouting America published/);
+        assert.doesNotMatch(chosen, /It is the official workbook/);
+        await setFile('#json-file', backupWithScans);
+        await waitFor('!document.getElementById("create-submission").disabled');
+        clearDownloads();
+        await evaluate('document.getElementById("create-submission").click()');
+        await waitFor('/\\b(ok|error)\\b/.test(document.getElementById("submission-status").className)', 120000);
+        const status = await evaluate('document.getElementById("submission-status").textContent');
+        assert.match(status, /^Done\./, status);
+        assert.match(status, /Heads-up: \d+ things in the filled workbook need a look\. Use “Create my filled PDF” in Step 4 to read them\./);
+      } finally { fs.rmSync(changed, { force: true }); }
     });
     await test('opening a different backup file forgets the old scans in this browser', async () => {
       await open('EagleWorkbook-guided.html', '!!document.querySelector("nav button")');

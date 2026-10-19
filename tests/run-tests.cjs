@@ -917,6 +917,13 @@ function everyAnswer() {
       assert.deepEqual(hits, ['report.leftoverMaterials']);
       assert.doesNotMatch(tips['report.leftoverMaterials'].text, /materials/i, 'the Report question asks about money only');
     });
+    await test('step 1 tells the exact official file from a changed copy', async () => {
+      const exact = await lib.checkWorkbookPdf(pdfjsLib, original.slice());
+      assert.equal(exact.ok, true); assert.equal(exact.exact, true);
+      const changed = new Uint8Array(original.length + 3); changed.set(original); changed.set([10, 37, 120], original.length);
+      const copy = await lib.checkWorkbookPdf(pdfjsLib, changed);
+      assert.equal(copy.ok, true); assert.equal(copy.exact, false, 'extra bytes mean it is not the file Scouting America published');
+    });
     await test('rejects a PDF that is not the workbook', async () => {
       const notWorkbook = Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj 3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF');
       await assert.rejects(lib.fillOfficialPdf({ pdfjsLib, pdfBytes: new Uint8Array(notWorkbook), data: sample }), /not the official Eagle Scout Service Project Workbook/);
@@ -946,7 +953,7 @@ function everyAnswer() {
       assert.ok(!Buffer.from(filled.bytes).subarray(original.length).toString('latin1').includes('NeedAppearances'), 'the update does not ask viewers to redraw');
     });
     await test('checks a chosen PDF before filling', async () => {
-      assert.deepEqual(await lib.checkWorkbookPdf(pdfjsLib, original.slice()), { ok: true });
+      assert.deepEqual(await lib.checkWorkbookPdf(pdfjsLib, original.slice()), { ok: true, exact: true });
       const result = await lib.checkWorkbookPdf(pdfjsLib, new Uint8Array(Buffer.from('%PDF-1.4\n%%EOF')));
       assert.equal(result.ok, false);
     });
