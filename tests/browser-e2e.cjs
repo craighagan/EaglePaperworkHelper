@@ -292,9 +292,22 @@ async function run() {
         }
         assert.match(await evaluate('document.querySelector(".ask-help").textContent'), /Ask your unit leader first/);
         assert.match(await evaluate('document.querySelector(".ask-help").textContent'), /Jordan Leader/);
+        assert.equal(await evaluate('document.querySelectorAll(".ask-scoutly iframe").length'), 0, 'nothing loads before the click');
         assert.equal(await evaluate('(() => { const a = document.querySelector(".ask-scoutly a"); return a && a.href + "|" + a.target + "|" + a.rel; })()'), 'https://www.scouting.org/|_blank|noopener noreferrer');
-        assert.equal(await evaluate('document.querySelector(".ask-scoutly a").classList.contains("btn")'), true);
-        assert.match(await evaluate('document.querySelector(".ask-scoutly").textContent'), /robot icon.*Don.t type your name/);
+        await evaluate('document.querySelector(".ask-scoutly button").click()');
+        await waitFor('!!document.querySelector("body > .scoutly-win iframe")');
+        assert.equal(await evaluate('(() => { const f = document.querySelector(".scoutly-win iframe"); f.dataset.mark = "same"; return f.src + "|" + f.getAttribute("sandbox") + "|" + f.getAttribute("referrerpolicy"); })()'), 'https://scoutly.scouting.org/|allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox|no-referrer');
+        assert.match(await evaluate('document.querySelector(".scoutly-bar").textContent'), /from Scouting America.*Not part of this helper/);
+        await evaluate(tabBtn(2));
+        await waitFor('!!document.querySelector(".ask-help")');
+        assert.equal(await evaluate('document.querySelector(".scoutly-win iframe").dataset.mark'), 'same', 'the chat survives a tab change');
+        await evaluate('document.querySelector(".scoutly-btn[aria-label^=Minimize]").click()');
+        assert.equal(await evaluate('getComputedStyle(document.querySelector(".scoutly-win")).display'), 'none');
+        assert.equal(await evaluate('document.querySelector(".scoutly-win iframe").dataset.mark'), 'same', 'minimizing keeps the chat');
+        await evaluate('document.querySelector(".scoutly-pill").click()');
+        assert.equal(await evaluate('getComputedStyle(document.querySelector(".scoutly-win")).display'), 'flex');
+        await evaluate('document.querySelector(".scoutly-btn[aria-label^=Close]").click()');
+        await waitFor('!document.querySelector(".scoutly-win") && !document.querySelector(".scoutly-pill")');
         assert.equal(await evaluate('document.querySelectorAll(".ask-help a[href^=\\"tel:\\"]").length > 0'), true);
         await evaluate(tabBtn(0));
         await waitFor('!document.querySelector(".ask-help")');

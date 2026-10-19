@@ -99,7 +99,7 @@ Most boxes have a **? Tips** button. It opens a short panel with what goes in th
 
 ## Privacy
 
-- The pages never send your answers anywhere. The only network request is the optional **Get the official PDF for me** button, which downloads the blank workbook from scouting.org. A content security policy in each page blocks everything else.
+- The pages never send your answers anywhere. The only network requests are two optional ones: the **Get the official PDF for me** button, which downloads the blank workbook from scouting.org, and the **Chat with Scoutly** button on the workbook pages, which only after you click shows Scouting America’s own chatbot from scoutly.scouting.org in a labeled floating window that stays open as you change tabs. What you type in that chat goes to Scouting America, not to this helper, so don’t type your name or contact details. A content security policy in each page blocks everything else.
 - Scans and photos of signed pages are saved in this browser and inside your backup file and submission copy. Treat those files as private: they hold pictures of adults’ signatures as well as everyone’s contact details.
 - Your draft is saved in this browser on this computer. Clearing browser data, private or incognito windows, school computers that reset, or a different browser can all lose it. **Save a backup file often.**
 - Backup files and filled PDFs contain names, birth dates, phone numbers, and addresses. Share them only with the people reviewing the project. Don’t post them in GitHub issues.

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' file: 'wasm-unsafe-eval'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' file: 'wasm-unsafe-eval'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; frame-src https://scoutly.scouting.org; form-action 'none'; base-uri 'none'">
 <title>Guided Eagle Project Workbook: proposal to report</title>
 <meta name="description" content="Fill out your Eagle Scout service project workbook step by step in plain language, with tips and examples on many boxes. Save a backup file, then fill the official PDF.">
 <meta property="og:type" content="website">
@@ -162,7 +162,8 @@ details.more-fields summary{cursor:pointer;padding:12px 0;font-weight:700;color:
 .card-status.error{color:#9a0a1e}
 @media(max-width:560px){.link-row{grid-template-columns:1fr}}
 .ask-help{margin:0 0 14px;border:1px solid #c9d3e0;border-radius:8px;background:#f5f8fc;padding:8px 12px;font-size:.95em}.ask-help summary{cursor:pointer;font-weight:600}.ask-help ul{margin:6px 0 2px;padding-left:20px}.ask-help p{margin:6px 0}
-@media print{input::placeholder,textarea::placeholder{color:transparent}.tip,.tip-btn,.tip-wrap,.keep-safe,.keep-list,.ask-help{display:none!important}}
+.ask-scoutly{margin-top:10px}.scoutly-win{position:fixed;right:16px;bottom:16px;z-index:50;width:380px;max-width:calc(100vw - 32px);height:560px;max-height:calc(100vh - 32px);display:flex;flex-direction:column;border:2px solid #003f87;border-radius:10px;overflow:hidden;background:#fff;box-shadow:0 6px 24px rgba(0,0,0,.3)}.scoutly-bar{display:flex;gap:6px;align-items:flex-start;padding:6px 8px 6px 10px;background:#003f87;color:#fff;font-size:12.5px;line-height:1.3}.scoutly-bar span{flex:1}.scoutly-btn{flex:none;min-width:32px;min-height:32px;border:0;border-radius:6px;background:rgba(255,255,255,.18);color:#fff;font-size:18px;line-height:1;cursor:pointer}.scoutly-frame{display:block;flex:1;width:100%;min-height:0;border:0}.scoutly-note{margin:0;padding:5px 10px;font-size:12px}.scoutly-pill{position:fixed;right:16px;bottom:16px;z-index:50;padding:10px 16px;border:0;border-radius:999px;background:#003f87;color:#fff;font-weight:600;font-size:14px;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,.3)}@media(max-width:620px){.scoutly-win{right:8px;left:8px;bottom:8px;width:auto;max-width:none;height:75vh}}
+@media print{input::placeholder,textarea::placeholder{color:transparent}.tip,.tip-btn,.tip-wrap,.keep-safe,.keep-list,.ask-help,.scoutly-win,.scoutly-pill{display:none!important}}
 </style>
 </head>
 <body>
