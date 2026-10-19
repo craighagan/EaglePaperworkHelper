@@ -35,6 +35,7 @@ Breaking any of these is a defect, even if the tests pass.
 | `FillOfficialPDF.html` + `lib/fill-page.js` | Fill the official PDF from a backup file or a saved draft. |
 | `BackupFromPDF.html` + `lib/backup-from-pdf-page.js` | Read a filled (fillable) workbook PDF back into a backup file. Flattened PDFs are intentionally unsupported. |
 | `docs/`, `todo/`, `INSTALL.md`, `.nojekyll`, `LICENSE` | Screenshots and the sources behind the tips; open work; hosting guide; GitHub Pages marker; MIT license. |
+| `lib/preflight.js` | Heads-up checks on the Fill page: a box's end date before its own start date, plus cost rows the filler cannot add up. Pure; never blocks creating the PDF; never flags blanks or cross-section date order; every note ends "Not sure? Ask your coach." `FillOfficialPDF.html` loads it after `official-pdf.js`. |
 | `lib/official-pdf.js` | Backup → PDF field mapping (`buildFieldValues`), filling (`fillOfficialPdf`), reading back (`readBackupFromPdf`, `reverseMap`), totals, date and money parsing, warnings in plain words (`describeField`). Runs in the browser and in Node tests. |
 | `vendor/pdfjs/` | pdf.js 5.4.296, converted to classic scripts plus a font fix and a patch that reads the JPEG 2000 decoder (`openjpeg-wasm.js`, base64) from a bundled script instead of fetching it. Without it, the cover art and logo vanish from the submission copy. Generated. |
 | `tools/vendor-pdfjs.cjs` | Rebuilds `vendor/pdfjs/` from pinned, SHA-256-checked downloads. |

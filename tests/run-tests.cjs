@@ -304,6 +304,65 @@ function everyAnswer() {
     }
   });
 
+  console.log('Heads-up checks');
+  {
+    const P = require(path.join(ROOT, 'lib/preflight.js'));
+    const clone = (f) => { const d = JSON.parse(JSON.stringify(sample)); f(d); return d; };
+    const run = (d) => P.check(d, lib);
+    await test('heads-up: the sample workbook has nothing to flag', () => assert.deepEqual(run(sample), []));
+    await test('heads-up: a blank or empty draft has nothing to flag', () => {
+      assert.deepEqual(run(workbookCommon().defaults()), []);
+      assert.deepEqual(run({}), []);
+      assert.deepEqual(run(null), []);
+    });
+    await test('heads-up: an end date before its own start date is flagged, once, in plain words', () => {
+      for (const [a, b, word] of [['proposal.startDate', 'proposal.endDate', 'Proposal'], ['plan.startDate', 'plan.endDate', 'Project plan'], ['report.actualStart', 'report.actualEnd', 'Final report (actual)'], ['report.startDate', 'report.endDate', 'Final report (planned)']]) {
+        const set = (d, path, v) => { const k = path.split('.'); d[k[0]][k[1]] = v; };
+        const notes = run(clone((d) => { set(d, a, '2026-10-01'); set(d, b, '2026-03-31'); }));
+        assert.equal(notes.length, 1, `${a}: ${notes.join(' | ')}`);
+        assert.match(notes[0], new RegExp(`^${word.replace(/[()]/g, '\\$&')}: the end date \\(3/31/2026\\) is before the start date \\(10/1/2026\\)\\. Not sure\\? Ask your coach\\.$`));
+      }
+      const phase = run(clone((d) => { d.plan.phases[2].start = '2026-05-10'; d.plan.phases[2].end = '2026-05-01'; }));
+      assert.equal(phase.length, 1);
+      assert.match(phase[0], /Project plan, phase 3/);
+    });
+    await test('heads-up: things that must NOT be flagged', () => {
+      const same = clone((d) => { d.proposal.startDate = '2026-05-01'; d.proposal.endDate = '2026-05-01'; });
+      assert.deepEqual(run(same), [], 'same day');
+      const blank = clone((d) => { d.proposal.startDate = ''; d.proposal.endDate = '2026-05-01'; d.plan.startDate = '2026-05-01'; d.plan.endDate = ''; });
+      assert.deepEqual(run(blank), [], 'one side blank');
+      const words = clone((d) => { d.proposal.startDate = 'June 1'; d.proposal.endDate = 'May 1'; d.plan.startDate = '2026-02-30'; d.plan.endDate = '2026-01-01'; });
+      assert.deepEqual(run(words), [], 'dates that are not real calendar dates are left alone');
+      const across = clone((d) => { d.proposal.startDate = '2026-09-01'; d.proposal.endDate = '2026-09-15'; d.plan.startDate = '2026-03-01'; d.plan.endDate = '2026-03-15'; d.report.actualStart = '2025-01-01'; d.report.actualEnd = '2025-01-02'; });
+      assert.deepEqual(run(across), [], 'the workbook sets no order between sections');
+    });
+    await test('heads-up: cost rows the PDF filler cannot add up are shown early, with the same words', () => {
+      const d = clone((x) => { x.plan.materials[0] = { ...x.plan.materials[0], qty: '2', unitCost: '5', totalCost: '99' }; });
+      const notes = run(d);
+      assert.equal(notes.length, 1);
+      assert.match(notes[0], /Materials list, row 1: Total \$ \(\$99\.00\) does not equal Qty × Unit \$ \(\$10\.00\)\. Not sure\? Ask your coach\.$/);
+    });
+    await test('heads-up: wording never reads like a rule or a verdict', () => {
+      const d = clone((x) => { x.proposal.startDate = '2026-10-01'; x.proposal.endDate = '2026-03-31'; x.plan.materials[0] = { ...x.plan.materials[0], qty: '2', unitCost: '5', totalCost: '99' }; });
+      for (const note of run(d)) {
+        assert.doesNotMatch(note, /\b(must|required|requirement|wrong|error|invalid|approve[sd]?|approval|ready|score)\b/i, note);
+        assert.ok(note.length <= 220, `${note.length} characters: ${note}`);
+        assert.ok(note.endsWith(P.ASK), note);
+      }
+    });
+    await test('heads-up: flags never stop the Scout from creating the PDF', () => {
+      const src = fs.readFileSync(path.join(ROOT, 'lib/fill-page.js'), 'utf8');
+      const disable = /createBtn\.disabled = ([^;]+);/.exec(src)[1];
+      assert.doesNotMatch(disable, /headsUp|missingNotes|EaglePreflight|notes/, `Create button is disabled by: ${disable}`);
+      assert.match(src, /These are only heads-ups\. You can still create the PDF\./);
+    });
+    await test('heads-up: the Fill page loads the checks and shows them with the other heads-ups', () => {
+      const html = fs.readFileSync(path.join(ROOT, 'FillOfficialPDF.html'), 'utf8');
+      assert.ok(html.indexOf('lib/official-pdf.js') < html.indexOf('lib/preflight.js') && html.indexOf('lib/preflight.js') < html.indexOf('lib/fill-page.js'));
+      assert.match(fs.readFileSync(path.join(ROOT, 'lib/fill-page.js'), 'utf8'), /EaglePreflight\.check\(d, lib\)/);
+    });
+  }
+
   console.log('Signed pages and attachments');
   {
     const A = require(path.join(ROOT, 'lib/attachments.js'));
