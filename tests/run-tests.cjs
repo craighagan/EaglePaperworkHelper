@@ -354,7 +354,7 @@ function everyAnswer() {
       const src = fs.readFileSync(path.join(ROOT, 'lib/fill-page.js'), 'utf8');
       const disable = /createBtn\.disabled = ([^;]+);/.exec(src)[1];
       assert.doesNotMatch(disable, /headsUp|missingNotes|EaglePreflight|notes/, `Create button is disabled by: ${disable}`);
-      assert.match(src, /These are only heads-ups\. You can still create the PDF\./);
+      assert.match(src, /These are only heads-ups\. They don’t stop you from creating the PDF\./);
     });
     await test('heads-up: the Fill page loads the checks and shows them with the other heads-ups', () => {
       const html = fs.readFileSync(path.join(ROOT, 'FillOfficialPDF.html'), 'utf8');
