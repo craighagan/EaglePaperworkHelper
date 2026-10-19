@@ -24,6 +24,8 @@ A pure `check(data, { today })` in `lib/preflight.js` returns neutral flags (wha
 
 ## 3. Your path (journey strip)
 
+**First version built** (`lib/journey.js`, `journeyCard` on the first tab of both workbooks): the steps, the next small step, the workbook's own reminder, the fundraising question, and the Scout's ticks, kept in the draft and backup file only. Not built yet: the welcome-back recap after a gap, "handed to X on date", a special one-page print view (the tab prints as it is), reuse on the Fill page, and linking each step to its tips.
+
 A pure `journeySteps(data, now)` in `lib/journey.js`: ordered steps (talk to unit leader, Proposal, the four signatures, fundraising application if raising money, Plan, do the project and log hours, Report, report signatures, rest of the Eagle packet outside this tool) with a state and one "next small step". State comes from filled fields and signed-page scans. A new `journey` draft key holds the Scout's own notes ("I have this signature", "handed to X on date"). A welcome-back recap after a long gap. A banner quoting the workbook about not starting work before the proposal is approved. A printable one-page version.
 - **Risks:** the new key has no PDF field, so a PDF round trip could erase it (same class as lost scans); status wording must be "your notes show", never "approved".
 - **First step:** tests first: old backups merge cleanly (`mergeWithDefaults`), `journey` produces no PDF fields, "Open in the workbook" from a PDF keeps the draft's `journey`.
