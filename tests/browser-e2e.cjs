@@ -500,6 +500,28 @@ async function run() {
       await waitFor(`location.pathname.endsWith("EagleWorkbook-guided.html") && document.querySelector("header h1") && document.querySelector("header h1").textContent === ${JSON.stringify(sample.candidate.name)}`);
       assert.deepEqual(problems, []);
     });
+    await test('Your path and the Guided stage cards count the same boxes', async () => {
+      const draft = JSON.parse(fs.readFileSync(SAMPLE, 'utf8'));
+      // Some boxes empty, including dates the old path list used to count.
+      draft.proposal.startDate = ''; draft.proposal.endDate = ''; draft.proposal.safety = '';
+      draft.plan.contingency = ''; draft.report.leadership = ''; draft.report.actualEnd = '';
+      await open('EagleWorkbook-guided.html', '!!document.querySelector("nav button")');
+      await evaluate(`localStorage.clear(); localStorage.setItem("eagle_workbook_guided_v1", ${JSON.stringify(JSON.stringify(draft))}); true`);
+      await open('EagleWorkbook-guided.html', '!!document.querySelector("nav button")');
+      await waitFor('!!document.querySelector(".journey")');
+      const card = JSON.parse(await evaluate(`JSON.stringify(Object.fromEntries([...document.querySelectorAll(".journey li")].map((li) => [li.querySelector("strong").textContent, (li.querySelector(".j-detail") || {}).textContent || ""])))`));
+      const pills = {};
+      for (const [tab, name] of [[1, 'proposal'], [2, 'plan'], [4, 'report']]) {
+        await evaluate(`document.querySelectorAll("nav button")[${tab}].click()`);
+        await waitFor('!!document.querySelector(".status-pill")');
+        pills[name] = await evaluate('document.querySelector(".status-pill").textContent');
+      }
+      const num = (s) => /(\d+) of (\d+)/.exec(s).slice(1).join('/');
+      assert.equal(num(card['Fill in your Proposal']), num(pills.proposal), `proposal: card "${card['Fill in your Proposal']}" vs stage "${pills.proposal}"`);
+      assert.equal(num(card['Write your Project Plan']), num(pills.plan), 'plan');
+      assert.equal(num(card['Fill in your Project Report']), num(pills.report), 'report');
+      assert.notEqual(num(card['Fill in your Proposal']).split('/')[0], num(card['Fill in your Proposal']).split('/')[1], 'the test has something empty to compare');
+    });
     await test('importing a PDF into a workbook keeps the Your path notes already in that draft', async () => {
       assert.ok(filledPdf, 'needs the PDF from the fill test');
       const draft = JSON.parse(fs.readFileSync(SAMPLE, 'utf8'));
