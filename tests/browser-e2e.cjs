@@ -322,6 +322,34 @@ async function run() {
         await evaluate('document.querySelector(".btn-control.save").click()');
         await waitFor('!/damaged/.test(document.querySelector(".backup-status").textContent)', 5000);
       });
+      await test('the header next to "Saved" says how much is not in a backup file yet', async () => {
+        const header = () => evaluate('document.querySelector(".save-status").textContent');
+        const type = (index, text) => evaluate(`(() => { const i = document.querySelectorAll("main .field input[type=text]")[${index}]; i.value = ${JSON.stringify(text)}; i.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+        await open(file, ready);
+        await evaluate('localStorage.clear()');
+        await open(file, ready);
+        await type(0, 'Alex');
+        await waitFor('/Saved in this browser/.test(document.querySelector(".save-status").textContent)', 5000);
+        assert.equal(await header(), '✓ Saved in this browser · no backup file yet');
+        await evaluate('document.querySelector(".btn-control.save").click()');
+        await waitFor('/backup file is up to date/.test(document.querySelector(".save-status").textContent)', 5000);
+        await type(0, 'Alexander'); await type(1, 'Smith');
+        await waitFor('/2 changes not in a backup file/.test(document.querySelector(".save-status").textContent)', 5000);
+        assert.equal(await header(), '✓ Saved in this browser · 2 changes not in a backup file');
+        await type(1, '');
+        await waitFor('/1 change not in a backup file/.test(document.querySelector(".save-status").textContent)', 5000);
+        await evaluate('document.querySelector(".btn-control.save").click()');
+        await waitFor('/backup file is up to date/.test(document.querySelector(".save-status").textContent)', 5000);
+        // Reloading shows the state straight away, without waiting for an edit.
+        await open(file, ready);
+        assert.equal(await header(), '✓ Saved in this browser · backup file is up to date');
+        // A backup saved before the count existed: say why there is no number.
+        await evaluate(`localStorage.removeItem(${JSON.stringify(key + '_snap')}); true`);
+        await open(file, ready);
+        await type(0, 'Changed again');
+        await waitFor('/Saved in this browser/.test(document.querySelector(".save-status").textContent)', 5000);
+        assert.equal(await header(), '✓ Saved in this browser · save a backup file to start the count');
+      });
       await test('the backup status counts boxes changed since the last backup file', async () => {
         await open(file, ready);
         await evaluate('localStorage.clear()');
@@ -462,6 +490,14 @@ async function run() {
           assert.ok(m.l >= 0 && m.r <= m.vw && m.t >= 0 && m.b <= m.vh, `window off screen: ${JSON.stringify(m)}`);
           assert.ok(m.btn >= 32, `minimize/close buttons are ${m.btn}px`);
           assert.ok(m.scrollW <= m.vw, `page scrolls sideways: ${JSON.stringify(m)}`);
+          // The longer "Saved … 12 changes not in a backup file" header still fits.
+          await evaluate(`(() => { const i = document.querySelector("main .field input[type=text]") || document.querySelector("input[type=text]"); if (i) { i.value = "Header width check"; i.dispatchEvent(new Event("input", { bubbles: true })); } })()`);
+          await waitFor('/Saved in this browser · /.test(document.querySelector(".save-status").textContent)', 5000);
+          const head = await evaluate(`(() => { const h = document.querySelector("header").getBoundingClientRect(); return { w: h.width, h: h.height, scroll: document.documentElement.scrollWidth, vw: innerWidth }; })()`);
+          assert.ok(head.scroll <= head.vw, `header makes the page scroll sideways: ${JSON.stringify(head)}`);
+          assert.ok(head.h <= 190, `header is ${head.h}px tall at 390px`);
+          const clash = await evaluate(`(() => { const s = document.querySelector(".save-status").getBoundingClientRect(); const t = document.querySelector("header h1").getBoundingClientRect(); const x = Math.min(s.right, t.right) - Math.max(s.left, t.left); const y = Math.min(s.bottom, t.bottom) - Math.max(s.top, t.top); return { x, y, title: [t.left, t.top, t.right, t.bottom], status: [s.left, s.top, s.right, s.bottom] }; })()`);
+          assert.ok(!(clash.x > 0 && clash.y > 0) && !(clash.x > -6 && clash.y > 0 && clash.status[1] < clash.title[3] - 4), `the saved note collides with the title: ${JSON.stringify(clash)}`);
           if (process.env.SHOT) fs.writeFileSync(process.env.SHOT, Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
         } finally { await send('Emulation.clearDeviceMetricsOverride'); }
       });
