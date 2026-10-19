@@ -24,6 +24,7 @@ lib/
 vendor/
 docs/          (pictures used by index.html and the README)
 README.md
+INSTALL.md      (these instructions; the README links to them)
 LICENSE
 .nojekyll      (GitHub Pages only; harmless elsewhere)
 .htaccess      (Apache only: makes browsers check for new versions; see Caching below)
@@ -32,7 +33,7 @@ LICENSE
 Leave these out. They are for developers only:
 
 ```text
-tests/  tools/  todo/  AGENTS.md  INSTALL.md  .gitignore  .git/
+tests/  tools/  todo/  AGENTS.md  .gitignore  .git/
 ```
 
 Never upload backup files (`.json`) or filled PDFs. They contain Scouts’ personal information.
@@ -42,7 +43,7 @@ Example, copying from the downloaded folder to a server you reach over SSH:
 ```bash
 rsync -av --delete \
   index.html EagleWorkbook-guided.html EagleWorkbook.html FillOfficialPDF.html BackupFromPDF.html \
-  lib vendor docs README.md LICENSE .nojekyll .htaccess \
+  lib vendor docs README.md INSTALL.md LICENSE .nojekyll .htaccess \
   you@your-server:/var/www/eagle/
 ```
 
