@@ -77,7 +77,7 @@ footer{margin-top:20px;font-size:.85rem;color:var(--muted)}
         <button class="btn secondary" id="open-classic" type="button">Open in the Classic workbook</button>
       </div>
       <p class="status" id="save-status" role="status" aria-live="polite"></p>
-      <p><strong>A PDF can’t hold signed pages, attachments, or links.</strong> If you added scans of signed pages, permits, or links in a workbook page, they are not in the backup file saved here. The “Open in” buttons keep the ones already in that workbook page’s draft (and ask first if the name on the PDF is different). If you open the saved backup file with “Open backup file” instead, the workbook page lists any signed pages or links that are on the page now and not in the file, and removes them only if you say yes.</p>
+      <p><strong>A PDF can’t hold signed pages, attachments, links, or your “Your path” notes.</strong> If you added scans of signed pages, permits, links, or path notes in a workbook page, they are not in the backup file saved here. The “Open in” buttons keep the ones already in that workbook page’s draft (and ask first if the name on the PDF is different). If you open the saved backup file with “Open backup file” instead, the workbook page lists any signed pages or links that are on the page now and not in the file, and removes them only if you say yes.</p>
       <p>The “Open in” buttons work when this page and the workbook pages share saved drafts (Chrome or Edge, or the same website). If the workbook page opens empty, use “Save backup file” and then “Open backup file” there.</p>
       <p>Keep the backup file somewhere safe, such as Google Drive or Dropbox. Then read through every page of the workbook. Signatures are not part of the PDF’s boxes, so get them on paper or as your council directs.</p>
     </section>
@@ -89,6 +89,7 @@ footer{margin-top:20px;font-size:.85rem;color:var(--muted)}
 <script src="vendor/pdfjs/pdf.js"></script>
 <script src="lib/official-pdf.js"></script>
 <script src="lib/attachments.js"></script>
+<script src="lib/journey.js"></script>
 <script src="lib/workbook-common.js"></script>
 <script src="lib/backup-from-pdf-page.js"></script>
 </body>

@@ -279,6 +279,38 @@ async function run() {
         await waitFor(`document.querySelector("nav button.active").textContent !== ${JSON.stringify(before)}`);
         assert.deepEqual(problems, []);
       });
+      await test('Your path shows the next step, keeps ticks, and shows the fundraising step only when asked', async () => {
+        await open(file, ready);
+        await evaluate(`localStorage.clear(); true`);
+        await open(file, ready);
+        await waitFor('!!document.querySelector(".journey")');
+        assert.match(await evaluate('document.querySelector(".journey-next").textContent'), /^Next on your path: Fill in the “(2\. )?Proposal” tab\.$/);
+        assert.match(await evaluate('document.querySelector(".j-reminder").textContent'), /^The workbook says not to begin any work, raise any money, or get any materials until your project proposal has been approved\. \(Proposal Page A\)$/);
+        assert.equal(await evaluate('document.querySelectorAll(".journey li").length'), 7, 'seven steps until fundraising is chosen');
+        await evaluate('(() => { const s = document.getElementById("journey-raising"); s.value = "yes"; s.dispatchEvent(new Event("change")); })()');
+        await waitFor('document.querySelectorAll(".journey li").length === 8');
+        assert.equal(await evaluate('document.querySelector(".journey li:nth-child(2) input[type=checkbox]").getAttribute("aria-label")'), 'I have done this: Get your Proposal signed', 'each checkbox names its step');
+        await evaluate('(() => { const c = document.querySelector(".journey li:nth-child(2) input[type=checkbox]"); c.focus(); c.click(); })()');
+        await waitFor('document.querySelector(".journey li:nth-child(2)").className === "j-done"');
+        assert.equal(await evaluate('document.activeElement.id'), 'j-tick-propSigned', 'keyboard focus stays on the checkbox after it redraws');
+        await evaluate('(() => { const s = document.getElementById("journey-raising"); s.focus(); s.value = "no"; s.dispatchEvent(new Event("change")); })()');
+        await waitFor('document.querySelectorAll(".journey li").length === 7');
+        assert.equal(await evaluate('document.activeElement.id'), 'journey-raising', 'and on the select');
+        await evaluate('(() => { const s = document.getElementById("journey-raising"); s.value = "yes"; s.dispatchEvent(new Event("change")); })()');
+        await waitFor('document.querySelectorAll(".journey li").length === 8');
+        await waitFor(`(localStorage.getItem(${JSON.stringify(key)}) || "").includes("propSigned")`);
+        const saved = JSON.parse(await evaluate(`localStorage.getItem(${JSON.stringify(key)})`));
+        assert.deepEqual(saved.journey, { raising: 'yes', steps: { propSigned: { done: '1' } } });
+        await open(file, ready);
+        await waitFor('!!document.querySelector(".journey")');
+        assert.equal(await evaluate('document.getElementById("journey-raising").value'), 'yes', 'the choice survives a reload');
+        assert.equal(await evaluate('document.querySelector(".journey li:nth-child(2)").className'), 'j-done', 'the tick survives a reload');
+        assert.equal(await evaluate('document.querySelectorAll(".journey").length'), 1);
+        await evaluate('document.querySelectorAll("nav button")[1].click()');
+        await waitFor('!!document.querySelector(".ask-help")');
+        assert.equal(await evaluate('document.querySelectorAll(".journey").length'), 0, 'only on the first tab');
+        assert.deepEqual(problems, []);
+      });
       await test('Who to ask card shows entered contacts safely, with default text when none', async () => {
         const sample = fs.readFileSync(SAMPLE, 'utf8');
         const tabBtn = (i) => `document.querySelectorAll("nav button")[${i}].click()`;
@@ -468,6 +500,21 @@ async function run() {
       await waitFor(`location.pathname.endsWith("EagleWorkbook-guided.html") && document.querySelector("header h1") && document.querySelector("header h1").textContent === ${JSON.stringify(sample.candidate.name)}`);
       assert.deepEqual(problems, []);
     });
+    await test('importing a PDF into a workbook keeps the Your path notes already in that draft', async () => {
+      assert.ok(filledPdf, 'needs the PDF from the fill test');
+      const draft = JSON.parse(fs.readFileSync(SAMPLE, 'utf8'));
+      draft.journey = { raising: 'yes', steps: { propSigned: { done: '1' }, work: { done: '1' } } };
+      await open('EagleWorkbook-guided.html', '!!document.querySelector("nav button")');
+      await evaluate(`localStorage.clear(); indexedDB.deleteDatabase("eagle_workbook_files"); localStorage.setItem("eagle_workbook_guided_v1", ${JSON.stringify(JSON.stringify(draft))}); true`);
+      await open('BackupFromPDF.html', '!!window.EagleOfficialPdf');
+      await setFile('#pdf-file', filledPdf);
+      await waitFor('/\\b(ok|error)\\b/.test(document.getElementById("read-status").className)', 60000);
+      await evaluate('document.getElementById("open-guided").click()');
+      await waitFor('location.pathname.endsWith("EagleWorkbook-guided.html") && !!document.querySelector("nav button")');
+      const after = JSON.parse(await evaluate('localStorage.getItem("eagle_workbook_guided_v1")'));
+      assert.deepEqual(after.journey, draft.journey, 'the notes are kept');
+      assert.ok(await evaluate('document.querySelectorAll(".journey li.j-done").length >= 2'), 'and shown');
+    });
     await test('importing a PDF into a workbook keeps the signed pages and links already in that draft', async () => {
       assert.ok(filledPdf, 'needs the PDF from the fill test');
       // A draft with a signed page and a link (a PDF cannot hold either).
@@ -484,7 +531,7 @@ async function run() {
       await open('BackupFromPDF.html', '!!window.EagleOfficialPdf');
       await setFile('#pdf-file', filledPdf);
       await waitFor('/\\b(ok|error)\\b/.test(document.getElementById("read-status").className)', 60000);
-      assert.match(await evaluate('document.getElementById("save-status").textContent + document.getElementById("result").textContent'), /signed pages, attachments, or links/i, "says a PDF cannot hold them");
+      assert.match(await evaluate('document.getElementById("save-status").textContent + document.getElementById("result").textContent'), /signed pages, attachments, links/i, "says a PDF cannot hold them");
       await evaluate('document.getElementById("open-guided").click()');
       await waitFor('location.pathname.endsWith("EagleWorkbook-guided.html") && !!document.querySelector("nav button")');
       await evaluate('document.querySelectorAll("nav button")[5].click()');
@@ -507,6 +554,30 @@ async function run() {
       await send('DOM.setFileInputFiles', { nodeId, files: [SAMPLE] });
       for (let t = 0; t < 50 && !dialogs.length; t++) await sleep(100);
       assert.match(dialogs[0] || '', /does not have 1 signed page or attachment page and 1 link that are on this page now, so they will be removed/s, dialogs[0]);
+    });
+    await test('opening a backup file without your path notes warns when this page has some, and not when they were all unticked', async () => {
+      const pick = async (file) => {
+        await evaluate(`(() => { window.__picker = null; const orig = HTMLInputElement.prototype.click; HTMLInputElement.prototype.click = function () { if (this.type === 'file') { window.__picker = this; return; } return orig.call(this); }; })()`);
+        await click('Open backup file');
+        await waitFor('!!window.__picker');
+        const { root } = await send('DOM.getDocument');
+        await evaluate('document.body.appendChild(window.__picker); window.__picker.id = "picked3"; true');
+        const { nodeId } = await send('DOM.querySelector', { nodeId: root.nodeId, selector: '#picked3' });
+        dialogs = [];
+        await send('DOM.setFileInputFiles', { nodeId, files: [file] });
+        for (let t = 0; t < 30 && !dialogs.length; t++) await sleep(100);
+        return dialogs[0] || '';
+      };
+      const draft = JSON.parse(fs.readFileSync(SAMPLE, 'utf8'));
+      draft.journey = { raising: '', steps: { work: { done: '1' } } };
+      await open('EagleWorkbook-guided.html', '!!document.querySelector("nav button")');
+      await evaluate(`localStorage.clear(); indexedDB.deleteDatabase("eagle_workbook_files"); localStorage.setItem("eagle_workbook_guided_v1", ${JSON.stringify(JSON.stringify(draft))}); true`);
+      await open('EagleWorkbook-guided.html', '!!document.querySelector("nav button")');
+      assert.match(await pick(SAMPLE), /does not have your notes in “Your path” that are on this page now, so they will be removed/, 'ticked notes are named');
+      draft.journey = { raising: '', steps: { work: { done: '' } } };
+      await evaluate(`localStorage.setItem("eagle_workbook_guided_v1", ${JSON.stringify(JSON.stringify(draft))}); true`);
+      await open('EagleWorkbook-guided.html', '!!document.querySelector("nav button")');
+      assert.doesNotMatch(await pick(SAMPLE), /Your path/, 'an unticked step is not a note');
     });
     await test('importing a PDF for a different name asks before keeping the draft\u2019s signed pages, and removes them on Cancel', async () => {
       const other = JSON.parse(fs.readFileSync(SAMPLE, 'utf8'));

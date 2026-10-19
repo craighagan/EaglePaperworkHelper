@@ -142,6 +142,7 @@ function everyAnswer() {
     else obj[key] = `A${n++}`;
   };
   Object.keys(data).forEach((k) => fill(data, k));
+  data.journey = { raising: '', steps: {} }; // "Your path" notes live in the backup file only; the PDF has no boxes for them
   data.unit.type = 'Troop';
   for (const k of Object.keys(data.proposal.costs)) data.proposal.costs[k] = '10';
   data.plan.toBeRaised = '100'; data.plan.beneficiaryContribution = '5'; data.fundraising.howMuch = '50';
@@ -360,6 +361,86 @@ function everyAnswer() {
       const html = fs.readFileSync(path.join(ROOT, 'FillOfficialPDF.html'), 'utf8');
       assert.ok(html.indexOf('lib/official-pdf.js') < html.indexOf('lib/preflight.js') && html.indexOf('lib/preflight.js') < html.indexOf('lib/fill-page.js'));
       assert.match(fs.readFileSync(path.join(ROOT, 'lib/fill-page.js'), 'utf8'), /EaglePreflight\.check\(d, lib\)/);
+    });
+  }
+
+  console.log('Your path');
+  {
+    const W = workbookCommon();
+    const J = require(path.join(ROOT, 'lib/journey.js'));
+    const A = require(path.join(ROOT, 'lib/attachments.js'));
+    const clone = (f) => { const d = JSON.parse(JSON.stringify(sample)); f(d); return d; };
+    await test('path: a new draft starts with an empty journey, and old backups get one', () => {
+      assert.equal(JSON.stringify(W.defaults().journey), JSON.stringify({ raising: '', steps: {} }));
+      const old = JSON.parse(JSON.stringify(sample)); delete old.journey;
+      assert.equal(JSON.stringify(W.mergeWithDefaults(W.defaults(), old).journey), JSON.stringify({ raising: '', steps: {} }));
+    });
+    await test('path: notes survive a backup, and bad values are ignored', () => {
+      const withNotes = clone((d) => { d.journey = { raising: 'yes', steps: { propSigned: { done: '1' }, work: { done: '' } } }; });
+      assert.equal(JSON.stringify(W.mergeWithDefaults(W.defaults(), withNotes).journey), JSON.stringify({ raising: 'yes', steps: { propSigned: { done: '1' }, work: { done: '' } } }));
+      const bad = W.mergeWithDefaults(W.defaults(), clone((d) => { d.journey = { raising: 7, steps: 'x' }; }));
+      assert.equal(JSON.stringify(bad.journey.steps), '{}');
+      assert.notEqual(bad.journey.raising, 'yes', 'a stray value is not a yes');
+      assert.equal(J.journeySteps(bad, A).steps.some((x) => x.id === 'fund'), false);
+    });
+    await test('path: notes never go into the official PDF', () => {
+      const plain = lib.buildFieldValues(sample);
+      const noted = lib.buildFieldValues(clone((d) => { d.journey = { raising: 'yes', steps: { propSigned: { done: '1' }, repSigned: { done: '1' } } }; }));
+      assert.deepEqual(noted.text, plain.text);
+      assert.deepEqual(noted.radio, plain.radio);
+      assert.deepEqual(noted.notes, plain.notes);
+    });
+    await test('path: reading a PDF gives a backup with an empty journey', () => {
+      const back = lib.backupFromValues(new Map([['Workbook-ProjectName', 'A Bench']]), W.defaults);
+      assert.equal(JSON.stringify(back.data.journey), JSON.stringify({ raising: '', steps: {} }));
+    });
+    await test('path: the steps follow the draft, and the next step is the first one left', () => {
+      const empty = J.journeySteps(W.defaults(), A);
+      assert.equal(empty.steps[0].id, 'proposal');
+      assert.equal(empty.next.id, 'proposal');
+      assert.equal(empty.next.next, 'Fill in the “Proposal” tab.');
+      assert.equal(J.journeySteps(W.defaults(), A, { proposal: '2. Proposal' }).next.next, 'Fill in the “2. Proposal” tab.', 'each workbook names its own tabs');
+      assert.ok(!empty.steps.some((s) => s.id === 'fund'), 'fundraising step only when the Scout says they are raising money');
+      const raising = J.journeySteps(clone((d) => { d.journey = { raising: 'yes', steps: {} }; }), A);
+      assert.ok(raising.steps.some((s) => s.id === 'fund'));
+      const full = J.journeySteps(clone((d) => { d.journey = { raising: 'no', steps: { propSigned: { done: '1' }, work: { done: '1' } } }; }), A);
+      assert.equal(full.steps.find((s) => s.id === 'proposal').state, 'done', 'the sample proposal is filled in');
+      assert.equal(full.steps.find((s) => s.id === 'propSigned').state, 'done');
+      assert.equal(full.steps.find((s) => s.id === 'repSigned').state, 'todo');
+      assert.ok(full.next && !['proposal', 'propSigned', 'work'].includes(full.next.id));
+      const done = J.journeySteps(clone((d) => { d.journey = { raising: 'no', steps: Object.fromEntries(J.CHECK_IDS.map((id) => [id, { done: '1' }])) }; }), A);
+      assert.equal(done.steps.filter((s) => s.kind === 'check').every((s) => s.state === 'done'), true);
+    });
+    await test('path: a signed-page scan is reported as a scan, never as "approved"', () => {
+      const scanned = J.journeySteps(clone((d) => { d.attachments = [{ id: 'aaaaaaaaaa', place: 'proposalH', label: 'x', pages: [{ id: 'bbbbbbbbbb', width: 85, height: 110, bytes: 1 }] }]; }), A);
+      const step = scanned.steps.find((s) => s.id === 'propSigned');
+      assert.match(step.detail, /A scan is added for this page\./);
+      assert.doesNotMatch(step.detail, /signed page is added|is signed|correct/i, 'a scan is a scan, not proof');
+      const none = J.journeySteps(W.defaults(), A).steps.find((s) => s.id === 'propSigned');
+      assert.match(none.detail, /No scan added yet.*Add it on the “Signed Pages” tab\./);
+      assert.match(none.detail, /^Signatures on Proposal Page H: you, your unit leader/);
+    });
+    await test('path: only ticks and yes/no answers count as notes; stray content is dropped', () => {
+      assert.equal(J.hasNotes({ raising: '', steps: {} }), false);
+      assert.equal(J.hasNotes({ raising: '', steps: { work: { done: '' } } }), false, 'a tick that was undone is not a note');
+      assert.equal(J.hasNotes({ raising: 'no', steps: {} }), true);
+      assert.equal(J.hasNotes({ raising: '', steps: { work: { done: '1' } } }), true);
+      assert.equal(J.hasNotes(null), false);
+      const hostile = { raising: '<img onerror=x>', steps: { work: [], rest: { done: '1', junk: 'x' }, '<b>x</b>': { done: '1' }, propSigned: 'yes', fund: { done: 5 } } };
+      const want = JSON.stringify({ raising: '', steps: { rest: { done: '1' } } });
+      assert.equal(JSON.stringify(J.clean(hostile)), want);
+      assert.equal(JSON.stringify(W.mergeWithDefaults(W.defaults(), { candidate: {}, proposal: {}, journey: hostile }).journey), want);
+      const big = { raising: 'yes', steps: Object.fromEntries(Array.from({ length: 5000 }, (_, i) => [`k${i}`, { done: '1' }])) };
+      assert.equal(Object.keys(W.mergeWithDefaults(W.defaults(), { candidate: {}, proposal: {}, journey: big }).journey.steps).length, 0, 'unknown step ids are dropped');
+      for (const id of J.CHECK_IDS) assert.equal(W.mergeWithDefaults(W.defaults(), { candidate: {}, proposal: {}, journey: { steps: { [id]: { done: '1' } } } }).journey.steps[id].done, '1', `${id} is kept`);
+    });
+    await test('path: wording stays guidance and quotes the workbook for the reminder', () => {
+      assert.match(J.REMINDER, /^The workbook says not to begin any work, raise any money, or get any materials until your project proposal has been approved\. \(Proposal Page A\)$/);
+      const all = J.journeySteps(clone((d) => { d.journey = { raising: 'yes', steps: {} }; }), A);
+      for (const s of all.steps) {
+        const text = [s.title, s.detail || '', s.next || ''].join(' ');
+        assert.doesNotMatch(text, /\b(approved|approval|ready|score|you must|required)\b/i, `${s.id}: ${text}`);
+      }
     });
   }
 
