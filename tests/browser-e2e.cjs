@@ -322,6 +322,26 @@ async function run() {
         await evaluate('document.querySelector(".btn-control.save").click()');
         await waitFor('!/damaged/.test(document.querySelector(".backup-status").textContent)', 5000);
       });
+      await test('the backup status counts boxes changed since the last backup file', async () => {
+        await open(file, ready);
+        await evaluate('localStorage.clear()');
+        await open(file, ready);
+        const status = () => evaluate('document.querySelector(".backup-status").textContent');
+        const type = (index, text) => evaluate(`(() => { const i = document.querySelectorAll("main .field input[type=text]")[${index}]; i.value = ${JSON.stringify(text)}; i.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+        await type(0, 'Alex');
+        await evaluate('document.querySelector(".btn-control.save").click()');
+        await waitFor('/Last backup file: (?!never)/.test(document.querySelector(".backup-status").textContent)', 5000);
+        assert.doesNotMatch(await status(), /since that backup file|only in this browser/, 'just saved: nothing to warn about');
+        await type(0, 'Alexander');
+        await type(1, 'Smith');
+        await waitFor('/2 changes since that backup file/.test(document.querySelector(".backup-status").textContent)', 5000);
+        assert.match(await status(), /You have changes that are only in this browser\. Click “Save backup file\.” \(2 changes since that backup file\)$/);
+        assert.equal(await evaluate('document.querySelector(".backup-status .count").getAttribute("aria-hidden")'), 'true', 'the number is not read out on every edit');
+        await type(1, '');
+        await waitFor('/\\(1 change since that backup file\\)/.test(document.querySelector(".backup-status").textContent)', 5000);
+        await type(0, 'Alex');
+        await waitFor('!/only in this browser/.test(document.querySelector(".backup-status").textContent)', 5000);
+      });
       await test('typing and leaving at once still saves the draft', async () => {
         await open(file, ready);
         await evaluate('localStorage.clear()');

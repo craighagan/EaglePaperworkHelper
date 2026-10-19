@@ -606,6 +606,64 @@ function everyAnswer() {
       assert.equal(s.state, 'conflict');
       assert.ok(s.conflictAt > 0);
     });
+    await test('changes: the store counts boxes changed since the last backup, not keystrokes', () => {
+      const h = harness(); const s = h.W.createStore(KEY);
+      const d = h.W.defaults();
+      s.markBackedUp(d);
+      s.flush(d);
+      assert.equal(s.changeCount(), 0, 'nothing changed since the backup');
+      d.candidate.name = 'A'; s.save(d); d.candidate.name = 'Al'; s.save(d); d.candidate.name = 'Alex'; s.save(d);
+      assert.equal(s.changeCount(), 1, 'three keystrokes in one box is one box');
+      d.plan.materials[0].item = 'Boards';
+      assert.equal(s.changeCount(), 2);
+      d.candidate.name = '';
+      assert.equal(s.changeCount(), 1, 'changing a box back removes it from the count');
+      d.attachments.push({ id: 'aaaaaaaaaa', place: 'proposalH', label: 'Signed', pages: [{ id: 'bbbbbbbbbb', width: 1, height: 1, bytes: 1 }, { id: 'cccccccccc', width: 1, height: 1, bytes: 1 }] });
+      assert.equal(s.changeCount(), 2, 'a scan with two pages counts once');
+      d.links.push({ title: 'Budget', url: 'https://example.org/b' });
+      assert.equal(s.changeCount(), 3, 'a link counts once');
+      d.journey.steps.work = { done: '1' };
+      assert.equal(s.changeCount(), 4, 'a tick on Your path counts');
+      s.markBackedUp(d);
+      assert.equal(s.changeCount(), 0, 'saving a backup file starts the count again');
+    });
+    await test('changes: the saved comparison holds fingerprints, never the words', () => {
+      const h = harness(); const s = h.W.createStore(KEY);
+      const d = h.W.defaults();
+      d.candidate.name = 'Zephyrine Q. Secretname'; d.proposal.description = 'A very private project description';
+      s.markBackedUp(d);
+      const snap = h.store.get(`${KEY}_snap`);
+      assert.doesNotMatch(snap, /Zephyrine|Secretname|private project/, 'no words in the comparison');
+      assert.match(snap, /"candidate\.name":"[0-9a-z]{1,8}"/, 'a short fingerprint instead');
+      d.candidate.name = 'Zephyrine Q. Secretnamf';
+      assert.equal(s.changeCount(), 1, 'one letter changed in one box is detected');
+    });
+    await test('changes: no count when this browser never took a snapshot, or the Scout never saved a backup', () => {
+      const old = harness({ [`${KEY}_backup`]: '1000' });   // backed up before this feature existed
+      const a = old.W.createStore(KEY); a.flush(old.W.defaults());
+      assert.equal(a.changeCount(), null);
+      const none = harness(); const b = none.W.createStore(KEY); b.flush(none.W.defaults());
+      assert.equal(b.changeCount(), null, 'never backed up: the status line already says so');
+    });
+    await test('changes: a snapshot taken before the share sheet opens is what counts, and a failed snapshot write is not trusted', () => {
+      const h = harness(); const s = h.W.createStore(KEY);
+      const d = h.W.defaults(); d.candidate.name = 'Before';
+      const hashes = h.W.boxHashes(d);              // taken when the file is built
+      d.candidate.name = 'Typed while the share sheet was open';
+      s.markBackedUp(d, hashes);
+      assert.equal(s.changeCount(), 1, 'what was typed after the file was built still counts');
+      const bad = harness({}, { failWrites: true }); const b = bad.W.createStore(KEY);
+      bad.store.set(`${KEY}_snap`, '{"candidate.name":"zz"}');  // an older snapshot
+      b.markBackedUp(bad.W.defaults());
+      assert.equal(bad.store.has(`${KEY}_snap`), false, 'a snapshot that could not be written does not leave an old one behind');
+      assert.equal(b.changeCount(), null);
+    });
+    await test('changes: erasing the draft forgets the comparison', () => {
+      const h = harness(); const s = h.W.createStore(KEY);
+      s.markBackedUp(h.W.defaults()); s.erase();
+      assert.equal([...h.store.keys()].filter((k) => k.startsWith(KEY)).length, 0);
+      assert.equal(s.changeCount(), null);
+    });
     await test('saving: a change made in another tab stops this tab from overwriting it', () => {
       const h = harness();
       const s = h.W.createStore(KEY); const seen = [];
