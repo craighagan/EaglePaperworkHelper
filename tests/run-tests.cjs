@@ -435,6 +435,22 @@ function everyAnswer() {
     });
   }
 
+  console.log('Official-workbook wording');
+  {
+    const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
+    await test('wording: the submission copy says to check first, and this helper is optional next to the official workbook', () => {
+      const fill = read('FillOfficialPDF.html'), home = read('index.html'), readme = read('README.md');
+      for (const [name, text] of [['Fill page', fill], ['home page', home], ['README', readme]]) {
+        assert.match(text, /This copy adds a list page and your scans to the workbook, so check with your unit leader or council before you hand it in\./, `${name}: check first`);
+      }
+      for (const [name, text] of [['home page', home], ['README', readme]]) {
+        assert.match(text, /Using this helper is your choice\./, `${name}: optional`);
+        assert.match(text, /no council, district, unit, or individual may add forms, change requirements, or change the workbook itself, so the official workbook, filled and signed, is what you complete\. Your unit leader and council still tell you how to hand it in\./, `${name}: the workbook's own rule, and who decides how to hand in`);
+      }
+      assert.doesNotMatch(home + readme, /can require additional forms/, 'the looser wording is gone');
+    });
+  }
+
   console.log('Heads-up checks');
   {
     const P = require(path.join(ROOT, 'lib/preflight.js'));

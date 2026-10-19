@@ -9,6 +9,7 @@ Free, offline helpers for the **Eagle Scout Service Project Workbook**. Type you
 **Official workbook:** [Eagle Scout Service Project Workbook No. 2023a (PDF)](https://www.scouting.org/wp-content/uploads/2023/01/EagleProjectWorkbook2023a.pdf), from Scouting America’s [workbook page](https://www.scouting.org/programs/scouts-bsa/advancement-and-awards/eagle-scout-workbook/). Check that page for the current version before you submit.
 
 > This project is not made, endorsed, or supported by Scouting America. Read the entire official workbook (and its “Message to Scouts and Parents or Guardians” with a parent or guardian). The official workbook, your council’s procedures, and the required signatures are what count.
+> Using this helper is your choice. Scouting America’s workbook says no council, district, unit, or individual may add forms, change requirements, or change the workbook itself, so the official workbook, filled and signed, is what you complete. Your unit leader and council still tell you how to hand it in.
 
 **Try it online:** <https://www.cih.com/troop6/eagle/>. It works the same as the downloaded copy, and your answers still stay in your own browser.
 
@@ -78,6 +79,7 @@ Three pages of workbook No. 2023a need signatures: **Proposal Page H**, **Fundra
 
 Step 5 on **Fill the official PDF** then makes a **submission copy**: the whole filled workbook, with each signed page inserted right after the official page it belongs to (nothing is replaced), then a page that lists every attachment and link, then the other attachments.
 
+- This copy adds a list page and your scans to the workbook, so check with your unit leader or council before you hand it in.
 - The official PDF doesn’t allow adding pages, so the submission copy is a printed copy of the filled workbook, like “Print to PDF.” Its boxes can’t be edited and **Make a backup file from a PDF** can’t read it, so keep your backup file as your working copy (see the table above).
 - Scans are saved in this browser (IndexedDB) and in your backup file. **Once you add a scan, your backup file holds pictures of the adults’ signatures.** Keep it private, as with the rest of the backup file.
 - A submission copy is usually 5 to 10 MB.
