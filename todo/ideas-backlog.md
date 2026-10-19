@@ -14,6 +14,8 @@ Copy-ready teen-voice messages per person (unit leader, beneficiary rep, committ
 
 ## 2. Check before you fill the PDF
 
+**First version built** (`lib/preflight.js`, shown with the other heads-ups in Step 3 of the Fill page): same-box start/end dates and cost rows the filler cannot add up. Flags never block creating the PDF. Not built yet: the "this is intentional" dismissal, click-to-jump, a coach page in Print draft, overflow check before filling, and the same panel inside the workbooks.
+
 A pure `check(data, { today })` in `lib/preflight.js` returns neutral flags (what it saw, which tab, "Not sure? Ask your coach."). Never a score, never a gate, never "likely approved". With no flags: "Nothing here looked unusual. This is not an approval check."
 - **Flags that are safe:** end date before its own start date (same box pair only); typed totals versus the rows when both sides are present and parse; hours rows versus the typed total; a date that cannot be read.
 - **Not safe (do not build):** cross-section date order (the workbook requires none), empty-box rules that imply a requirement, anything on a blank value.
