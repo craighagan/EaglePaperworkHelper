@@ -293,6 +293,7 @@ async function run() {
         assert.match(await evaluate('document.querySelector(".ask-help").textContent'), /Ask your unit leader first/);
         assert.match(await evaluate('document.querySelector(".ask-help").textContent'), /Jordan Leader/);
         assert.equal(await evaluate('(() => { const a = document.querySelector(".ask-scoutly a"); return a && a.href + "|" + a.target + "|" + a.rel; })()'), 'https://www.scouting.org/|_blank|noopener noreferrer');
+        assert.equal(await evaluate('document.querySelector(".ask-scoutly a").classList.contains("btn")'), true);
         assert.match(await evaluate('document.querySelector(".ask-scoutly").textContent'), /robot icon.*Don.t type your name/);
         assert.equal(await evaluate('document.querySelectorAll(".ask-help a[href^=\\"tel:\\"]").length > 0'), true);
         await evaluate(tabBtn(0));
