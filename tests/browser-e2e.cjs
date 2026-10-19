@@ -279,6 +279,20 @@ async function run() {
         await waitFor(`document.querySelector("nav button.active").textContent !== ${JSON.stringify(before)}`);
         assert.deepEqual(problems, []);
       });
+      await test('lists longer than the PDF say so, and the hours total counts the PDF rows', async () => {
+        const draft = JSON.parse(fs.readFileSync(SAMPLE, 'utf8'));
+        draft.plan.materials = Array.from({ length: 11 }, (_, i) => ({ item: `Item ${i}`, description: '', qty: '1', unitCost: '2', totalCost: '', source: '' }));
+        draft.report.hours = Array.from({ length: 8 }, (_, i) => ({ cat: `Row ${i}`, w: '1', h: '10' }));
+        await open(file, ready);
+        await evaluate(`localStorage.clear(); localStorage.setItem(${JSON.stringify(key)}, ${JSON.stringify(JSON.stringify(draft))}); true`);
+        await open(file, ready);
+        await evaluate('document.querySelectorAll("nav button")[2].click()');
+        await waitFor('!![...document.querySelectorAll(".list-total")].find((e) => /Materials list total/.test(e.textContent))');
+        assert.match(await evaluate('[...document.querySelectorAll(".list-total")].find((e) => /Materials list total/.test(e.textContent)).textContent'), /Materials list total: \$18\.00.*Only the first 9 rows fit in the official PDF.*The 2 rows after that are not in the PDF/);
+        await evaluate('document.querySelectorAll("nav button")[4].click()');
+        await waitFor('!![...document.querySelectorAll(".list-total")].find((e) => /Grand total of hours/.test(e.textContent))');
+        assert.equal(await evaluate('[...document.querySelectorAll(".list-total")].find((e) => /Grand total of hours/.test(e.textContent)).textContent'), 'Grand total of hours: 60');
+      });
       await test('typing and leaving at once still saves the draft', async () => {
         await open(file, ready);
         await evaluate('localStorage.clear()');

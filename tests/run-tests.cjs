@@ -305,6 +305,87 @@ function everyAnswer() {
     }
   });
 
+  console.log('Numbers, dates, and labels');
+  {
+    const W = workbookCommon();
+    const mat = (rows) => { const d = JSON.parse(JSON.stringify(sample)); d.plan.materials = rows.map((r) => ({ item: 'x', description: '', source: '', ...r })); return d; };
+    const cols = lib.COST_TABLES.find((x) => x.path === 'plan.materials').cols;
+    await test('numbers: a unit price with fractions of a cent is written as typed, so the PDF agrees with itself', () => {
+      const { text, notes } = lib.buildFieldValues(mat([{ qty: '8', unitCost: '0.125', totalCost: '' }]));
+      assert.equal(text[`${cols.unitCost}1`], '$0.125');
+      assert.equal(text[`${cols.totalCost}1`], '$1.00');
+      assert.deepEqual(notes.filter((n) => /Materials/.test(n)), []);
+      assert.equal(lib.buildFieldValues(mat([{ qty: '2', unitCost: '6.5', totalCost: '' }])).text[`${cols.unitCost}1`], '$6.50', 'ordinary prices still get two decimals');
+    });
+    await test('numbers: typed totals are rounded to cents before adding, so rows and the list total agree', () => {
+      const d = mat([{ totalCost: '1.005' }, { totalCost: '1.005' }, { totalCost: '0.004' }]);
+      const { text } = lib.buildFieldValues(d);
+      const shown = [1, 2, 3].map((n) => lib.parseAmount(text[`${cols.totalCost}${n}`]));
+      assert.equal(lib.listTotal(d.plan.materials, 'Materials list', 9).total, shown.reduce((a, b) => a + b, 0));
+      assert.equal(lib.parseAmount(text['Plan-MatTotalCost']), shown.reduce((a, b) => a + b, 0));
+    });
+    await test('numbers: hours accept .5, 5., and 1,200; worker counts must be whole numbers', () => {
+      assert.equal(lib.parseCount('.5'), 0.5);
+      assert.equal(lib.parseCount('5.'), 5);
+      assert.equal(lib.parseCount('1,200'), 1200);
+      assert.equal(lib.parseCount('2.5'), 2.5);
+      assert.ok(Number.isNaN(lib.parseCount('abc')) && Number.isNaN(lib.parseCount('-1')) && Number.isNaN(lib.parseCount('.')));
+      assert.equal(lib.parseCount(''), null);
+      assert.equal(lib.parseWhole('12'), 12);
+      assert.equal(lib.parseWhole('1,200'), 1200);
+      assert.ok(Number.isNaN(lib.parseWhole('2.5')) && Number.isNaN(lib.parseWhole('.5')));
+      const d = JSON.parse(JSON.stringify(sample));
+      d.report.hours[2].w = '2.5'; d.report.hours[3].w = '3';
+      const r = lib.buildFieldValues(d);
+      assert.equal(r.text['Report-TotalWorkers'], undefined, 'no total from a fractional number of people');
+      assert.ok(r.notes.some((n) => /number of workers is not a number/.test(n)));
+      d.report.hours.forEach((row) => { row.h = ''; });
+      d.report.hours[2].h = '.5'; d.report.hours[3].h = '1,200';
+      assert.equal(lib.buildFieldValues(d).text['Report-TotalHours'], '1200.5');
+    });
+    await test('numbers: the hours total on the page counts the same rows as the PDF', () => {
+      const rows = Array.from({ length: 8 }, (_, i) => ({ cat: `c${i}`, w: '1', h: '10' }));
+      assert.equal(lib.hoursTotal(rows).total, 60, 'only the six rows the PDF has');
+      assert.equal(lib.hoursTotal([{ h: '' }]).any, false);
+      assert.equal(lib.hoursTotal([{ h: 'x' }]).invalid, true);
+      const d = JSON.parse(JSON.stringify(sample)); d.report.hours = rows;
+      assert.equal(lib.buildFieldValues(d).text['Report-TotalHours'], '60');
+    });
+    await test('numbers: money formatting edge cases', () => {
+      assert.equal(lib.formatMoney(-0.001), '$0.00');
+      assert.equal(lib.formatMoney(1234.5), '$1,234.50');
+      assert.equal(lib.formatMoney(-5), '-$5.00');
+      assert.ok(Number.isNaN(lib.parseAmount('1e23')) && Number.isNaN(lib.parseAmount('99999999999999999999')));
+      assert.equal(lib.parseAmount('-$5'), -5);
+    });
+    await test('dates: an impossible date is kept as typed, and the heads-ups mention it', () => {
+      assert.equal(lib.formatDate('2025-02-30'), '2025-02-30');
+      assert.equal(lib.formatDate('2025-13-45'), '2025-13-45');
+      assert.equal(lib.formatDate('2024-02-29'), '2/29/2024', 'leap day');
+      assert.equal(lib.formatDate('2025-10-01'), '10/1/2025');
+      const P = require(path.join(ROOT, 'lib/preflight.js'));
+      const d = JSON.parse(JSON.stringify(sample)); d.proposal.startDate = '2025-02-30';
+      const notes = P.check(d, lib);
+      assert.equal(notes.length, 1);
+      assert.match(notes[0], /^Proposal: “2025-02-30” is not a real date\. Not sure\? Ask your coach\.$/);
+      const typed = JSON.parse(JSON.stringify(sample)); typed.proposal.startDate = 'June 1';
+      assert.deepEqual(P.check(typed, lib), [], 'plain typed words are left alone');
+    });
+    await test('text fit: one very long word counts every line it needs, even at the start of a paragraph', () => {
+      const long = 'x'.repeat(200);
+      assert.ok(lib.wrappedLines(long, 100, 10) >= 8, `${lib.wrappedLines(long, 100, 10)} lines`);
+      assert.ok(Math.abs(lib.wrappedLines(long, 100, 10) - lib.wrappedLines(`a ${long}`, 100, 10)) <= 1, 'the same long word gives about the same count after another word');
+    });
+    await test('labels: every box the filler can write has a plain-language name for warnings', () => {
+      const data = W.defaults(); let n = 0;
+      const fill = (o, k) => { const v = o[k]; if (Array.isArray(v)) v.forEach((_, i) => fill(v, i)); else if (v && typeof v === 'object') Object.keys(v).forEach((x) => fill(v, x)); else if (k === 'num' || k === 'cat') return; else if (/date|start$|end$|dob|borDate|actual/i.test(String(k))) o[k] = `2025-01-${String((n++ % 27) + 1).padStart(2, '0')}`; else if (['qty', 'unitCost', 'w', 'h', 'needed', 'soFar'].includes(k)) o[k] = '2'; else if (k === 'totalCost') o[k] = ''; else o[k] = `A${n++}`; };
+      Object.keys(data).forEach((k) => fill(data, k)); data.unit.type = 'Troop';
+      const r = lib.buildFieldValues(data);
+      const bare = [...Object.keys(r.text), ...Object.keys(r.radio)].filter((name) => lib.describeField(name) === name);
+      assert.deepEqual(bare, []);
+    });
+  }
+
   console.log('Heads-up checks');
   {
     const P = require(path.join(ROOT, 'lib/preflight.js'));
@@ -332,8 +413,8 @@ function everyAnswer() {
       assert.deepEqual(run(same), [], 'same day');
       const blank = clone((d) => { d.proposal.startDate = ''; d.proposal.endDate = '2026-05-01'; d.plan.startDate = '2026-05-01'; d.plan.endDate = ''; });
       assert.deepEqual(run(blank), [], 'one side blank');
-      const words = clone((d) => { d.proposal.startDate = 'June 1'; d.proposal.endDate = 'May 1'; d.plan.startDate = '2026-02-30'; d.plan.endDate = '2026-01-01'; });
-      assert.deepEqual(run(words), [], 'dates that are not real calendar dates are left alone');
+      const words = clone((d) => { d.proposal.startDate = 'June 1'; d.proposal.endDate = 'May 1'; });
+      assert.deepEqual(run(words), [], 'dates typed as plain words are left alone');
       const across = clone((d) => { d.proposal.startDate = '2026-09-01'; d.proposal.endDate = '2026-09-15'; d.plan.startDate = '2026-03-01'; d.plan.endDate = '2026-03-15'; d.report.actualStart = '2025-01-01'; d.report.actualEnd = '2025-01-02'; });
       assert.deepEqual(run(across), [], 'the workbook sets no order between sections');
     });
