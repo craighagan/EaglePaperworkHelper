@@ -78,9 +78,18 @@ if [ -n "$(git status --porcelain)" ]; then
 fi
 
 # 2. Refuse if a personal file somehow sits in a folder we copy.
-if find index.html EagleWorkbook*.html FillOfficialPDF.html BackupFromPDF.html lib docs \
-     \( -name '*.json' -o -name '*.pdf' -o -name 'client_secret*' \) 2>/dev/null | grep -q .; then
+#    (a) Any .json, .pdf, or client_secret file there. (b) Anything git is hiding there: .gitignore keeps pictures,
+#    Word files, spreadsheets and zips out of `git status`, so the check above would not notice them.
+PUBLISHED=(index.html EagleWorkbook-guided.html EagleWorkbook.html FillOfficialPDF.html BackupFromPDF.html lib vendor docs)
+if find "${PUBLISHED[@]}" \( -name '*.json' -o -name '*.pdf' -o -name 'client_secret*' \) 2>/dev/null | grep -q .; then
   echo "A .json, .pdf, or client_secret file is in a folder that would be published. Remove it first." >&2
+  exit 1
+fi
+HIDDEN="$(git ls-files --others --ignored --exclude-standard -- "${PUBLISHED[@]}" | grep -v '\.DS_Store$' || true)"
+if [ -n "$HIDDEN" ]; then
+  echo "These files are ignored by git but sit in a folder that would be published:" >&2
+  echo "$HIDDEN" >&2
+  echo "Move or delete them first (they may be personal), then run this again." >&2
   exit 1
 fi
 
@@ -96,7 +105,7 @@ node tests/run-tests.cjs >"$LOG" 2>&1 || {
 # 4. Copy. --relative keeps the folder layout. Files are readable by everyone, writable only by you.
 FILES=(
   index.html EagleWorkbook-guided.html EagleWorkbook.html FillOfficialPDF.html BackupFromPDF.html
-  README.md INSTALL.md LICENSE .htaccess
+  README.md INSTALL.md LICENSE .nojekyll .htaccess
   lib/ vendor/ docs/
 )
 RSYNC_SSH=()

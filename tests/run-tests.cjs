@@ -358,6 +358,16 @@ function everyAnswer() {
       assert.ok(Number.isNaN(lib.parseAmount('1e23')) && Number.isNaN(lib.parseAmount('99999999999999999999')));
       assert.equal(lib.parseAmount('-$5'), -5);
     });
+    await test('numbers: absurdly large hours are refused instead of printing as 1e+23', () => {
+      assert.ok(Number.isNaN(lib.parseCount('99999999999999999999999')));
+      assert.ok(Number.isNaN(lib.parseWhole('99999999999999999999999')));
+      assert.equal(lib.parseCount('1,000,000'), 1000000);
+    });
+    await test('labels: the two actual-date boxes and the report approval name are easy to tell from their neighbours', () => {
+      assert.equal(lib.describeField('Report-ActualStartDate'), 'Report: When the work began');
+      assert.equal(lib.describeField('Report-ActualEndDate'), 'Report: When the work finished');
+      assert.equal(lib.describeField('Report-ApprovalBeneName'), 'Report: Printed name of the beneficiary (approvals)');
+    });
     await test('dates: an impossible date is kept as typed, and the heads-ups mention it', () => {
       assert.equal(lib.formatDate('2025-02-30'), '2025-02-30');
       assert.equal(lib.formatDate('2025-13-45'), '2025-13-45');
@@ -367,7 +377,7 @@ function everyAnswer() {
       const d = JSON.parse(JSON.stringify(sample)); d.proposal.startDate = '2025-02-30';
       const notes = P.check(d, lib);
       assert.equal(notes.length, 1);
-      assert.match(notes[0], /^Proposal: “2025-02-30” is not a real date\. Not sure\? Ask your coach\.$/);
+      assert.match(notes[0], /^Proposal: “2025-02-30” is not a real date\. Fix it in the workbook. Not sure\? Ask your coach\.$/);
       const typed = JSON.parse(JSON.stringify(sample)); typed.proposal.startDate = 'June 1';
       assert.deepEqual(P.check(typed, lib), [], 'plain typed words are left alone');
     });
@@ -383,6 +393,45 @@ function everyAnswer() {
       const r = lib.buildFieldValues(data);
       const bare = [...Object.keys(r.text), ...Object.keys(r.radio)].filter((name) => lib.describeField(name) === name);
       assert.deepEqual(bare, []);
+    });
+  }
+
+  console.log('Keeping copies in step');
+  {
+    const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
+    const scripts = (f) => [...read(f).matchAll(/<script src="([^"]+)"/g)].map((m) => m[1]);
+    const before = (list, a, b, where) => { assert.ok(list.includes(a) && list.includes(b), `${where}: needs ${a} and ${b}`); assert.ok(list.indexOf(a) < list.indexOf(b), `${where}: ${a} must load before ${b}`); };
+    await test('copies: each page loads its scripts in the order they need', () => {
+      for (const [page, own] of [['EagleWorkbook-guided.html', 'lib/guided-workbook.js'], ['EagleWorkbook.html', 'lib/classic-workbook.js']]) {
+        const s = scripts(page);
+        for (const [a, b] of [['lib/official-pdf.js', 'lib/journey.js'], ['lib/journey.js', 'lib/tips.js'], ['lib/tips.js', 'lib/attachments.js'], ['lib/attachments.js', 'lib/workbook-common.js'], ['lib/workbook-common.js', own]]) before(s, a, b, page);
+      }
+      const fill = scripts('FillOfficialPDF.html');
+      for (const [a, b] of [['vendor/pdfjs/pdf.js', 'lib/official-pdf.js'], ['lib/official-pdf.js', 'lib/preflight.js'], ['lib/official-pdf.js', 'lib/attachments.js'], ['lib/preflight.js', 'lib/fill-page.js'], ['lib/attachments.js', 'lib/fill-page.js']]) before(fill, a, b, 'FillOfficialPDF.html');
+      const back = scripts('BackupFromPDF.html');
+      for (const [a, b] of [['lib/official-pdf.js', 'lib/attachments.js'], ['lib/attachments.js', 'lib/journey.js'], ['lib/journey.js', 'lib/workbook-common.js'], ['lib/workbook-common.js', 'lib/backup-from-pdf-page.js']]) before(back, a, b, 'BackupFromPDF.html');
+    });
+    await test('copies: the draft storage keys are the same everywhere they are written out', () => {
+      const keys = ['eagle_workbook_guided_v1', 'eagle_workbook_v1'];
+      for (const f of ['lib/attachments.js', 'lib/fill-page.js', 'lib/backup-from-pdf-page.js', 'lib/guided-workbook.js', 'lib/classic-workbook.js']) {
+        const found = new Set([...read(f).matchAll(/['"`](eagle_workbook[a-z_0-9]*)['"`]/g)].map((m) => m[1]).filter((k) => k !== 'eagle_workbook_files'));
+        assert.deepEqual([...found].filter((k) => !keys.includes(k)), [], `${f} uses a storage key nobody else knows`);
+      }
+      for (const f of ['lib/attachments.js', 'lib/fill-page.js', 'lib/backup-from-pdf-page.js']) for (const k of keys) assert.ok(read(f).includes(k), `${f} must know ${k}, or sweeping could delete pictures a draft still uses`);
+    });
+    await test('copies: the roadmap step ids in workbook-common.js match the ones in journey.js', () => {
+      const J = require(path.join(ROOT, 'lib/journey.js'));
+      const W = workbookCommon();
+      assert.deepEqual(JSON.parse(JSON.stringify(W.JOURNEY_IDS)), J.CHECK_IDS);
+    });
+    await test('copies: the official PDF address is the same in both files and in the Fill page policy', () => {
+      assert.equal(workbookCommon().OFFICIAL_PDF_URL, lib.OFFICIAL_PDF_URL);
+      assert.ok(read('FillOfficialPDF.html').includes(`connect-src ${lib.OFFICIAL_PDF_URL};`));
+    });
+    await test('copies: pages and docs agree on how many stages and steps there are', () => {
+      for (const f of ['index.html', 'README.md']) assert.doesNotMatch(read(f), /\bfive stages\b|\bfour steps\b/i, f);
+      assert.equal((read('lib/guided-workbook.js').match(/const TABS = \[([^\]]+)\]/)[1].match(/'/g).length / 2), 6, 'the Guided workbook has six tabs');
+      assert.match(read('index.html') + read('README.md'), /Six stages/);
     });
   }
 
@@ -506,6 +555,40 @@ function everyAnswer() {
       const fine = harness(); const f = fine.W.createStore(KEY);
       assert.equal(f.load(fine.W.defaults), null);
       assert.equal(f.corrupt, false, 'an empty browser is not a corrupt draft');
+    });
+    await test('saving: saving a backup file does not end a conflict', () => {
+      const h = harness();
+      const s = h.W.createStore(KEY);
+      h.fire('window', 'storage', { key: KEY, storageArea: h.localStorage });
+      s.markBackedUp();
+      assert.equal(s.state, 'conflict', 'still blocked: the other tab\u2019s draft is not overwritten');
+      s.flush(h.W.defaults());
+      assert.equal(h.store.get(KEY), undefined);
+    });
+    await test('saving: erasing or opening a backup file ends a conflict, so the Scout can keep working', () => {
+      for (const end of ['erase', 'resume']) {
+        const h = harness();
+        const s = h.W.createStore(KEY);
+        h.fire('window', 'storage', { key: KEY, storageArea: h.localStorage });
+        assert.equal(s.state, 'conflict');
+        if (end === 'erase') s.erase(); else s.resume();
+        assert.notEqual(s.state, 'conflict', `${end} ends it`);
+        const d = h.W.defaults(); d.candidate.name = 'After Conflict';
+        s.flush(d);
+        assert.match(h.store.get(KEY) || '', /After Conflict/, `${end}: saving works again`);
+      }
+    });
+    await test('saving: a page restored from the back/forward cache notices a draft saved elsewhere meanwhile', () => {
+      const h = harness({ [`${KEY}_saved`]: '1000' });
+      const s = h.W.createStore(KEY);
+      h.fire('window', 'pageshow', { persisted: true });
+      assert.notEqual(s.state, 'conflict', 'nothing changed');
+      h.store.set(`${KEY}_saved`, '2000');
+      h.fire('window', 'pageshow', { persisted: false });
+      assert.notEqual(s.state, 'conflict', 'an ordinary load is not a restore');
+      h.fire('window', 'pageshow', { persisted: true });
+      assert.equal(s.state, 'conflict');
+      assert.ok(s.conflictAt > 0);
     });
     await test('saving: a change made in another tab stops this tab from overwriting it', () => {
       const h = harness();

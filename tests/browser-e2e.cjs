@@ -288,10 +288,39 @@ async function run() {
         await open(file, ready);
         await evaluate('document.querySelectorAll("nav button")[2].click()');
         await waitFor('!![...document.querySelectorAll(".list-total")].find((e) => /Materials list total/.test(e.textContent))');
-        assert.match(await evaluate('[...document.querySelectorAll(".list-total")].find((e) => /Materials list total/.test(e.textContent)).textContent'), /Materials list total: \$18\.00.*Only the first 9 rows fit in the official PDF.*The 2 rows after that are not in the PDF/);
+        assert.match(await evaluate('[...document.querySelectorAll(".list-total")].find((e) => /Materials list total/.test(e.textContent)).textContent'), /Materials list total: \$18\.00\. \(Counts only the first 9 rows, the number the official PDF has room for\.\) 2 more rows are not in the PDF\. Ask your coach how to show them\./);
         await evaluate('document.querySelectorAll("nav button")[4].click()');
         await waitFor('!![...document.querySelectorAll(".list-total")].find((e) => /Grand total of hours/.test(e.textContent))');
         assert.equal(await evaluate('[...document.querySelectorAll(".list-total")].find((e) => /Grand total of hours/.test(e.textContent)).textContent'), 'Grand total of hours: 60');
+      });
+      await test('a draft changed in another tab is announced, and a saved backup changes the message', async () => {
+        await open(file, ready);
+        await evaluate('localStorage.clear()');
+        await open(file, ready);
+        await evaluate(`(() => { const i = document.querySelector("main .field input[type=text]"); i.value = "Before"; i.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+        await sleep(600);
+        // Another tab writes the draft: the browser tells this page with a storage event.
+        await evaluate(`window.dispatchEvent(new StorageEvent("storage", { key: ${JSON.stringify(key)}, storageArea: localStorage })); true`);
+        const status = '[...document.querySelectorAll(".backup-status")]';
+        assert.match(await evaluate(`${status}[0].textContent`), /changed in another tab or window, so this page has stopped saving.*Reloading drops anything you typed here/);
+        assert.equal(await evaluate(`${status}[0].getAttribute("role")`), 'alert', 'announced firmly');
+        assert.match(await evaluate('document.querySelector(".save-status").textContent'), /Nothing you type here is being saved/);
+        await evaluate(`(() => { const i = document.querySelector("main .field input[type=text]"); i.value = "While blocked"; i.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+        await sleep(700);
+        assert.doesNotMatch(await evaluate(`localStorage.getItem(${JSON.stringify(key)}) || ""`), /While blocked/, 'nothing was written over the other tab');
+        await evaluate('document.querySelector(".btn-control.save").click()');
+        await waitFor(`/Backup file saved\\. Now reload this page/.test(${status}[0].textContent)`, 5000);
+      });
+      await test('an unreadable saved draft is explained in the announced status and points to Open backup file', async () => {
+        await open(file, ready);
+        await evaluate(`localStorage.clear(); localStorage.setItem(${JSON.stringify(key)}, '{"candidate":{"name":"Real"},"proposal":'); true`);
+        await open(file, ready);
+        const text = await evaluate('document.querySelector(".backup-status").textContent');
+        assert.match(text, /^⚠ Your saved draft in this browser was damaged and could not be opened\..*Open backup file.*ask a parent or your coach/);
+        assert.equal(await evaluate('document.querySelector(".backup-status").getAttribute("role")'), 'status');
+        assert.match(await evaluate(`localStorage.getItem(${JSON.stringify(key + '_corrupt')}) || ""`), /Real/, 'the damaged text is kept aside');
+        await evaluate('document.querySelector(".btn-control.save").click()');
+        await waitFor('!/damaged/.test(document.querySelector(".backup-status").textContent)', 5000);
       });
       await test('typing and leaving at once still saves the draft', async () => {
         await open(file, ready);
