@@ -348,7 +348,7 @@ async function run() {
         await open(file, ready);
         await type(0, 'Changed again');
         await waitFor('/Saved in this browser/.test(document.querySelector(".save-status").textContent)', 5000);
-        assert.equal(await header(), '✓ Saved in this browser · save a backup file to start the count');
+        assert.equal(await header(), '✓ Saved in this browser · no backup file to compare');
       });
       await test('the backup status counts boxes changed since the last backup file', async () => {
         await open(file, ready);
