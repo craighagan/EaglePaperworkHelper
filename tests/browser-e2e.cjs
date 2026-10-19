@@ -692,6 +692,28 @@ async function run() {
       for (let t = 0; t < 50 && !dialogs.length; t++) await sleep(100);
       assert.match(dialogs[0] || '', /does not have 1 signed page or attachment page and 1 link that are on this page now, so they will be removed/s, dialogs[0]);
     });
+    await test('opening a backup file counts as backed up: the header and the count reset', async () => {
+      const backupFile = path.join(downloads, 'opened-backup.json');
+      fs.writeFileSync(backupFile, fs.readFileSync(SAMPLE));
+      const draft = JSON.parse(fs.readFileSync(SAMPLE, 'utf8'));
+      draft.candidate.name = 'Unsaved Name';       // a draft that differs from the file
+      await open('EagleWorkbook-guided.html', '!!document.querySelector("nav button")');
+      await evaluate(`localStorage.clear(); localStorage.setItem("eagle_workbook_guided_v1", ${JSON.stringify(JSON.stringify(draft))}); localStorage.setItem("eagle_workbook_guided_v1_saved", String(Date.now())); true`);
+      await open('EagleWorkbook-guided.html', '!!document.querySelector("nav button")');
+      assert.match(await evaluate('document.querySelector(".save-status").textContent'), /no backup file yet/, 'before: never backed up');
+      await evaluate(`(() => { window.__picker = null; const orig = HTMLInputElement.prototype.click; HTMLInputElement.prototype.click = function () { if (this.type === 'file') { window.__picker = this; return; } return orig.call(this); }; })()`);
+      await click('Open backup file');
+      await waitFor('!!window.__picker');
+      const { root } = await send('DOM.getDocument');
+      await evaluate('document.body.appendChild(window.__picker); window.__picker.id = "picked4"; true');
+      const { nodeId } = await send('DOM.querySelector', { nodeId: root.nodeId, selector: '#picked4' });
+      await send('DOM.setFileInputFiles', { nodeId, files: [backupFile] });
+      await waitFor('/backup file is up to date/.test(document.querySelector(".save-status").textContent)', 10000);
+      assert.equal(await evaluate('document.querySelector("header h1").textContent'), JSON.parse(fs.readFileSync(SAMPLE, 'utf8')).candidate.name, 'the file replaced the draft');
+      assert.doesNotMatch(await evaluate('document.querySelector(".backup-status").textContent'), /only in this browser|since that backup file/);
+      assert.ok(Number(await evaluate('localStorage.getItem("eagle_workbook_guided_v1_backup")')) > 0, 'the backup time is set');
+      assert.ok(await evaluate('!!localStorage.getItem("eagle_workbook_guided_v1_snap")'), 'and the comparison is stored');
+    });
     await test('opening a backup file without your path notes warns when this page has some, and not when they were all unticked', async () => {
       const pick = async (file) => {
         await evaluate(`(() => { window.__picker = null; const orig = HTMLInputElement.prototype.click; HTMLInputElement.prototype.click = function () { if (this.type === 'file') { window.__picker = this; return; } return orig.call(this); }; })()`);
