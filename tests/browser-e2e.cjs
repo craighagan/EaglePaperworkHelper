@@ -279,6 +279,22 @@ async function run() {
         await waitFor(`document.querySelector("nav button.active").textContent !== ${JSON.stringify(before)}`);
         assert.deepEqual(problems, []);
       });
+      await test('typing and leaving at once still saves the draft', async () => {
+        await open(file, ready);
+        await evaluate('localStorage.clear()');
+        await open(file, ready);
+        await evaluate(`(() => { const i = document.querySelector("main .field input[type=text]"); i.focus(); i.value = "Typed Just Before Leaving"; i.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+        await send('Page.navigate', { url: 'about:blank' });   // well inside the 400 ms save delay
+        await sleep(300);
+        await open(file, ready);
+        assert.match(await evaluate(`localStorage.getItem(${JSON.stringify(key)}) || ""`), /Typed Just Before Leaving/);
+      });
+      await test('the saving indicator settles after Save backup file', async () => {
+        await open(file, ready);
+        await evaluate(`(() => { const i = document.querySelector("main .field input[type=text]"); i.value = "Indicator Check"; i.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+        await evaluate('document.querySelector(".btn-control.save").click()');
+        await waitFor('/Saved in this browser/.test(document.querySelector(".save-status").textContent)', 5000);
+      });
       await test('Your path shows the next step, keeps ticks, and shows the fundraising step only when asked', async () => {
         await open(file, ready);
         await evaluate(`localStorage.clear(); true`);
