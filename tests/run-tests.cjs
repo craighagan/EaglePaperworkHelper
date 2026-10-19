@@ -547,6 +547,28 @@ function everyAnswer() {
       assert.deepEqual(d.links, [{ title: 'A', url: 'https://example.org' }]);
       assert.equal(JSON.stringify(W.defaults().attachments), "[]");
     });
+    await test('a picture string with a bad length is dropped instead of breaking the whole backup', () => {
+      const good = A.toBase64(new Uint8Array([1, 2, 3]));
+      const d = (jpeg) => ({ attachments: [{ id: 'aaaaaaaaaa', place: 'end', label: 'x', pages: [{ id: 'bbbbbbbbbb', width: 10, height: 10, jpeg }] }], links: [] });
+      const bad = d('AAAAA');   // five characters: atob() throws on this
+      A.sanitize(bad);
+      assert.equal(bad.attachments[0].pages[0].jpeg, undefined, 'bad length is dropped');
+      const ok = d(good); A.sanitize(ok);
+      assert.equal(ok.attachments[0].pages[0].jpeg, good, 'a good one stays');
+      assert.doesNotThrow(() => A.fromBase64('AAAAA'));
+    });
+    await test('absorb says how many pictures this browser could not store', async () => {
+      const page = { id: 'bbbbbbbbbb', width: 1, height: 1, jpeg: A.toBase64(new Uint8Array(fs.readFileSync(path.join(__dirname, 'fixtures/scan-portrait.jpg')))) };
+      const data = { attachments: [{ id: 'aaaaaaaaaa', place: 'end', label: 'x', pages: [page] }], links: [] };
+      const report = {};
+      await A.absorb(data, report);
+      assert.equal(typeof report.failed, 'number');
+      assert.equal(report.failed, A.persistent() === false || typeof indexedDB === 'undefined' ? 1 : 0, 'counts pictures that were not written');
+    });
+    await test('links that are file names, IP numbers, or carry a password are refused', () => {
+      for (const bad of ['budget.xlsx', 'my.doc', 'plan.pdf', 'photo.jpg', '1.2.3', '192.168.0.1', 'https://user:pw@example.org/x', 'https://budget.csv/']) assert.equal(A.cleanUrl(bad), '', bad);
+      for (const good of ['example.org/plan.pdf', 'https://docs.google.com/spreadsheets/d/1abc/edit', 'drive.google.com/file/d/1/view', 'example.co.uk']) assert.notEqual(A.cleanUrl(good), '', good);
+    });
     await test('only http and https links are kept', () => {
       assert.equal(A.cleanUrl('javascript:alert(1)'), '');
       assert.equal(A.cleanUrl('file:///etc/passwd'), '');
