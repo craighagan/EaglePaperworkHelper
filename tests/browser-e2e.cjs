@@ -941,9 +941,9 @@ async function run() {
       await waitFor('document.querySelectorAll(".thumb img").length === 1');
       assert.ok(dialogs.some((m) => /backup file will hold pictures of the adults’ signatures/.test(m)), 'warns before the first picture');
       const pickers = await evaluate('document.querySelectorAll(".attachments .file-pick input").length');
-      // The "Add an attachment" picker is the last one.
+      // Add the permit as an "other attachment" (its picker carries data-key="add:end").
       const { root } = await send('DOM.getDocument');
-      const { nodeIds } = await send('DOM.querySelectorAll', { nodeId: root.nodeId, selector: '.attachments .file-pick input' });
+      const { nodeIds } = await send('DOM.querySelectorAll', { nodeId: root.nodeId, selector: '.attachments .file-pick input[data-key="add:end"]' });
       await send('DOM.setFileInputFiles', { nodeId: nodeIds[nodeIds.length - 1], files: [twoPagePdf] });
       await waitFor('document.querySelectorAll(".attachment .thumb img").length === 2', 30000);
       assert.ok(pickers >= 4);
@@ -1097,6 +1097,23 @@ async function run() {
       await waitFor(`(JSON.parse(localStorage.getItem("eagle_workbook_guided_v1") || "{}").attachments || [1]).length === 0`);
       for (let t = 0; t < 50 && await evaluate(keys) > 0; t++) await sleep(100);
       assert.equal(await evaluate(keys), 0);
+    });
+    await test('project photos add under before/during/after and save with their place', async () => {
+      await open('EagleWorkbook-guided.html', '!!document.querySelector("nav button")');
+      await evaluate(`localStorage.clear(); indexedDB.deleteDatabase("eagle_workbook_files"); localStorage.setItem("eagle_workbook_guided_v1", ${JSON.stringify(fs.readFileSync(SAMPLE, 'utf8'))}); true`);
+      await open('EagleWorkbook-guided.html', '!!document.querySelector("nav button")');
+      await evaluate('document.querySelectorAll("nav button")[5].click()');
+      await waitFor('!!document.querySelector(".attachments .file-pick input[data-key=\\"add:photosBefore\\"]")');
+      dialogs = [];
+      const { root } = await send('DOM.getDocument');
+      const { nodeIds } = await send('DOM.querySelectorAll', { nodeId: root.nodeId, selector: '.attachments .file-pick input[data-key="add:photosBefore"]' });
+      await send('DOM.setFileInputFiles', { nodeId: nodeIds[0], files: [scan] });
+      await waitFor('document.querySelectorAll(".thumb img").length === 1', 30000);
+      await waitFor('(localStorage.getItem("eagle_workbook_guided_v1") || "").includes("photosBefore")');
+      const draft = JSON.parse(await evaluate('localStorage.getItem("eagle_workbook_guided_v1")'));
+      const photo = draft.attachments.find((a) => a.place === 'photosBefore');
+      assert.ok(photo && photo.pages.length === 1, 'the before photo is saved under its own place');
+      assert.ok(!draft.attachments.some((a) => a.place === 'photosDuring' || a.place === 'photosAfter'), 'the other groups stay empty');
     });
     if (backupWithScans) fs.rmSync(backupWithScans, { force: true });
     fs.rmSync(path.dirname(twoPagePdf), { recursive: true, force: true });

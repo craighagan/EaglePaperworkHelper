@@ -894,6 +894,44 @@ function everyAnswer() {
         if (has('qpdf')) execFileSync('qpdf', ['--check', file], { stdio: 'ignore' });
       } finally { fs.rmSync(file, { force: true }); }
     });
+    await test('project photos go to the end, grouped before->during->after, and never into the official pages', () => {
+      const d = W.mergeWithDefaults(W.defaults(), sample);
+      d.attachments = [
+        { id: 'photoafter01', place: 'photosAfter', label: 'After the project', pages: [{ id: 'pgaft000001', width: 110, height: 85, jpeg: A.toBase64(landscape) }] },
+        { id: 'permitpark01', place: 'end', label: 'Park permit', pages: [{ id: 'pgpermit001', width: 85, height: 110, jpeg: A.toBase64(portrait) }] },
+        { id: 'photobefor1', place: 'photosBefore', label: 'Before the project', pages: [{ id: 'pgbef000001', width: 85, height: 110, jpeg: A.toBase64(portrait) }] },
+        { id: 'photoduring', place: 'photosDuring', label: 'During the project', pages: [{ id: 'pgdur000001', width: 85, height: 110, jpeg: A.toBase64(portrait) }, { id: 'pgdur000002', width: 85, height: 110, jpeg: A.toBase64(portrait) }] }
+      ];
+      const order = A.planPages(d, 1);
+      const at = (o) => (o.kind === 'workbook' ? `w${o.n}` : o.kind === 'index' ? 'index' : o.page.id);
+      // No photo page lands between workbook pages.
+      order.forEach((o, i) => { if (o.kind === 'scan' && /^pg(bef|dur|aft)/.test(o.page.id)) assert.ok(order.slice(0, i).some((x) => x.kind === 'index'), 'photos come after the list page'); });
+      // Order at the tail: end attachment, then before, during (2 pages), after. Captions are set only on photos.
+      assert.deepEqual(order.slice(-5).map(at), ['pgpermit001', 'pgbef000001', 'pgdur000001', 'pgdur000002', 'pgaft000001']);
+      assert.deepEqual(order.slice(-4).map((o) => o.caption), ['Project photo \u2014 before', 'Project photo \u2014 during', 'Project photo \u2014 during', 'Project photo \u2014 after']);
+      assert.equal(order.find((o) => o.kind === 'scan' && o.page.id === 'pgpermit001').caption, undefined, 'other attachments have no caption');
+    });
+    await test('the submission copy lists project photos and captions their pages', async () => {
+      const d = W.mergeWithDefaults(W.defaults(), sample);
+      d.attachments = [
+        { id: 'photobefor1', place: 'photosBefore', label: 'Before the project', pages: [{ id: 'pgbef000001', width: 85, height: 110, jpeg: A.toBase64(portrait) }] },
+        { id: 'photoafter01', place: 'photosAfter', label: 'After the project', pages: [{ id: 'pgaft000001', width: 85, height: 110, jpeg: A.toBase64(portrait) }] }
+      ];
+      const drawPage = async () => ({ jpeg: portrait, width: 85, height: 110 });
+      const { bytes, order } = await A.buildSubmission({ data: d, drawPage, today: 'October 18, 2026' });
+      // The two photos are the last two drawn pages, carrying their captions.
+      assert.deepEqual(order.slice(-2).map((o) => o.caption), ['Project photo \u2014 before', 'Project photo \u2014 after']);
+      const pdfjsLib = loadPdfjs();
+      const doc = await pdfjsLib.getDocument({ data: new Uint8Array(bytes), verbosity: 0, isEvalSupported: false }).promise;
+      const indexText = (await doc.getPage(33)).getTextContent ? (await (await doc.getPage(33)).getTextContent()).items.map((i) => i.str).join(' ') : '';
+      assert.match(indexText, /Project photos \(before, during, and after\)/);
+      assert.match(indexText, /Before the project: page 34/);
+      assert.match(indexText, /After the project: page 35/);
+      // The caption is drawn on the photo page itself.
+      const capText = (await (await doc.getPage(34)).getTextContent()).items.map((i) => i.str).join(' ');
+      assert.match(capText, /Project photo .* before/);
+      await doc.destroy();
+    });
     await test('pictures from a backup file lose their metadata and use their real size', () => {
       // An APP1 (EXIF) segment holding a made-up GPS note, inserted after the JFIF header.
       const exif = new Uint8Array([0xff, 0xe1, 0x00, 0x10, ...Buffer.from('Exif\0\0GPS-HOME')]);
