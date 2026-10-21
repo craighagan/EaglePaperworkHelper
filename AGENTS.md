@@ -27,7 +27,7 @@ Breaking any of these is a defect, even if the tests pass.
 | Path | What it does |
 | --- | --- |
 | `index.html` | Home page. No scripts. |
-| `EagleWorkbook-guided.html` + `lib/guided-workbook.js` | Guided workbook: six stages (the last is Signed Pages), plain language, examples. |
+| `EagleWorkbook-guided.html` + `lib/guided-workbook.js` | Guided workbook: six stages (the last is Signed Pages & Photos), plain language, examples. |
 | `EagleWorkbook.html` + `lib/classic-workbook.js` | Classic workbook: official wording and order. |
 | `lib/workbook-common.js` | Shared by both workbooks: `defaults()` (the data model), browser storage, backup files (save, open, share), the "keep your work safe" panel, print draft, form helpers (`createForm`, including the "? Tips" buttons), `h()`. |
 | `lib/attachments.js` | Signed pages, attachments, and links: the three signature slots (`SLOTS`, PDF pages 15, 23, 29), photo and PDF → JPEG pages, IndexedDB storage, pictures in backup files (`withPictures`, `absorb`), and the submission copy (`buildSubmission`, a small JPEG-and-text PDF writer). Runs in the browser and in Node tests. |
