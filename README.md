@@ -27,7 +27,7 @@ Free, offline helpers for the **Eagle Scout Service Project Workbook**. Type you
 4. **Type your answers.** Start with **1. Set Up** and **2. Proposal**. Your draft saves automatically in this browser. Click **? Tips** next to a box for an example and what to avoid.
 5. **Save a backup file often.** Click **💾 Save backup file**. It saves a file such as `Eagle-workbook-backup-2026-10-16-1930.json` (date and time), usually in your Downloads folder. This file is your real save: browsers can erase saved data. Then copy it somewhere safe, such as Google Drive, Dropbox, or OneDrive, or email it to yourself. On an iPhone or iPad you will also see **📤 Share backup file…**, which opens the share menu (Drive, Mail, Messages, and more). Chrome and Edge don’t allow sharing this kind of file, so there, and on Android, the button is hidden: dragging the file into Drive is the dependable way. The page must be on `https://` for the share menu to be available. The page “How to keep your work safe” (at the bottom of each workbook page) has the steps.
 6. **Fill the official PDF.** Click **Fill the official PDF →** and follow the steps on that page.
-7. **Add signed pages.** Print the pages that need signatures from your filled PDF and get them signed (this helper works with pages signed on paper). Scan them or take a clear photo, and add them on the **Signed Pages** tab, with any permits, other attachments, and links. Save a backup file. If someone asks for the whole workbook, Step 5 on the Fill page can make a submission copy (optional; see below).
+7. **Add signed pages and photos.** Print the pages that need signatures from your filled PDF and get them signed (this helper works with pages signed on paper). Scan them or take a clear photo, and add them on the **Signed Pages & Photos** tab, with any project photos (before, during, and after), permits, other attachments, and links. Save a backup file. If someone asks for the whole workbook, Step 5 on the Fill page can make a submission copy (optional; see below).
 
 Open the filled PDF, read every page, and share it with the people reviewing your project.
 
@@ -75,7 +75,7 @@ Photos and extra pages go in separate attachments, as the official workbook says
 
 ## Signed pages and the submission copy
 
-Three pages of workbook No. 2023a need signatures: **Proposal Page H**, **Fundraising Application Page A** (only if you need a fundraising application), and **Project Report Page C**. On the workbook’s **Signed Pages** tab you can add a scan or photo of each one (JPEG, PNG, or PDF), plus permits, permission letters, council forms, receipts, photos, and links such as a budget spreadsheet.
+Three pages of workbook No. 2023a need signatures: **Proposal Page H**, **Fundraising Application Page A** (only if you need a fundraising application), and **Project Report Page C**. On the workbook’s **Signed Pages & Photos** tab you can add a scan or photo of each one (JPEG, PNG, or PDF), plus project photos (before, during, and after), permits, permission letters, council forms, receipts, and links such as a budget spreadsheet.
 
 Step 5 on **Fill the official PDF** then makes a **submission copy**: the whole filled workbook, with each signed page inserted right after the official page it belongs to (nothing is replaced), then a page that lists every attachment and link, then the other attachments.
 

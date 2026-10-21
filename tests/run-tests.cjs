@@ -776,7 +776,7 @@ function everyAnswer() {
       assert.match(step.detail, /A scan is added for this page\./);
       assert.doesNotMatch(step.detail, /signed page is added|is signed|correct/i, 'a scan is a scan, not proof');
       const none = J.journeySteps(W.defaults(), A).steps.find((s) => s.id === 'propSigned');
-      assert.match(none.detail, /No scan added yet.*Add it on the “Signed Pages” tab\./);
+      assert.match(none.detail, /No scan added yet.*Add it on the “Signed Pages & Photos” tab\./);
       assert.match(none.detail, /^Signatures on Proposal Page H: you, your unit leader/);
     });
     await test('path: only ticks and yes/no answers count as notes; stray content is dropped', () => {
