@@ -463,6 +463,19 @@ function everyAnswer() {
       }
       for (const f of ['lib/attachments.js', 'lib/fill-page.js', 'lib/backup-from-pdf-page.js']) for (const k of keys) assert.ok(read(f).includes(k), `${f} must know ${k}, or sweeping could delete pictures a draft still uses`);
     });
+    await test('editions: a backup file of the other edition is refused, in plain words', () => {
+      const W = workbookCommon();
+      const J = require(path.join(ROOT, 'lib/journey.js'));
+      const d2026 = { edition: '2026', candidate: {}, proposal: {} };
+      const d2023 = { candidate: {}, proposal: {} };
+      const page2026 = () => ({ edition: '2026' });
+      assert.equal(W.editionMismatch(d2023, W.defaults), null);
+      assert.equal(W.editionMismatch(d2026, page2026), null);
+      assert.equal(W.editionMismatch(d2026, W.defaults), 'This backup file is for the 2026 workbook. Open it in the 2026 workbook from the home page.');
+      assert.equal(W.editionMismatch(d2023, page2026), 'This backup file is for the 2023 workbook (No. 2023a). Open it in the 2023 workbook from the home page. Answers don’t move to the 2026 workbook by themselves, because its questions are different.');
+      for (const d of [{}, null, { edition: 'x' }, { edition: '2026' }, d2023]) assert.equal(W.editionOfData(d), J.editionOf(d), JSON.stringify(d));
+      assert.ok(fs.readFileSync(path.join(ROOT, 'lib/fill-page.js'), 'utf8').includes(W.editionMismatch(d2026, W.defaults)), 'lib/fill-page.js must say the same thing');
+    });
     await test('copies: the roadmap step ids in workbook-common.js match the ones in journey.js', () => {
       const J = require(path.join(ROOT, 'lib/journey.js'));
       const W = workbookCommon();
@@ -1134,6 +1147,11 @@ function everyAnswer() {
   });
 
   console.log('Official PDF');
+  await test('engine: helpers the 2026 engine reuses are exported', () => {
+    for (const name of ['openPdf', 'readWidgets', 'readFieldValues', 'sha256Hex', 'MAX_PDF_BYTES', 'PRINTABLE', 'LINE_FACTOR', 'mayOverflow', 'wrappedLines', 'rowCost', 'parseAmount', 'parseCount', 'parseWhole', 'str']) {
+      assert.ok(name in lib, name);
+    }
+  });
   const pdfjsLib = loadPdfjs();
   let original;
   try { original = await officialPdf(); }
