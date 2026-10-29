@@ -72,6 +72,10 @@ Ratings: **Easy** (hours), **Medium** (a few days), **Hard** (needs a server or 
 | One authoritative copy online, shared by link (Google Docs style) | Hard | **Not in this helper.** It needs accounts, a server holding minors' personal data, access control, and safeguarding rules for adults' access. Smaller steps that help with "which version was approved": put a version number and date in backup file and PDF names ("Proposal v3, 2026-10-20"), and suggest keeping the filled PDF in the Scout's own cloud drive and sharing that one link. Note Scouting America is considering a portal. |
 | Advisor or Scoutmaster dashboard of all their Scouts | Hard | **Not in this helper,** for the same reasons. Instead: a "status summary" the Scout can copy into a message (part of the Ask pack in `ideas-backlog.md`). |
 
+### Set aside (decided October 2026)
+
+The maintainer's rule: nothing that can't run in the Scout's own browser. So these are **set aside**, not planned: a hosted single copy shared by link, an advisor or Scoutmaster dashboard, a DocuSign or Adobe signing integration, and AI proofreading. Keep only the browser-only alternatives listed above (version numbers in file names, a status summary the Scout sends, signable 2026 PDFs with guidance about electronic signatures, rule-based hints and the browser's spell check). Revisit only if Scouting America ships its own portal.
+
 ### Suggested order
 
 1. 2026 phases 1–2 (blocking: new Scouts must use 2026).
