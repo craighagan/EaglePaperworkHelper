@@ -592,6 +592,17 @@ async function run() {
         await waitFor('document.querySelector(".key-count").textContent === "Key boxes filled in: 1 of 20."', 5000);
         assert.doesNotMatch(await evaluate('document.querySelector(".key-count").textContent'), /%|ready|complete|score/i);
       });
+      await test('spell check is on for long answers and off for names and contact details', async () => {
+        await open(file, ready);
+        await evaluate('document.querySelectorAll("nav button")[1].click()');
+        await waitFor('!!document.getElementById("f-proposal-description")', 5000);
+        assert.equal(await evaluate('document.getElementById("f-proposal-description").getAttribute("spellcheck")'), 'true');
+        await evaluate('document.querySelectorAll("nav button")[0].click()');
+        await waitFor('!!document.getElementById("f-candidate-name")', 5000);
+        for (const id of ['f-candidate-name', 'f-candidate-email', 'f-contacts-beneficiaryRep-name']) {
+          assert.equal(await evaluate(`document.getElementById(${JSON.stringify(id)}).getAttribute("spellcheck")`), 'false', id);
+        }
+      });
       await test('the tab bar stays just below the header while scrolling', async () => {
         await open(file, ready);
         await evaluate('document.querySelectorAll("nav button")[2].click()');
