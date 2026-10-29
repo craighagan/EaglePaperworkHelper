@@ -3,6 +3,9 @@
 # Only these two test files are allowed. Never add a real Scout's backup file.
 !tests/fixtures/sample-workbook.json
 !tests/fixtures/official-2023a-fields.json
+!tests/fixtures/official-2026-fields.json
+!tests/fixtures/official-2026-appendix-d-fields.json
+!tests/fixtures/sample-workbook-2026.json
 *.pdf
 *.docx
 *.odt

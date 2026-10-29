@@ -70,6 +70,31 @@ function workbookCommon() {
   return window.EagleWorkbook;
 }
 
+const W26_URLS = {
+  workbook: 'https://www.scouting.org/wp-content/uploads/2026/10/512-92726-Eagle-Scout-Leadership-Service-Project-Workbook.pdf',
+  appendixD: 'https://filestore.scouting.org/filestore/scoutsbsa/Project-Workbook/Appendix-D-Fundraising-Application.pdf'
+};
+const W26_SHA = {
+  workbook: '5810e017ed25e745a9b2c2c9f6ea891acf6147b8d7a019d925388fda152435bb',
+  appendixD: '75364d254bcec53514994d6052ae57ea5072f8e0d42ea2ba1f1a685f556cd8a9'
+};
+/** A 2026 official PDF (`workbook` or `appendixD`), cached in tests/.cache and hash-checked, like officialPdf(). */
+async function cachedPdf(which, envName) {
+  if (process.env[envName]) return new Uint8Array(fs.readFileSync(process.env[envName]));
+  const cache = path.join(__dirname, '.cache', path.basename(W26_URLS[which]));
+  const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
+  if (!fs.existsSync(cache)) {
+    console.log(`  downloading ${W26_URLS[which]}`);
+    const response = await fetch(W26_URLS[which]);
+    if (!response.ok) throw new Error(`Download failed: HTTP ${response.status}`);
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (sha(bytes) !== W26_SHA[which] && !process.env.EAGLE_PDF_ALLOW_NEW) throw new Error(`The downloaded 2026 ${which} has SHA-256 ${sha(bytes)}, not the known file. Check its field names (todo/2026-design.md section 11), or set EAGLE_PDF_ALLOW_NEW=1.`);
+    fs.mkdirSync(path.dirname(cache), { recursive: true });
+    fs.writeFileSync(cache, bytes);
+  }
+  return new Uint8Array(fs.readFileSync(cache));
+}
+
 async function officialPdf() {
   if (process.env.EAGLE_PDF) return new Uint8Array(fs.readFileSync(process.env.EAGLE_PDF));
   const cache = path.join(__dirname, '.cache/EagleProjectWorkbook2023a.pdf');
@@ -1360,6 +1385,147 @@ function everyAnswer() {
       console.log(`  wrote ${process.env.WRITE_SAMPLE}`);
     }
   }
+
+  console.log('Official 2026 PDF');
+  let w26 = null, w26d = null;
+  try { w26 = await cachedPdf('workbook', 'EAGLE_PDF_2026'); w26d = await cachedPdf('appendixD', 'EAGLE_PDF_2026_APPD'); }
+  catch (error) { failures.push(`2026 PDF unavailable: ${error.message}`); console.log(`  FAIL 2026 PDF unavailable: ${error.message}`); }
+  await test('2026: the field-name fixtures match the cached PDFs', async () => {
+    if (!w26 || !w26d) return;
+    const names = async (bytes) => {
+      const doc = await pdfjsLib.getDocument({ data: bytes.slice(), verbosity: 0, isEvalSupported: false }).promise;
+      const set = new Set();
+      for (let p = 1; p <= doc.numPages; p++) for (const a of await (await doc.getPage(p)).getAnnotations()) if (a.fieldName) set.add(a.fieldName);
+      await doc.destroy();
+      return [...set].sort();
+    };
+    assert.deepEqual(await names(w26), JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/official-2026-fields.json'), 'utf8')));
+    assert.deepEqual(await names(w26d), JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/official-2026-appendix-d-fields.json'), 'utf8')));
+  });
+  await test('2026: the cached files are the known official files', () => {
+    if (process.env.EAGLE_PDF_ALLOW_NEW) return;
+    assert.equal(crypto.createHash('sha256').update(w26).digest('hex'), W26_SHA.workbook);
+    assert.equal(crypto.createHash('sha256').update(w26d).digest('hex'), W26_SHA.appendixD);
+  });
+
+  console.log('2026 model');
+  const M26 = require(path.join(ROOT, 'lib/w26-model.js'));
+  const pathExists = (obj, p) => p.split('.').reduce((o, k) => (o && typeof o === 'object' && k in o ? o[k] : undefined), obj) !== undefined;
+  const leaves = (obj, prefix = '', out = []) => {
+    for (const [k, v] of Object.entries(obj)) {
+      const p = prefix ? `${prefix}.${k}` : k;
+      if (v && typeof v === 'object' && !Array.isArray(v)) leaves(v, p, out);
+      else if (Array.isArray(v)) v.forEach((row, i) => (row && typeof row === 'object' ? leaves(row, `${p}.${i}`, out) : out.push(`${p}.${i}`)));
+      else out.push(p);
+    }
+    return out;
+  };
+  await test('2026 model: defaults() has the 2026 shape and table sizes', () => {
+    const d = M26.defaults();
+    assert.equal(d.edition, '2026');
+    assert.equal(d.plan.steps.length, 10); assert.equal(d.plan.helpers.length, 12); assert.equal(d.plan.hazards.length, 3);
+    assert.equal(d.plan.items.length, 12); assert.equal(d.report.spending.length, 9);
+    for (const t of [d.proposal.hours, d.plan.hours, d.report.hours]) { assert.equal(t.length, 5); assert.equal(t[0].w, '1'); }
+  });
+  await test('2026 model: every field name in the table is in the official 2026 files, exactly once', () => {
+    const want = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/official-2026-fields.json'), 'utf8'));
+    const got = M26.FIELDS.map((f) => f[0]);
+    assert.equal(new Set(got).size, got.length, 'a field is listed twice');
+    assert.deepEqual([...new Set(got)].sort(), want);
+    const wantD = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/official-2026-appendix-d-fields.json'), 'utf8'));
+    assert.deepEqual(M26.APPENDIX_D_FIELDS.map((f) => f[0]).sort(), wantD);
+  });
+  await test('2026 model: every field path exists in defaults(), and every draft answer is used', () => {
+    const d = M26.defaults();
+    const paths = [...M26.FIELDS, ...M26.APPENDIX_D_FIELDS].map((f) => f[2]).filter(Boolean);
+    const missing = paths.filter((p) => !pathExists(d, p));
+    assert.deepEqual(missing, [], 'paths missing from defaults()');
+    const used = new Set(paths);
+    const unused = leaves(d).filter((p) => !used.has(p) && !/^(edition|attachments|links|journey)(\.|$)/.test(p) && !/\.hours\.0\.w$/.test(p) && !/^(contacts\.(leader|committee|beneficiaryRep|approvalRep|coach)\.(address|city|state))/.test(p));
+    assert.deepEqual(unused, [], 'draft answers no field uses');
+  });
+  await test('2026 model: the fixed-size boxes equal the PDF\'s 12 pt text boxes', async () => {
+    if (!w26) return;
+    const doc = await pdfjsLib.getDocument({ data: w26.slice(), verbosity: 0, isEvalSupported: false }).promise;
+    const real = [];
+    for (let p = 1; p <= doc.numPages; p++) for (const a of await (await doc.getPage(p)).getAnnotations()) {
+      if (!a.fieldName || a.fieldType !== 'Tx' || !a.defaultAppearanceData || a.defaultAppearanceData.fontSize !== 12) continue;
+      const r2 = (x) => Math.round(x * 100) / 100;
+      real.push([a.fieldName, p, r2(a.rect[2] - a.rect[0]), r2(a.rect[3] - a.rect[1]), Boolean(a.multiLine)]);
+    }
+    await doc.destroy();
+    assert.deepEqual(M26.FIXED_BOXES, real);
+  });
+  await test('2026 model: the never-written fields are exactly the signatures, the dates beside them, and the approver boxes', () => {
+    const never = M26.FIELDS.filter((f) => f[1] === 'never').map((f) => f[0]).sort();
+    assert.deepEqual(never, ['Beneficiary Approval Signature Date', 'Beneficiary Signature Date', 'Beneficiary’s Signature', 'Candidate’s Promise Date', 'Candidate’s Promise Signature', 'Candidate\'s Promise Signature', 'Certification Signature Date', 'Certification of Completion Signature', 'District or Council Approval Signature', 'District or Council Signature Date', 'Provided Copy of Info for Beneficiaries', 'Promise Signature Date', 'Scoutmaster Approval Date', 'Scoutmaster Final Signature Date', 'Scoutmaster’s Approval Signature', 'Scoutmaster’s Final Signature', 'Unit Committee Approval Signature', 'Unit Committee Signature Date', 'Beneficiary Approval Signature'].sort());
+    const ad = M26.APPENDIX_D_FIELDS.filter((f) => f[1] === 'never').map((f) => f[0]).sort();
+    assert.deepEqual(ad, ['Authorized Council Approval', 'Beneficiary Signature', 'Council Rep Signature', 'Date', 'Date_2', 'Date_3', 'Unit Rep Signature'].sort());
+  });
+  await test('2026 model: every computed row has a type, and exactly three are counts', () => {
+    const comp = M26.FIELDS.filter((f) => f[1] === 'computed');
+    assert.ok(comp.every((f) => ['money', 'hours', 'count'].includes(f[5])), comp.map((f) => f[0]).join(', '));
+    assert.deepEqual(comp.filter((f) => f[5] === 'count').map((f) => f[0]).sort(), ['Project Plan Total Individuals', 'Total People', 'Total Volunteers']);
+  });
+  await test('2026 model: labels cover every answer that can be named in a warning', () => {
+    for (const f of M26.FIELDS) if (f[2] && !['computed', 'never', 'fixed'].includes(f[1])) assert.ok(f[2] in M26.LABELS, `no label for ${f[2]}`);
+    for (const f of M26.FIELDS) if (f[1] === 'computed') assert.ok(f[0] in M26.COMPUTED_LABELS, `no label for ${f[0]}`);
+    for (const f of M26.APPENDIX_D_FIELDS) if (f[2] && f[1] !== 'never') assert.ok(f[2] in M26.APPENDIX_D_LABELS, `no Appendix D label for ${f[2]}`);
+  });
+  await test('2026 totals: a blank draft has the form\'s own numbers (grand totals 0, row totals blank, Scout counted as 1)', () => {
+    const t = M26.totals(M26.defaults());
+    assert.deepEqual(t.invalid, []);
+    assert.equal(t.values['Total People'], 1); assert.equal(t.values['Project Plan Total Individuals'], 1); assert.equal(t.values['Total Volunteers'], 1);
+    assert.equal(t.values['Total Prelimary Cost Estimate'], 0); assert.equal(t.values['Total_Hours'], 0); assert.equal(t.values['Difference'], 0);
+    assert.equal(t.values['Total CostRow1'], ''); assert.equal(t.values['Total CostRow1_2'], '');
+  });
+  await test('2026 totals: hand-computed numbers, including the workbook\'s own page 20 example', () => {
+    const d = M26.defaults();
+    d.proposal.costs = { materials: '10', supplies: '20.50', tools: '', other: '5' };
+    assert.equal(M26.totals(d).values['Total Prelimary Cost Estimate'], 35.5);
+    d.proposal.hours[1] = { w: '2', h: '8' }; d.plan.hours[1] = { w: '5', h: '10' }; d.report.hours[1] = { w: '10', h: '50' };
+    const t = M26.totals(d).values;
+    assert.equal(t['Youth Members Total Hours'], 68);
+    assert.equal(t['Total People'], 3); assert.equal(t['Project Plan Total Individuals'], 6); assert.equal(t['Total Volunteers'], 11);
+    d.plan.items[0] = { qty: '3', unitCost: '20.00', totalCost: '', item: '', description: '', source: '' };
+    const u = M26.totals(d).values;
+    assert.equal(u['Total CostRow1'], 60); assert.equal(u['Total CostTotal Cost'], 60);
+    d.plan.funds = { beneficiary: '100', exempt: '50', others: '25', future: '40', futureDate: '', donated: '10' };
+    assert.equal(M26.totals(d).values['Funds Raised So Far'], 175); assert.equal(M26.totals(d).values['Total Funds'], 225);
+    d.report.collected = '500'; d.report.spent = '480.25';
+    assert.equal(M26.totals(d).values['Difference'], 19.75);
+  });
+  await test('2026 totals: a part that is not a number leaves that total out, and says so', () => {
+    const d = M26.defaults();
+    d.proposal.costs.tools = 'about 20';
+    const t = M26.totals(d);
+    assert.ok(!('Total Prelimary Cost Estimate' in t.values));
+    assert.deepEqual(t.invalid, ['Total Prelimary Cost Estimate']);
+  });
+  await test('2026 fit: the rounding traps and the Project Description capacities', () => {
+    assert.equal(M26.fit('Leadership', '')[0].capacity, 11);
+    assert.equal(M26.fit('Emergency Vehicle Access', '')[0].capacity, 2);
+    assert.deepEqual(M26.fit('Project Description', '').map((e) => [e.page, e.capacity]), [[7, 11], [11, 3], [22, 7]]);
+    assert.deepEqual(M26.fit('Candidates Full Name', 'x'), []);
+  });
+  await test('2026 fit: agrees with the Fill page\'s overflow test on the real PDF widgets', async () => {
+    if (!w26) return;
+    const doc = await pdfjsLib.getDocument({ data: w26.slice(), verbosity: 0, isEvalSupported: false }).promise;
+    const widgets = await lib.readWidgets(doc);
+    await doc.destroy();
+    let checked = 0;
+    for (const [name, list] of widgets) for (const w of list) {
+      if (w.fontSize !== 12) continue;
+      for (const n of [1, 5, 10, 20, 40, 80]) {
+        const value = 'installation '.repeat(n).trim();
+        const mine = M26.fit(name, value).find((e) => e.page === w.page);
+        if (!mine) continue;
+        checked++;
+        assert.equal(mine.fits, !lib.mayOverflow(value, w), `${name} p${w.page} n=${n}`);
+      }
+    }
+    assert.ok(checked > 100, `checked ${checked}`);
+  });
 
   console.log(`\n${passed} passed, ${failures.length} failed${skipped ? `, ${skipped} skipped` : ''}`);
   process.exit(failures.length ? 1 : 0);
