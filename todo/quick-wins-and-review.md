@@ -230,7 +230,7 @@ and replace the line `const KEY = (window.EagleJourney && window.EagleJourney.PA
   const KEY = KEY_PATHS;
 ```
 
-(`KEY.proposal`, `KEY.plan`, `KEY.report` keep working.)
+(`KEY.proposal`, `KEY.plan`, `KEY.report` keep working.) This reads `D` once when the page loads, which is fine while only 2023a exists. Leave it; the 2026 work will recompute these per render.
 
 ### 0.4 Done when
 
@@ -345,7 +345,12 @@ Notes for the implementer: `f-candidate-name` exists on tab 0 in both workbooks.
 
 ### A.3 Done when
 
-Both test scripts pass; manually confirm at 390px width that the bar wraps without sideways scrolling (the existing phone-size test pattern can be copied). Commit after the review panel for A+B+C (see bottom).
+Both test scripts pass. Add a 390px check to the first Task A test, right after the bar appears, copied from the existing test 'the Scoutly window fits a phone screen and its buttons are easy to tap':
+```js
+        await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 760, deviceScaleFactor: 2, mobile: true });
+        try { assert.ok(await evaluate('document.documentElement.scrollWidth <= innerWidth'), 'no sideways scrolling at 390px'); }
+        finally { await send('Emulation.clearDeviceMetricsOverride'); }
+``` Commit after the review panel for A+B+C (see bottom).
 
 ---
 
@@ -378,7 +383,13 @@ Unit (`tests/run-tests.cjs`), add to the "Key boxes" block: nothing new; Task 0 
         assert.equal(await evaluate('document.activeElement.id'), 'f-proposal-description');
         await evaluate(`(() => { const i = document.getElementById("f-proposal-description"); i.value = "A bench"; i.dispatchEvent(new Event("input", { bubbles: true })); })()`);
         await waitFor('!/Project description/.test(document.querySelector(".empty-boxes").textContent)', 5000);
-        assert.match(await evaluate('document.querySelector(".tab-dot").parentElement.textContent'), /some boxes not filled in yet/);
+        assert.match(await evaluate('document.querySelectorAll("nav button")[1].textContent'), /some boxes not filled in yet/, 'screen readers hear it');
+        // Fill in every Proposal key box: its dot and the list go away without a page redraw.
+        for (const [id, v] of [['f-proposal-projectName', 'Bench'], ['f-proposal-whyNeeded', 'No seats'], ['f-proposal-helperCount', '8'], ['f-proposal-materials', 'Lumber'], ['f-proposal-safety', 'Gloves']]) {
+          await evaluate(`(() => { const i = document.getElementById(${JSON.stringify(id)}); i.value = ${JSON.stringify(v)}; i.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+        }
+        await waitFor('!document.querySelectorAll("nav button")[1].querySelector(".tab-dot")', 5000);
+        assert.equal(await evaluate('!!document.querySelector(".empty-boxes")'), false);
       });
       await test('a tab with every key box filled in has no dot and no list', async () => {
         const draft = JSON.parse(fs.readFileSync(SAMPLE, 'utf8'));
@@ -425,15 +436,31 @@ The sample fixture fills in every key box (checked when this plan was written), 
   }
 ```
 
-   Export `emptyBoxesList` in `window.EagleWorkbook`. A `.link-button` class may already exist; if not, add CSS `.link-button{background:none;border:0;padding:0;color:#003f87;text-decoration:underline;cursor:pointer;font:inherit}`.
+   Export `emptyBoxesList` in `window.EagleWorkbook`. The `.link-button` class already exists in both pages.
    **Correction to the code above, apply it:** a hidden element is still found by `document.querySelector(".empty-boxes")`, which would break the tests. So in `draw()`, replace the two lines `box.hidden = empty.length === 0;` and `if (!empty.length) return;` with the single line `if (!empty.length) { box.remove(); return; }`. The page code (step 2) only creates the list when something is empty, so it is never created empty.
 
 2. **Both page scripts**, in `render()`:
-   - A map from tab index to table name: `const TAB_KEYS = ['setup', 'proposal', 'plan', 'fundraising', 'report'];` (index 5+ have none).
-   - Tab dots: when building each nav button, compute `const name = TAB_KEYS[i]; const empty = name && window.EagleJourney ? (window.EagleJourney.emptyKeyBoxes(D)[name] || []) : [];` and if `empty.length`, add children `h('span', { className: 'tab-dot', 'aria-hidden': 'true' }, '•')` and `h('span', { className: 'sr-only' }, ' (some boxes not filled in yet)')` after the label. (Fundraising is absent from `emptyKeyBoxes` unless raising money, so it gets no dot automatically.)
-   - The list: compute `const list = TAB_KEYS[tab] && window.EagleJourney && (window.EagleJourney.emptyKeyBoxes(D)[TAB_KEYS[tab]] || []).length ? W.emptyBoxesList({ data: () => D, tabName: TAB_KEYS[tab] }) : null;` and insert it in `main` right after `stageCard(tab)` (Guided) or as the first child (Classic). `h()` skips `null`.
-   - Live update: after `main` is built, add `main.addEventListener('input', () => { if (list) list.refresh(); refreshDots(); });` where `refreshDots()` recomputes each nav button's dot (add or remove the two spans). Write `refreshDots` once as a small function inside `render()`.
-3. **CSS**, both HTML files: `.tab-dot{margin-left:4px;color:#e0a500;font-weight:700}`, `.empty-boxes{margin:0 0 12px;font-size:.95em}`, and an `.sr-only` class if the file doesn't have one: `.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}`. Add `.empty-boxes,.tab-dot` to the print hide list.
+   - A map from tab index to table name, declared **once at the top of the file, right after `const TABS = [...]`** (not inside `render()`; Task E needs it outside): `const TAB_KEYS = ['setup', 'proposal', 'plan', 'fundraising', 'report'];` Indexes 5 and up (Signed Pages, Review) have no entry.
+   - Tab dots: leave the nav-building code as it is. Right **after** the line that builds `nav` (`const nav = h('nav', ...);`), add this function and call it once:
+     ```js
+     const refreshDots = () => nav.querySelectorAll('button').forEach((b, i) => {
+       b.querySelectorAll('.tab-dot,.visually-hidden').forEach((s) => s.remove());
+       const n = TAB_KEYS[i], J = window.EagleJourney;
+       if (n && J && (J.emptyKeyBoxes(D)[n] || []).length) b.append(h('span', { className: 'tab-dot', 'aria-hidden': 'true' }, '•'), h('span', { className: 'visually-hidden' }, ' (some boxes not filled in yet)'));
+     });
+     refreshDots();
+     ```
+     (Fundraising is absent from `emptyKeyBoxes` unless the Scout is raising money, so it gets no dot automatically. Signed Pages and Review have no `TAB_KEYS` entry, so no dot.)
+   - The list: compute `const list = TAB_KEYS[tab] && window.EagleJourney && (window.EagleJourney.emptyKeyBoxes(D)[TAB_KEYS[tab]] || []).length ? W.emptyBoxesList({ data: () => D, tabName: TAB_KEYS[tab] }) : null;` and insert it in `main` (`h()` skips `null`). Final order of the first children of `main` after Tasks B and C: **Guided** `keyCount, stageCard(tab), list, journeyCard…`; **Classic** `keyCount, list, journeyCard…`.
+   - Live update: after `main` is built, add one handler for **both** `input` and `change` (the "Will you raise money" select on Your path saves on `change`, after its `input` event):
+     ```js
+     const refreshLive = () => { if (list && list.isConnected) list.refresh(); refreshDots(); };
+     main.addEventListener('input', refreshLive);
+     main.addEventListener('change', refreshLive);
+     ```
+     Task C adds one more line to `refreshLive`. These listeners are on `main`, which is replaced on every render, so they never pile up.
+   - Accepted limitation: once the list has removed itself (every box filled in), it does not come back if the Scout clears a box, until the page redraws (the next tab change). Don't add code for this.
+3. **CSS**, both HTML files: `.tab-dot{margin-left:4px;color:#e0a500;font-weight:700}` and `.empty-boxes{margin:0 0 12px;font-size:.95em}`. Both pages **already** have `.visually-hidden` and `.link-button`: use them, don't add new ones (don't add `.sr-only`). Add `.empty-boxes,.tab-dot` to the print hide list.
 
 ### B.3 Done when
 
@@ -466,7 +493,7 @@ Browser, per-workbook loop:
 ### C.2 Code
 
 - **`lib/workbook-common.js`**: `function keyCount(data) { const J = window.EagleJourney; if (!J) return null; const c = J.keyBoxCount(data); return h('p', { className: 'key-count' }, `Key boxes filled in: ${c.filled} of ${c.total}.`); }`. Export it.
-- **Both page scripts**: in `main`, as the first child (before the stage card in Guided), add `tab <= 4 ? W.keyCount(D) : null`. In the `input` listener from Task B, also update it: `const kc = main.querySelector('.key-count'); if (kc && window.EagleJourney) { const c = window.EagleJourney.keyBoxCount(D); kc.textContent = `Key boxes filled in: ${c.filled} of ${c.total}.`; }`.
+- **Both page scripts**: in `main`, as the very first child (order given in Task B step 2), add `tab <= 4 ? W.keyCount(D) : null`. In `refreshLive` from Task B, also update it: `const kc = main.querySelector('.key-count'); if (kc && window.EagleJourney) { const c = window.EagleJourney.keyBoxCount(D); kc.textContent = `Key boxes filled in: ${c.filled} of ${c.total}.`; }`.
 - **CSS**: `.key-count{margin:4px 0 10px;font-size:.9em;color:#46566a}`; add `.key-count` to the print hide list.
 
 ### C.3 Done when
@@ -579,7 +606,7 @@ Browser (per-workbook loop):
         assert.match(text, /Not filled in yet/);
         assert.match(text, /Project description/);
         assert.match(text, /Nothing here looked unusual\./);
-        assert.match(text, /no backup file yet|isn’t in a backup file/i);
+        assert.match(text, /Your backup file: no backup file yet\./);
         assert.match(text, /This is not an approval check\./);
         assert.doesNotMatch(text, /\b(required|must|missing|ready|approved|score)\b|%/i);
         await evaluate('[...document.querySelectorAll(".review button")].find((b) => b.textContent === "Project description").click()');
@@ -603,30 +630,54 @@ Browser (per-workbook loop):
 Also update the **existing** tests that encode "six tabs" on purpose (say why in the commit):
 - `tests/run-tests.cjs`, test `copies: pages and docs agree on how many stages and steps there are`: change `6` to `7`, the message to `'the Guided workbook has seven tabs'`, and `/Six stages/` to `/Seven stages/`.
 - `index.html` and `README.md`: `Six stages with plain-language` → `Seven stages with plain-language`. `AGENTS.md` layout table: `six stages (the last is Signed Pages & Photos)` → `seven stages (Signed Pages & Photos, then Review)`.
-- Any browser test that assumes Signed Pages is the **last** tab: search `tests/browser-e2e.cjs` for `length - 1` and `nav button")[5]`. Index 5 stays Signed Pages (fine). Tests that use "the last tab" meaning Signed Pages must use index 5 instead.
+- Browser tests: none uses "the last tab" to mean Signed Pages (they use index 5, which stays Signed Pages). The `length - 1` matches in `tests/browser-e2e.cjs` are unrelated. So no existing browser test needs editing, **except** the Task B dot test: change its expected array to `[true, true, true, false, true, false, false]` (seven tabs, Review has no dot).
 
 ### E.2 Code
 
 1. **`lib/journey.js`**: add `SHORT_ANSWER_BOXES`, `SHORT_WORDS`, `shortAnswers` (above), export `SHORT_ANSWER_BOXES, shortAnswers`.
 2. **Load `preflight.js` on the workbook pages**: in both HTML files, add `<script src="lib/preflight.js"></script>` right **after** `<script src="lib/official-pdf.js"></script>`. Update the script-order test in `tests/run-tests.cjs` (`copies: each page loads its scripts in the order they need`): add the pair `['lib/official-pdf.js', 'lib/preflight.js']` for both workbook pages. Update the load-order paragraph in `AGENTS.md`.
-3. **`lib/workbook-common.js`**: add `function reviewSection({ data, store, tabs, tabLabels, goToBox, onSave, onPrint })`:
-   - `tabLabels` maps `setup/proposal/plan/fundraising/report` → the page's tab label.
-   - `goToBox(tabName, path)` is supplied by the page: switch tab (`go(index)`), then after render focus `f-<path>`.
-   - Build the seven parts above with `h()`. Wrap everything in `h('section', { className: 'review' }, ...)`. Use `h('h3', { className: 'sec-title' }, 'Not filled in yet')` etc. for headings.
-   - The backup sentence: reuse the same rules as `saveIndicator`'s `backupNote` (copy the four cases; or better, move `backupNote` out of `saveIndicator` into a shared function `backupNoteText(store)` that returns the text without the leading ` · `, and use it in both places).
-   - Export `reviewSection`.
+3. **`lib/workbook-common.js`**:
+   - First, move the four backup cases out of `saveIndicator` into a shared function and use it in both places:
+     ```js
+     /** 'no backup file yet', '3 changes not in a backup file', 'backup file is up to date', or 'no backup file to compare'. */
+     function backupNoteText(store) {
+       if (!store.backupAt()) return 'no backup file yet';
+       const n = store.changeCount();
+       if (n === null) return 'no backup file to compare';
+       return n === 0 ? 'backup file is up to date' : `${n} change${n === 1 ? '' : 's'} not in a backup file`;
+     }
+     ```
+     In `saveIndicator`, replace the body of `backupNote` with `return ' · ' + backupNoteText(store);`. The header text must not change (existing tests check it).
+   - Then add `function reviewSection({ data, store, tabs, tabLabels, goToBox, onSave, onPrint })`, where the page passes **exactly**: `tabs: { proposal: TABS[1], plan: TABS[2], report: TABS[4], signed: TABS[5] }` (used for `journeySteps`), `tabLabels: Object.fromEntries(TAB_KEYS.map((k, i) => [k, TABS[i]]))`, `goToBox` (step 4), `onSave: () => W.saveBackup(D, store)`, `onPrint: () => printDraft()`.
+   - Build the seven parts above with `h()`. Wrap everything in `h('section', { className: 'review' }, ...)`. Headings: `h('h3', { className: 'sec-title' }, 'Not filled in yet')` and so on.
+   - Part 2: `const notes = window.EaglePreflight ? window.EaglePreflight.check(data(), window.EagleOfficialPdf) : [];`
+   - Part 4 sentence: `` `Your backup file: ${backupNoteText(store)}.` `` then the `Save backup file` button.
+   - Part 5: `const r = window.EagleJourney ? window.EagleJourney.journeySteps(data(), window.EagleAttachments, tabs) : null;` then the text `r && r.next ? r.next.next : 'Every step on your path is ticked or filled in.'`.
+   - Export `reviewSection` and `backupNoteText`.
 4. **Both page scripts**:
    - Add the tab: Guided `TABS` gets `'7. Review'` at the end; Classic gets `'Review'`.
-   - Add a renderer `renderReview()` to `RENDERERS` (last) that returns `W.reviewSection({ ... })`.
-   - Add `const SIGNED_TAB = 5;` and replace every `TABS.length - 1` that **means Signed Pages** with `SIGNED_TAB` (in the attachments `ready().then(...)` line and in `refreshSummary`). The `last` variable (for the "Next: fill the official PDF →" button) keeps meaning the last tab, which is now Review.
-   - Guided `STAGES` needs a 7th entry for the stage card: `{ title: 'Review', next: 'Look over what is left, then fill the official PDF.', paths: [], summary: () => '' }`. Check `stageCard` handles an empty summary (it shows a pill; if empty text looks odd, skip the pill when the summary is empty).
-   - `goToBox`: `(name, path) => { focusAfterId = 'f-' + path.replace(/[^a-zA-Z0-9_-]/g, '-'); go(TAB_KEYS.indexOf(name)); }`, and at the end of `render()`: `if (focusAfterId) { const el = document.getElementById(focusAfterId); focusAfterId = null; if (el) { el.scrollIntoView({ block: 'center' }); el.focus(); } }`. Declare `let focusAfterId = null;` at the top. (Guided already has a similar `focusAfterRender`; keep both, they use different selectors.)
+   - Add a renderer and put it last in `RENDERERS`: `function renderReview() { return W.reviewSection({ data: () => D, store, tabs: { proposal: TABS[1], plan: TABS[2], report: TABS[4], signed: TABS[5] }, tabLabels: Object.fromEntries(TAB_KEYS.map((k, i) => [k, TABS[i]])), goToBox, onSave: () => W.saveBackup(D, store), onPrint: () => printDraft() }); }`
+   - Add `const SIGNED_TAB = 5;` next to `TABS`, and replace `TABS.length - 1` with `SIGNED_TAB` in exactly these places (they mean Signed Pages):
+     - Guided, in `refreshSummary`: `const tabButton = document.querySelectorAll('nav button')[TABS.length - 1];`
+     - Guided, near the end of the file: the line starting `if (window.EagleAttachments) window.EagleAttachments.ready().then(() => { if (tab === TABS.length - 1`
+     - Classic, near the end of the file: the same `ready().then(... tab === TABS.length - 1` line.
+     The `last` variable inside `render()` (`const last = tab === TABS.length - 1;`, for the "Next: fill the official PDF →" button) stays as it is: it now means Review, which is right.
+   - Guided `STAGES` gets a 7th entry for the stage card: `{ title: 'Review', next: 'Look over what is left, then fill the official PDF.', paths: [], summary: () => '' }`. In `stageCard`, in the `if (s.summary)` branch, leave out the `h('div', { className: 'stage-meta' }, ...)` part when `s.summary()` returns `''` (build it conditionally; `h()` skips `null`). The nav button `title` already uses `STAGES[i].summary ? STAGES[i].summary() : ...`, which gives `''` for Review: fine.
+   - `goToBox` (at module level, after `go` is defined). `go()` already calls `render()` and then `window.scrollTo(0, 0)`, so scroll and focus **after** `go()` returns:
+     ```js
+     const goToBox = (name, path) => {
+       go(TAB_KEYS.indexOf(name));
+       const el = document.getElementById('f-' + path.replace(/[^a-zA-Z0-9_-]/g, '-'));
+       if (el) { el.scrollIntoView({ block: 'center' }); el.focus(); }
+     };
+     ```
+     Don't add a `focusAfterId` variable.
    - Print draft: the `sections` list in `printDraft()` is unchanged (Review is not printed).
 5. **CSS**, both HTML files: `.review section{margin:0 0 16px}` and add `.review` to the print hide list.
 
 ### E.3 Done when
 
-Both test scripts pass; manually check the Review tab at 390px (copy the phone-size browser test pattern: no sideways scrolling).
+Both test scripts pass. Add the same 390px check as in Task A to the first Review test, after the Review tab is shown.
 
 ### Review panel for E, then commit
 
