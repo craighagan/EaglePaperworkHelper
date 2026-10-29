@@ -456,12 +456,15 @@ function everyAnswer() {
       for (const [a, b] of [['lib/official-pdf.js', 'lib/attachments.js'], ['lib/attachments.js', 'lib/journey.js'], ['lib/journey.js', 'lib/workbook-common.js'], ['lib/workbook-common.js', 'lib/backup-from-pdf-page.js']]) before(back, a, b, 'BackupFromPDF.html');
     });
     await test('copies: the draft storage keys are the same everywhere they are written out', () => {
-      const keys = ['eagle_workbook_guided_v1', 'eagle_workbook_v1'];
+      const keys = ['eagle_workbook_guided_v1', 'eagle_workbook_v1', 'eagle_workbook2026_guided_v1', 'eagle_workbook2026_v1'];
       for (const f of ['lib/attachments.js', 'lib/fill-page.js', 'lib/backup-from-pdf-page.js', 'lib/guided-workbook.js', 'lib/classic-workbook.js']) {
         const found = new Set([...read(f).matchAll(/['"`](eagle_workbook[a-z_0-9]*)['"`]/g)].map((m) => m[1]).filter((k) => k !== 'eagle_workbook_files'));
         assert.deepEqual([...found].filter((k) => !keys.includes(k)), [], `${f} uses a storage key nobody else knows`);
       }
-      for (const f of ['lib/attachments.js', 'lib/fill-page.js', 'lib/backup-from-pdf-page.js']) for (const k of keys) assert.ok(read(f).includes(k), `${f} must know ${k}, or sweeping could delete pictures a draft still uses`);
+      for (const k of keys) assert.ok(read('lib/attachments.js').includes(k), `lib/attachments.js must know ${k}, or sweeping could delete pictures a draft still uses`);
+      for (const f of ['lib/fill-page.js', 'lib/backup-from-pdf-page.js']) for (const k of keys.slice(0, 2)) assert.ok(read(f).includes(k), `${f} must know ${k}`);
+      const A = require(path.join(ROOT, 'lib/attachments.js'));
+      assert.deepEqual(A.DRAFT_KEYS, keys);
     });
     await test('editions: a backup file of the other edition is refused, in plain words', () => {
       const W = workbookCommon();
