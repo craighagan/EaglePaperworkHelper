@@ -36,7 +36,7 @@ const officialFields = new Set(JSON.parse(fs.readFileSync(path.join(__dirname, '
 const PAGE_LABELS = { 1: 'Workbook cover page', 9: 'Proposal Page B', 10: 'Proposal Page C', 11: 'Proposal Page D', 12: 'Proposal Page E', 13: 'Proposal Page F', 14: 'Proposal Page G', 15: 'Proposal Page H',
   17: 'Project Plan Page A', 18: 'Project Plan Page B', 19: 'Project Plan Page C', 20: 'Project Plan Page D', 21: 'Project Plan Page E', 22: 'Project Plan Page F',
   23: 'Fundraising Application Page A', 24: 'Fundraising Application Page B', 26: 'Project Report cover page', 27: 'Project Report Page A', 28: 'Project Report Page B', 29: 'Project Report Page C' };
-const PAGES = ['index.html', 'EagleWorkbook.html', 'EagleWorkbook-guided.html', 'FillOfficialPDF.html', 'BackupFromPDF.html'];
+const PAGES = ['index.html', 'EagleWorkbook.html', 'EagleWorkbook-guided.html', 'EagleWorkbook2026.html', 'FillOfficialPDF.html', 'BackupFromPDF.html'];
 
 let passed = 0;
 let skipped = 0;
@@ -474,6 +474,11 @@ function everyAnswer() {
       for (const [page, own] of [['EagleWorkbook-guided.html', 'lib/guided-workbook.js'], ['EagleWorkbook.html', 'lib/classic-workbook.js']]) {
         const s = scripts(page);
         for (const [a, b] of [['lib/official-pdf.js', 'lib/preflight.js'], ['lib/official-pdf.js', 'lib/journey.js'], ['lib/journey.js', 'lib/tips.js'], ['lib/tips.js', 'lib/attachments.js'], ['lib/attachments.js', 'lib/workbook-common.js'], ['lib/workbook-common.js', own]]) before(s, a, b, page);
+      }
+      {
+        const s26 = scripts('EagleWorkbook2026.html');
+        const order = ['lib/official-pdf.js', 'lib/preflight.js', 'lib/journey.js', 'lib/w26-model.js', 'lib/attachments.js', 'lib/workbook-common.js', 'lib/w26-ui.js', 'lib/w26-classic.js'];
+        assert.deepEqual(s26.filter((x) => order.includes(x)), order, 'EagleWorkbook2026.html script order');
       }
       const fill = scripts('FillOfficialPDF.html');
       for (const [a, b] of [['vendor/pdfjs/pdf.js', 'lib/official-pdf.js'], ['lib/official-pdf.js', 'lib/preflight.js'], ['lib/official-pdf.js', 'lib/attachments.js'], ['lib/preflight.js', 'lib/fill-page.js'], ['lib/attachments.js', 'lib/fill-page.js']]) before(fill, a, b, 'FillOfficialPDF.html');
@@ -1739,6 +1744,48 @@ function everyAnswer() {
       });
     });
   }
+  console.log('Classic 2026 wording');
+  {
+    const W26M = require(path.join(ROOT, 'lib/w26-model.js'));
+    const normText = (t) => String(t).replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, '"').replace(/[\u2013\u2014]/g, '-')
+      .replace(/\s+/g, ' ').replace(/\s+([?).,:;])/g, '$1').replace(/\(\s+/g, '(').replace(/\/\s+/g, '/').replace(/(\d) (?=\d)/g, '$1').trim().toLowerCase();
+    const pagesText = async (bytes) => {
+      const doc = await pdfjsLib.getDocument({ data: bytes.slice(), verbosity: 0, isEvalSupported: false }).promise;
+      const out = {};
+      for (let p = 1; p <= doc.numPages; p++) out[p] = normText((await (await doc.getPage(p)).getTextContent()).items.map((i) => i.str + (i.hasEOL ? ' ' : '')).join(' '));
+      await doc.destroy();
+      return out;
+    };
+    await test('Classic 2026: every official label, prompt, and heading is on its page of the PDF', async () => {
+      if (!w26 || !w26d) return;
+      const wb = await pagesText(w26), ad = await pagesText(w26d);
+      const O = W26M.OFFICIAL;
+      const misses = [];
+      const check = (pages, page, text) => { if (text && !pages[page].includes(normText(text))) misses.push(`p${page}: ${text.slice(0, 60)}`); };
+      for (const [, [page, label, help]] of Object.entries(O.boxes)) { check(wb, page, label); check(wb, page, help); }
+      for (const [, [page, label, help]] of Object.entries(O.appendixD)) { check(ad, page, label); check(ad, page, help); }
+      for (const [id, [page, title, intro]] of Object.entries(O.sections)) {
+        const pages = id.startsWith('appendixD') ? ad : wb;
+        check(pages, page, title);
+        check(pages, page, intro);
+      }
+      for (const [, [page, headers]] of Object.entries(O.tables)) for (const t of headers) check(wb, page, t);
+      assert.deepEqual(misses, [], misses.slice(0, 10).join('; '));
+    });
+    const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
+    await test('Classic 2026: the page gets its labels only from the official wording (no hand-typed prompts)', () => {
+      const src = ['lib/w26-classic.js', 'lib/w26-ui.js'].map((f) => read(f)).join('\n');
+      for (const bad of ['innerHTML', 'insertAdjacentHTML', 'document.write']) assert.ok(!src.includes(bad), `${bad} in the 2026 page`);
+      for (const f of ['lib/w26-classic.js', 'lib/w26-ui.js', 'lib/w26-model.js', 'lib/w26-pdf.js']) assert.doesNotMatch(read(f), /\binnerHTML\b/, f);
+    });
+    await test('Classic 2026: the sentences a Scout sees are the ones the design approved', () => {
+      const code = ['lib/w26-classic.js', 'lib/w26-pdf.js', 'lib/w26-ui.js', 'lib/workbook-common.js', 'lib/fill-page.js', 'lib/official-pdf.js'].map((f) => read(f)).join('\n');
+      assert.ok(code.includes('This backup file is for the 2026 workbook. Open it in the 2026 workbook from the home page.'), 'S1a');
+      assert.ok(code.includes('is for the 2023 workbook (No. 2023a)'), 'S1b');
+      assert.ok(code.includes('In the 2026 workbook this is the Fundraising box on page 10.'), 'S22');
+    });
+  }
+
   console.log(`\n${passed} passed, ${failures.length} failed${skipped ? `, ${skipped} skipped` : ''}`);
   process.exit(failures.length ? 1 : 0);
 })();

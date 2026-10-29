@@ -774,6 +774,92 @@ async function run() {
       });
     }
 
+    console.log('EagleWorkbook2026.html (file://)');
+    const F26 = 'EagleWorkbook2026.html', K26 = 'eagle_workbook2026_v1', READY26 = '!!document.querySelector("nav button")';
+    const setValue = (selector, value) => evaluate(`(() => { const el = document.querySelector(${JSON.stringify(selector)}); el.value = ${JSON.stringify(value)}; el.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
+    const tabText = () => evaluate('document.getElementById("main").innerText');
+    await test('2026 page opens without errors and says which workbook it is for', async () => {
+      await open(F26, READY26);
+      assert.match(await evaluate('document.querySelector(".edition-banner").textContent'), /For the 2026 workbook \(No\. 512-927\)\./);
+      assert.deepEqual(problems, []);
+    });
+    await test('2026 page: every tab renders, with the official prompts on the right tabs', async () => {
+      for (let i = 0; i < 6; i++) {
+        await evaluate(`document.querySelectorAll("nav button")[${i}].click(); true`);
+        await waitFor(`document.querySelectorAll("nav button")[${i}].classList.contains("active")`);
+      }
+      await evaluate('document.querySelectorAll("nav button")[1].click(); true');
+      await waitFor('document.querySelectorAll("nav button")[1].classList.contains("active")');
+      assert.match(await tabText(), /Who is your beneficiary\?/);
+      assert.match(await tabText(), /Brief Project Description/);
+      assert.deepEqual(problems, []);
+    });
+    await test('2026 page: no link to the 2023a Fill page, the backup-from-PDF page, or the 2023a PDF', async () => {
+      const hrefs = await evaluate('[...document.querySelectorAll("a")].map((a) => a.getAttribute("href") || "")');
+      assert.ok(!hrefs.includes('FillOfficialPDF.html') && !hrefs.includes('BackupFromPDF.html'), hrefs.join(', '));
+      assert.ok(!hrefs.some((x) => /2023a\.pdf/.test(x)), hrefs.join(', '));
+    });
+    await test('2026 page: typing saves to the 2026 draft and leaves the 2023a drafts alone', async () => {
+      await open(F26, READY26);
+      await evaluate('document.querySelectorAll("nav button")[1].click(); true');
+      await waitFor('document.querySelectorAll("nav button")[1].classList.contains("active")');
+      const before = await evaluate('localStorage.getItem("eagle_workbook_v1")');
+      await setValue('#f-proposal-description', 'Test description from the browser test.');
+      await waitFor(`(localStorage.getItem(${JSON.stringify(K26)}) || '').includes("Test description from the browser test.")`, 5000);
+      assert.equal(await evaluate('localStorage.getItem("eagle_workbook_v1")'), before);
+    });
+    await test('2026 page: the description fit line says which pages it fits, and warns when it will not', async () => {
+      await setValue('#f-proposal-description', 'installation '.repeat(12).trim());
+      await waitFor('document.querySelector(".fit") && document.querySelector(".fit").textContent.startsWith("Fits in the official box")');
+      await setValue('#f-proposal-description', 'installation '.repeat(40).trim());
+      await waitFor('document.querySelector(".fit") && document.querySelector(".fit").textContent.startsWith("May not fit in the official box")');
+      assert.match(await evaluate('document.querySelector(".fit").textContent'), /page 11, about 5 of 3 lines/);
+    });
+    await test('2026 page: the hours table adds up as the Scout types', async () => {
+      await setValue('#f-proposal-description', 'Short description.');
+      await evaluate('document.querySelectorAll("nav button")[1].click(); true');
+      await waitFor('document.querySelectorAll("nav button")[1].classList.contains("active")');
+      const row1 = await evaluate('(() => { const t = [...document.querySelectorAll("table")].find((x) => x.querySelector("thead") && x.innerText.includes("Total Hours Invested") || x.innerText.includes("Number of Individuals")); return t.querySelectorAll("tbody tr")[1].querySelectorAll("input").length; })()');
+      assert.equal(row1, 2);
+      await evaluate(`(() => { const t = [...document.querySelectorAll("table")].find((x) => x.innerText.includes("Number of Individuals")); const ins = t.querySelectorAll("tbody tr")[1].querySelectorAll("input"); ins[0].value = "2"; ins[0].dispatchEvent(new Event("input", { bubbles: true })); ins[1].value = "8"; ins[1].dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
+      await waitFor('document.body.innerText.includes("Grand total: 3 people, 8 hours.")', 5000);
+    });
+    await test('2026 page: Save backup file writes a 2026 backup, and the 2023a backup is refused here', async () => {
+      clearDownloads();
+      await click('Save backup file');
+      const file = await waitForDownload('.json');
+      const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+      assert.equal(saved.edition, '2026');
+      clearDownloads();
+      dialogs = [];
+      await evaluate(`(() => { const orig = HTMLInputElement.prototype.click; HTMLInputElement.prototype.click = function () { if (this.type === 'file') { window.__picker = this; return; } return orig.call(this); }; })()`);
+      await click('Open backup file');
+      await waitFor('!!window.__picker');
+      const { root } = await send('DOM.getDocument');
+      await evaluate('document.body.appendChild(window.__picker); window.__picker.id = "picked-2026"; true');
+      const { nodeId } = await send('DOM.querySelector', { nodeId: root.nodeId, selector: '#picked-2026' });
+      await send('DOM.setFileInputFiles', { nodeId, files: [SAMPLE] });
+      for (let t = 0; t < 50 && !dialogs.length; t++) await sleep(100);
+      assert.match(dialogs.join(' '), /This backup file is for the 2023 workbook \(No\. 2023a\)\./, dialogs.join(' '));
+    });
+    await test('2026 page: Review has no "Next on your path" and Erase leaves the 2023a drafts alone', async () => {
+      await evaluate('document.querySelectorAll("nav button")[5].click(); true');
+      await waitFor('document.querySelectorAll("nav button")[5].classList.contains("active")');
+      assert.doesNotMatch(await tabText(), /Next on your path/);
+      await evaluate(`localStorage.setItem("eagle_workbook_v1", JSON.stringify({ candidate: { name: "Keep" }, proposal: {} })); true`);
+      dialogs = [];
+      await click('erase this draft from this browser');
+      await waitFor(`localStorage.getItem(${JSON.stringify(K26)}) === null`);
+      assert.match(dialogs.join(' '), /Erase your saved 2026 workbook drafts from this browser\?/);
+      assert.match(await evaluate('localStorage.getItem("eagle_workbook_v1")'), /Keep/);
+      await evaluate('localStorage.removeItem("eagle_workbook_v1"); true');
+    });
+    await test('2026 page: a Scout can go from the first tab to the last and the Next button ends at the home page', async () => {
+      await open(F26, READY26);
+      assert.equal(await evaluate('[...document.querySelectorAll("nav button")].length'), 6);
+      assert.equal(problems.length, 0, problems.join(' | '));
+    });
+
     console.log('BackupFromPDF.html (file://)');
     await test('reads a filled PDF into a backup file and opens it in the Guided workbook', async () => {
       assert.ok(filledPdf, 'needs the PDF from the fill test');
