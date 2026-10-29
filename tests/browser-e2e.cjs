@@ -754,12 +754,22 @@ async function run() {
         assert.ok(hrefs.includes('FillOfficialPDF.html'), hrefs.join(', '));
         assert.match(await evaluate('document.querySelector(".page-footer").textContent'), /Not made or endorsed by Scouting America/);
       });
+      await test('erasing a 2023 draft leaves a 2026 draft in this browser alone', async () => {
+        await open(file, ready);
+        const other = JSON.stringify({ edition: '2026', candidate: { name: 'Other' }, proposal: {} });
+        await evaluate(`localStorage.setItem('eagle_workbook2026_v1', ${JSON.stringify(other)}); true`);
+        dialogs = [];
+        await click('erase this draft from this browser');
+        await waitFor(`localStorage.getItem(${JSON.stringify(key)}) === null`);
+        assert.equal(await evaluate(`localStorage.getItem('eagle_workbook2026_v1')`), other);
+        await evaluate(`localStorage.removeItem('eagle_workbook2026_v1'); true`);
+      });
       await test('erases the draft from this browser', async () => {
         await open(file, ready);
         dialogs = [];
         await click('erase this draft from this browser');
         await waitFor(`localStorage.getItem(${JSON.stringify(key)}) === null`);
-        assert.match(dialogs.join(' '), /Erase your saved drafts/);
+        assert.match(dialogs.join(' '), /Erase your saved 2023 workbook drafts from this browser\?/);
         assert.equal(await evaluate('document.querySelector("header h1").textContent'), 'Eagle Project Workbook Helper');
       });
     }
