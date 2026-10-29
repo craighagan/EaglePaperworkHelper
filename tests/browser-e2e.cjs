@@ -501,6 +501,97 @@ async function run() {
           if (process.env.SHOT) fs.writeFileSync(process.env.SHOT, Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
         } finally { await send('Emulation.clearDeviceMetricsOverride'); }
       });
+      await test('changing tabs offers to save a backup file when there are changes', async () => {
+        const draft = JSON.parse(fs.readFileSync(SAMPLE, 'utf8'));
+        await open(file, ready);
+        await evaluate(`localStorage.clear(); localStorage.setItem(${JSON.stringify(key)}, ${JSON.stringify(JSON.stringify(draft))}); localStorage.setItem(${JSON.stringify(key + '_saved')}, String(Date.now())); true`);
+        await open(file, ready);
+        assert.equal(await evaluate('!!document.querySelector(".backup-nudge")'), false, 'not on first load');
+        await evaluate('document.querySelectorAll("nav button")[1].click()');
+        await waitFor('!!document.querySelector(".backup-nudge")', 5000);
+        assert.equal(await evaluate('document.querySelector(".backup-nudge").textContent'), 'Your work isn’t in a backup file yet.Save backup fileNot now');
+        assert.equal(await evaluate('document.querySelector(".backup-nudge").getAttribute("role")'), 'status');
+        // Not now: hidden, and stays hidden on the next tab change.
+        await evaluate('[...document.querySelectorAll(".backup-nudge button")].find((b) => b.textContent === "Not now").click()');
+        await waitFor('!document.querySelector(".backup-nudge")', 5000);
+        await evaluate('document.querySelectorAll("nav button")[2].click()');
+        await sleep(300);
+        assert.equal(await evaluate('!!document.querySelector(".backup-nudge")'), false, 'Not now holds');
+      });
+      await test('the save bar shows the change count, and saving removes it', async () => {
+        await open(file, ready);
+        await evaluate('localStorage.clear()');
+        await open(file, ready);
+        await evaluate(`(() => { const i = document.getElementById("f-candidate-name"); i.value = "Alex"; i.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+        await evaluate('document.querySelector(".btn-control.save").click()');
+        await waitFor('/backup file is up to date/.test(document.querySelector(".save-status").textContent)', 5000);
+        await evaluate(`(() => { const i = document.getElementById("f-candidate-name"); i.value = "Alexander"; i.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+        await sleep(600);
+        await evaluate('document.querySelectorAll("nav button")[1].click()');
+        await waitFor('!!document.querySelector(".backup-nudge")', 5000);
+        assert.match(await evaluate('document.querySelector(".backup-nudge").textContent'), /^1 change not in a backup file\./);
+        await evaluate('[...document.querySelectorAll(".backup-nudge button")].find((b) => b.textContent === "Save backup file").click()');
+        await waitFor('!document.querySelector(".backup-nudge")', 5000);
+        await evaluate('document.querySelectorAll("nav button")[2].click()');
+        await sleep(300);
+        assert.equal(await evaluate('!!document.querySelector(".backup-nudge")'), false, 'nothing to save: no bar');
+      });
+      await test('the save bar fits a 390px phone screen without sideways scrolling', async () => {
+        const draft = JSON.parse(fs.readFileSync(SAMPLE, 'utf8'));
+        await open(file, ready);
+        await evaluate(`localStorage.clear(); localStorage.setItem(${JSON.stringify(key)}, ${JSON.stringify(JSON.stringify(draft))}); localStorage.setItem(${JSON.stringify(key + '_saved')}, String(Date.now())); true`);
+        await open(file, ready);
+        await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 760, deviceScaleFactor: 2, mobile: true });
+        try {
+          await evaluate('document.querySelectorAll("nav button")[1].click()');
+          await waitFor('!!document.querySelector(".backup-nudge")', 5000);
+          assert.ok(await evaluate('document.documentElement.scrollWidth <= innerWidth'), 'no sideways scrolling at 390px');
+        } finally { await send('Emulation.clearDeviceMetricsOverride'); }
+      });
+      await test('tabs with empty key boxes have a dot, and the list jumps to the box', async () => {
+        await open(file, ready);
+        await evaluate('localStorage.clear()');
+        await open(file, ready);
+        const dots = () => evaluate('[...document.querySelectorAll("nav button")].map((b) => !!b.querySelector(".tab-dot"))');
+        assert.deepEqual(await dots(), [true, true, true, false, true, false], 'fundraising and signed pages have no dot');
+        await evaluate('document.querySelectorAll("nav button")[1].click()');
+        await waitFor('!!document.querySelector(".empty-boxes:not([hidden])")', 5000);
+        assert.equal(await evaluate('document.querySelector(".empty-boxes").textContent'), 'Not filled in yet: Project name · Project description · Why the beneficiary needs it · How many helpers · Materials · and 1 more');
+        await evaluate('[...document.querySelectorAll(".empty-boxes button")].find((b) => b.textContent === "Project description").click()');
+        assert.equal(await evaluate('document.activeElement.id'), 'f-proposal-description');
+        await evaluate(`(() => { const i = document.getElementById("f-proposal-description"); i.value = "A bench"; i.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+        await waitFor('!/Project description/.test(document.querySelector(".empty-boxes").textContent)', 5000);
+        assert.match(await evaluate('document.querySelectorAll("nav button")[1].textContent'), /some boxes not filled in yet/, 'screen readers hear it');
+        // Fill in the other Proposal key boxes: the dot and the list go away without a page redraw.
+        for (const [id, v] of [['f-proposal-projectName', 'Bench'], ['f-proposal-whyNeeded', 'No seats'], ['f-proposal-helperCount', '8'], ['f-proposal-materials', 'Lumber'], ['f-proposal-safety', 'Gloves']]) {
+          await evaluate(`(() => { const i = document.getElementById(${JSON.stringify(id)}); i.value = ${JSON.stringify(v)}; i.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+        }
+        await waitFor('!document.querySelectorAll("nav button")[1].querySelector(".tab-dot")', 5000);
+        assert.equal(await evaluate('!!document.querySelector(".empty-boxes:not([hidden])")'), false);
+        // Clear a box again: the list comes back (no page redraw needed).
+        await evaluate(`(() => { const i = document.getElementById("f-proposal-safety"); i.value = ""; i.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+        await waitFor('!!document.querySelector(".empty-boxes:not([hidden])")', 5000);
+        assert.match(await evaluate('document.querySelector(".empty-boxes").textContent'), /Safety issues and hazards/);
+      });
+      await test('a tab with every key box filled in has no dot and no list', async () => {
+        const draft = JSON.parse(fs.readFileSync(SAMPLE, 'utf8'));
+        await open(file, ready);
+        await evaluate(`localStorage.clear(); localStorage.setItem(${JSON.stringify(key)}, ${JSON.stringify(JSON.stringify(draft))}); true`);
+        await open(file, ready);
+        await evaluate('document.querySelectorAll("nav button")[1].click()');
+        await sleep(300);
+        assert.equal(await evaluate('!!document.querySelector("nav button.active .tab-dot")'), false);
+        assert.equal(await evaluate('!!document.querySelector(".empty-boxes:not([hidden])")'), false);
+      });
+      await test('the overall key-box count matches the table and updates as the Scout types', async () => {
+        await open(file, ready);
+        await evaluate('localStorage.clear()');
+        await open(file, ready);
+        assert.equal(await evaluate('document.querySelector(".key-count").textContent'), 'Key boxes filled in: 0 of 20.');
+        await evaluate(`(() => { const i = document.getElementById("f-candidate-name"); i.value = "Alex"; i.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+        await waitFor('document.querySelector(".key-count").textContent === "Key boxes filled in: 1 of 20."', 5000);
+        assert.doesNotMatch(await evaluate('document.querySelector(".key-count").textContent'), /%|ready|complete|score/i);
+      });
       await test('the tab bar stays just below the header while scrolling', async () => {
         await open(file, ready);
         await evaluate('document.querySelectorAll("nav button")[2].click()');

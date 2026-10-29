@@ -695,3 +695,11 @@ Lenses: **Teen and accessibility**, **Engineering**, **Official-text fidelity** 
 - Forgetting to add new classes to the print hide list.
 - Running two shell commands that depend on each other at the same time.
 - Words that sound like rules or verdicts (list at the top).
+
+## Deferred from the review of Tasks A–C (MINOR)
+
+- The "Not filled in yet" line is buttons in a sentence; a plain list (`ul`/`li`) would read better to screen readers.
+- The save bar's "Not now" stays off for 10 minutes even after a backup is saved. Clear the snooze when a backup is saved.
+- The save bar is inserted with its `role="status"` already in place. Some screen readers don't announce a live region added with content. Keep an empty status container in the header. Not yet tested with a screen reader.
+- Official-text wording of three labels: "When the work finished" (official: "When was it finished?"), "How you led" (official: "In what ways did you demonstrate leadership?"), and "Beneficiary organization" / "Beneficiary contact person" (official page labels: "Organization name", "Contact person"). Labels are short on purpose; check whether to match the official wording more closely.
+- A stale doc comment above `backupNoteText` in `lib/workbook-common.js` (it describes the header text only).
