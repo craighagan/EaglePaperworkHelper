@@ -169,13 +169,15 @@ details.more-fields summary{cursor:pointer;padding:12px 0;font-weight:700;color:
 .tab-dot{margin-left:4px;color:#8a6100;font-weight:700}
 .empty-boxes{margin:0 0 12px;font-size:.95em}
 .key-count{margin:4px 0 10px;font-size:.9em;color:#46566a}
+.review section{margin:0 0 16px}
 .backup-nudge{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0;padding:8px 12px;border-left:4px solid #e0a500;background:#fff8df;border-radius:6px;font-size:.95em;color:#172537}
-@media print{input::placeholder,textarea::placeholder{color:transparent}.tip,.tip-btn,.tip-wrap,.keep-safe,.keep-list,.ask-help,.journey,.scoutly-win,.scoutly-pill,.backup-nudge,.empty-boxes,.tab-dot,.key-count{display:none!important}}
+@media print{input::placeholder,textarea::placeholder{color:transparent}.tip,.tip-btn,.tip-wrap,.keep-safe,.keep-list,.ask-help,.journey,.scoutly-win,.scoutly-pill,.backup-nudge,.empty-boxes,.tab-dot,.key-count,.review{display:none!important}}
 </style>
 </head>
 <body>
 <div class="app" id="app"><p class="loading">Loading… If this message stays, this page cannot find its helper files. Keep this file in the same folder as the “lib” folder it came with. If you downloaded a ZIP file, unzip (extract) it first.</p></div>
 <script src="lib/official-pdf.js"></script>
+<script src="lib/preflight.js"></script>
 <script src="lib/journey.js"></script>
 <script src="lib/tips.js"></script>
 <script src="lib/attachments.js"></script>

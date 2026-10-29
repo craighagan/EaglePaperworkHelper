@@ -553,7 +553,7 @@ async function run() {
         await evaluate('localStorage.clear()');
         await open(file, ready);
         const dots = () => evaluate('[...document.querySelectorAll("nav button")].map((b) => !!b.querySelector(".tab-dot"))');
-        assert.deepEqual(await dots(), [true, true, true, false, true, false], 'fundraising and signed pages have no dot');
+        assert.deepEqual(await dots(), [true, true, true, false, true, false, false], 'fundraising, signed pages and review have no dot');
         await evaluate('document.querySelectorAll("nav button")[1].click()');
         await waitFor('!!document.querySelector(".empty-boxes:not([hidden])")', 5000);
         assert.equal(await evaluate('document.querySelector(".empty-boxes").textContent'), 'Not filled in yet: Project name · Project description · Why the beneficiary needs it · How many helpers · Materials · and 1 more');
@@ -602,6 +602,49 @@ async function run() {
         for (const id of ['f-candidate-name', 'f-candidate-email', 'f-contacts-beneficiaryRep-name']) {
           assert.equal(await evaluate(`document.getElementById(${JSON.stringify(id)}).getAttribute("spellcheck")`), 'false', id);
         }
+      });
+      await test('the Review tab gathers what is left, with jump links and plain words', async () => {
+        await open(file, ready);
+        await evaluate('localStorage.clear()');
+        await open(file, ready);
+        const lastButton = 'document.querySelectorAll("nav button")[document.querySelectorAll("nav button").length - 1]';
+        assert.match(await evaluate(`${lastButton}.textContent`), /Review/);
+        await evaluate(`${lastButton}.click()`);
+        await waitFor('!!document.querySelector(".review")', 5000);
+        const text = await evaluate('document.querySelector(".review").textContent');
+        assert.match(text, /Not filled in yet/);
+        assert.match(text, /Project description/);
+        assert.match(text, /Nothing here looked unusual\./);
+        assert.match(text, /Your backup file: no backup file yet\./);
+        assert.match(text, /This is not an approval check\./);
+        assert.doesNotMatch(text, /\b(required|must|missing|ready|approved|score)\b|%/i);
+        await evaluate('[...document.querySelectorAll(".review button")].find((b) => b.textContent === "Project description").click()');
+        await waitFor('document.activeElement && document.activeElement.id === "f-proposal-description"', 5000);
+        assert.equal(await evaluate('document.querySelectorAll("nav button")[1].classList.contains("active")'), true, 'the jump goes to the Proposal tab');
+      });
+      await test('the Review tab fits a 390px phone screen without sideways scrolling', async () => {
+        await open(file, ready);
+        await evaluate('localStorage.clear()');
+        await open(file, ready);
+        await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 760, deviceScaleFactor: 2, mobile: true });
+        try {
+          await evaluate('document.querySelectorAll("nav button")[document.querySelectorAll("nav button").length - 1].click()');
+          await waitFor('!!document.querySelector(".review")', 5000);
+          assert.ok(await evaluate('document.documentElement.scrollWidth <= innerWidth'), 'no sideways scrolling at 390px');
+        } finally { await send('Emulation.clearDeviceMetricsOverride'); }
+      });
+      await test('the Review tab shows heads-ups and short answers', async () => {
+        const draft = JSON.parse(fs.readFileSync(SAMPLE, 'utf8'));
+        draft.proposal.startDate = '2026-10-01'; draft.proposal.endDate = '2026-03-31';
+        draft.proposal.description = 'A bench';
+        await open(file, ready);
+        await evaluate(`localStorage.clear(); localStorage.setItem(${JSON.stringify(key)}, ${JSON.stringify(JSON.stringify(draft))}); true`);
+        await open(file, ready);
+        await evaluate('document.querySelectorAll("nav button")[document.querySelectorAll("nav button").length - 1].click()');
+        await waitFor('!!document.querySelector(".review")', 5000);
+        const text = await evaluate('document.querySelector(".review").textContent');
+        assert.match(text, /the end date \(3\/31\/2026\) is before the start date \(10\/1\/2026\)/);
+        assert.match(text, /Project description: this answer is short for its box\. Your coach may ask for more detail\./);
       });
       await test('the tab bar stays just below the header while scrolling', async () => {
         await open(file, ready);

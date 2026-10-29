@@ -448,7 +448,7 @@ function everyAnswer() {
     await test('copies: each page loads its scripts in the order they need', () => {
       for (const [page, own] of [['EagleWorkbook-guided.html', 'lib/guided-workbook.js'], ['EagleWorkbook.html', 'lib/classic-workbook.js']]) {
         const s = scripts(page);
-        for (const [a, b] of [['lib/official-pdf.js', 'lib/journey.js'], ['lib/journey.js', 'lib/tips.js'], ['lib/tips.js', 'lib/attachments.js'], ['lib/attachments.js', 'lib/workbook-common.js'], ['lib/workbook-common.js', own]]) before(s, a, b, page);
+        for (const [a, b] of [['lib/official-pdf.js', 'lib/preflight.js'], ['lib/official-pdf.js', 'lib/journey.js'], ['lib/journey.js', 'lib/tips.js'], ['lib/tips.js', 'lib/attachments.js'], ['lib/attachments.js', 'lib/workbook-common.js'], ['lib/workbook-common.js', own]]) before(s, a, b, page);
       }
       const fill = scripts('FillOfficialPDF.html');
       for (const [a, b] of [['vendor/pdfjs/pdf.js', 'lib/official-pdf.js'], ['lib/official-pdf.js', 'lib/preflight.js'], ['lib/official-pdf.js', 'lib/attachments.js'], ['lib/preflight.js', 'lib/fill-page.js'], ['lib/attachments.js', 'lib/fill-page.js']]) before(fill, a, b, 'FillOfficialPDF.html');
@@ -474,8 +474,8 @@ function everyAnswer() {
     });
     await test('copies: pages and docs agree on how many stages and steps there are', () => {
       for (const f of ['index.html', 'README.md']) assert.doesNotMatch(read(f), /\bfive stages\b|\bfour steps\b/i, f);
-      assert.equal((read('lib/guided-workbook.js').match(/const TABS = \[([^\]]+)\]/)[1].match(/'/g).length / 2), 6, 'the Guided workbook has six tabs');
-      assert.match(read('index.html') + read('README.md'), /Six stages/);
+      assert.equal((read('lib/guided-workbook.js').match(/const TABS = \[([^\]]+)\]/)[1].match(/'/g).length / 2), 7, 'the Guided workbook has seven tabs (the last is Review)');
+      assert.match(read('index.html') + read('README.md'), /Seven stages/);
     });
   }
 
@@ -766,6 +766,17 @@ function everyAnswer() {
       d.proposal.description = 'Build a bench';
       assert.equal(J.emptyKeyBoxes(d).proposal.length, 5);
       assert.equal(J.emptyKeyBoxes(d).proposal.some((b) => b.path === 'proposal.description'), false);
+    });
+    await test('short answers: 1 to 7 words are listed, empty and longer ones are not', () => {
+      const d = W.defaults();
+      assert.deepEqual(J.shortAnswers(d), []);
+      d.proposal.description = 'A bench';
+      d.proposal.whyNeeded = 'The school has nowhere for students to sit outside during lunch or recess';
+      assert.deepEqual(J.shortAnswers(d).map((b) => b.path), ['proposal.description']);
+      for (const b of J.SHORT_ANSWER_BOXES['2023a']) {
+        const v = b.path.split('.').reduce((o, k) => (o ? o[k] : undefined), W.defaults());
+        assert.equal(typeof v, 'string', b.path);
+      }
     });
     await test('key boxes: the overall count', () => {
       const d = W.defaults();

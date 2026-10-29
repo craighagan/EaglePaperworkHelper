@@ -1,6 +1,6 @@
 # Quick wins and a Review tab: step-by-step implementation plan
 
-**Status:** waiting for the maintainer's OK. Nothing here is built.
+**Status:** Tasks 0, A, B, C, D and E are built and committed (October 2026). This file stays as the record of how they were built.
 
 This plan is written so that a careful but less experienced agent can follow it exactly. Do the tasks **in order**. Each task says which files to touch, what to add (with exact names and exact user-visible strings), which tests to write **first**, and how to know it is done. Do not improvise wording: every sentence a Scout sees is given below. If something in the code does not match what this plan says (a line moved, a name changed), stop and report it instead of guessing.
 
@@ -703,3 +703,8 @@ Lenses: **Teen and accessibility**, **Engineering**, **Official-text fidelity** 
 - The save bar is inserted with its `role="status"` already in place. Some screen readers don't announce a live region added with content. Keep an empty status container in the header. Not yet tested with a screen reader.
 - Official-text wording of three labels: "When the work finished" (official: "When was it finished?"), "How you led" (official: "In what ways did you demonstrate leadership?"), and "Beneficiary organization" / "Beneficiary contact person" (official page labels: "Organization name", "Contact person"). Labels are short on purpose; check whether to match the official wording more closely.
 - A stale doc comment above `backupNoteText` in `lib/workbook-common.js` (it describes the header text only).
+
+## Deferred from the review of Task E (MINOR)
+
+- The Review tab's "Long boxes with short answers" hint thresholds (8 words) are a guess; check with a teacher or coach before relying on them.
+- The Review tab does not yet list the Fill page's date and money checks for Signed Pages; they are on the Fill page.

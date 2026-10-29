@@ -35,7 +35,7 @@ Open the filled PDF, read every page, and share it with the people reviewing you
 
 | File | What it is |
 | --- | --- |
-| [`EagleWorkbook-guided.html`](EagleWorkbook-guided.html) | **Guided workbook. Start here.** Six stages with plain-language questions, examples, running totals, and progress checks. |
+| [`EagleWorkbook-guided.html`](EagleWorkbook-guided.html) | **Guided workbook. Start here.** Seven stages with plain-language questions, examples, running totals, and progress checks. |
 | [`EagleWorkbook.html`](EagleWorkbook.html) | **Classic workbook.** The same questions, worded and ordered like the official workbook. |
 | [`FillOfficialPDF.html`](FillOfficialPDF.html) | **Fill the official PDF.** Copies your answers into the official workbook PDF. |
 | [`BackupFromPDF.html`](BackupFromPDF.html) | **Make a backup file from a PDF.** Already typed answers into the official PDF? This reads them back into a backup file for the workbook pages. |
