@@ -1,5 +1,7 @@
 # 2026 workbook: groundwork results
 
+**Next:** steps 3, 5 and 6 are done in [2026-design-facts.md](2026-design-facts.md) and [2026-design.md](2026-design.md).
+
 **Status:** steps 1, 2 and 4 of the scoping plan are done. Steps 3 (prompt comparison), 5 (reuse audit) and 6 (decision list) are not started. No product code changed.
 
 The official files are kept outside the repository (in a private scratch folder), and the repository holds no official text. Hashes below let anyone confirm they have the same files.

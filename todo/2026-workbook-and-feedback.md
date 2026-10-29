@@ -1,5 +1,7 @@
 # 2026 workbook support, and feedback from a parent who used the helper
 
+**Superseded for the 2026 workbook:** see [2026-design.md](2026-design.md). Some counts below (sum scripts, number formats, auto-size boxes) came from a modified copy of the PDF; the design has the checked numbers.
+
 **Status:** design only. Nothing here is built. Researched October 2026.
 
 ## 1. The 2026 workbook (do this first; everything else depends on it)
