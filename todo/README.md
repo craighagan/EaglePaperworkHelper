@@ -13,5 +13,6 @@ When an item is done, delete its file in the same commit as the work. When an id
 | [Get the site found in search results](search-setup.md) | Ready to do (site owner steps, not code) |
 | [Small polish](polish.md) | Ready to do |
 | [Quick wins and a Review tab](quick-wins-and-review.md) | Built (Tasks 0, A–E); the 2026 workbook is next |
+| [2026 groundwork results](2026-groundwork.md) | Steps 1, 2, 4 done; comparison, reuse audit and decisions next |
 | [2026 workbook and parent feedback](2026-workbook-and-feedback.md) | Design only. 2026 support is the top priority: new Scouts must use it |
 | [Ideas backlog](ideas-backlog.md) | Not started (reviewed ideas: Ask pack, pre-flight check, Your path) |
