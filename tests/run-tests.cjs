@@ -508,6 +508,9 @@ function everyAnswer() {
         assert.match(text, /no council, district, unit, or individual may add forms, change requirements, or change the workbook itself, so the official workbook, filled and signed, is what you complete\. Your unit leader and council still tell you how to hand it in\./, `${name}: the workbook's own rule, and who decides how to hand in`);
       }
       assert.doesNotMatch(home + readme, /can require additional forms/, 'the looser wording is gone');
+      const S19 = 'Support for the 2026 workbook is being built. For now this helper fills only the 2023 workbook (No. 2023a). The 2026 workbook is on scouting.org.';
+      assert.ok(home.includes(S19), 'home page has S19');
+      assert.ok(readme.includes(S19), 'README has S19');
     });
   }
 

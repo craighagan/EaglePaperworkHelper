@@ -8,6 +8,8 @@ Free, offline helpers for the **Eagle Scout Service Project Workbook**. Type you
 
 **Official workbook:** [Eagle Scout Service Project Workbook No. 2023a (PDF)](https://www.scouting.org/wp-content/uploads/2023/01/EagleProjectWorkbook2023a.pdf), from Scouting America’s [workbook page](https://www.scouting.org/programs/scouts-bsa/advancement-and-awards/eagle-scout-workbook/). Check that page for the current version before you submit.
 
+Support for the 2026 workbook is being built. For now this helper fills only the 2023 workbook (No. 2023a). The 2026 workbook is on scouting.org.
+
 > This project is not made, endorsed, or supported by Scouting America. Read the entire official workbook (and its “Message to Scouts and Parents or Guardians” with a parent or guardian). The official workbook, your council’s procedures, and the required signatures are what count.
 > Using this helper is your choice. Scouting America’s workbook says no council, district, unit, or individual may add forms, change requirements, or change the workbook itself, so the official workbook, filled and signed, is what you complete. Your unit leader and council still tell you how to hand it in.
 
