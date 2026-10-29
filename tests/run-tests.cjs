@@ -723,6 +723,60 @@ function everyAnswer() {
     });
   }
 
+  console.log('Key boxes');
+  {
+    const J = require(path.join(ROOT, 'lib/journey.js'));
+    const W = workbookCommon();
+    await test('key boxes: edition is 2023a unless the draft says 2026', () => {
+      assert.equal(J.editionOf({}), '2023a');
+      assert.equal(J.editionOf(null), '2023a');
+      assert.equal(J.editionOf({ edition: '2026' }), '2026');
+      assert.equal(J.editionOf({ edition: 'something else' }), '2023a');
+    });
+    await test('key boxes: every key box is a text box in defaults() and has a short label', () => {
+      const d = W.defaults();
+      for (const [tab, boxes] of Object.entries(J.KEY_BOXES['2023a'])) {
+        assert.ok(boxes.length > 0, tab);
+        for (const b of boxes) {
+          assert.equal(typeof b.label, 'string', `${tab} ${b.path}`);
+          assert.ok(b.label.length > 2 && b.label.length < 60, `${tab} ${b.path}: label length`);
+          const v = b.path.split('.').reduce((o, k) => (o ? o[k] : undefined), d);
+          assert.equal(typeof v, 'string', `${b.path} is not a text box in defaults()`);
+        }
+      }
+    });
+    await test('key boxes: the lists are exactly what the counts used before', () => {
+      const t = J.KEY_BOXES['2023a'];
+      const paths = (k) => t[k].map((b) => b.path);
+      assert.deepEqual(paths('setup'), ['candidate.name', 'candidate.email', 'unit.number', 'contacts.beneficiary.name', 'contacts.beneficiaryRep.name']);
+      assert.deepEqual(paths('proposal'), ['proposal.projectName', 'proposal.description', 'proposal.whyNeeded', 'proposal.helperCount', 'proposal.materials', 'proposal.safety']);
+      assert.deepEqual(paths('plan'), ['plan.startDate', 'plan.presentCondition', 'plan.workProcesses', 'plan.firstAid', 'plan.contingency']);
+      assert.deepEqual(paths('fundraising'), ['fundraising.description', 'fundraising.beginDate', 'fundraising.howMuch']);
+      assert.deepEqual(paths('report'), ['report.actualStart', 'report.actualEnd', 'report.description', 'report.leadership']);
+      assert.deepEqual(J.PATHS.proposal, paths('proposal'), 'PATHS is a view of the same table');
+    });
+    await test('key boxes: emptyKeyBoxes lists what is not filled in, and fundraising only when raising money', () => {
+      const d = W.defaults();
+      assert.deepEqual(Object.keys(J.emptyKeyBoxes(d)), ['setup', 'proposal', 'plan', 'report'], 'no fundraising unless the Scout said yes');
+      assert.equal(J.emptyKeyBoxes(d).proposal.length, 6);
+      d.journey = { raising: 'yes', steps: {} };
+      assert.deepEqual(Object.keys(J.emptyKeyBoxes(d)), ['setup', 'proposal', 'plan', 'fundraising', 'report']);
+      d.proposal.description = '   ';
+      assert.equal(J.emptyKeyBoxes(d).proposal.length, 6, 'spaces only is still not filled in');
+      d.proposal.description = 'Build a bench';
+      assert.equal(J.emptyKeyBoxes(d).proposal.length, 5);
+      assert.equal(J.emptyKeyBoxes(d).proposal.some((b) => b.path === 'proposal.description'), false);
+    });
+    await test('key boxes: the overall count', () => {
+      const d = W.defaults();
+      assert.deepEqual(J.keyBoxCount(d), { filled: 0, total: 20 }, '5 + 6 + 5 + 4 boxes, fundraising not counted');
+      d.journey = { raising: 'yes', steps: {} };
+      assert.deepEqual(J.keyBoxCount(d), { filled: 0, total: 23 });
+      const s = J.keyBoxCount(JSON.parse(JSON.stringify(sample)));
+      assert.ok(s.filled > 0 && s.filled <= s.total);
+    });
+  }
+
   console.log('Your path');
   {
     const W = workbookCommon();
