@@ -89,6 +89,9 @@ async function run() {
     if (msg.method === 'Page.javascriptDialogOpening') { dialogs.push(msg.params.message); send('Page.handleJavaScriptDialog', { accept: true }); }
   });
   const downloads = fs.mkdtempSync(path.join(os.tmpdir(), 'eph-downloads-'));
+  // A backup file made for the 2026 workbook (fictional). Used to check the 2023a pages refuse it.
+  const OTHER_EDITION = path.join(os.tmpdir(), `eph-2026-backup-${process.pid}.json`);
+  fs.writeFileSync(OTHER_EDITION, JSON.stringify({ edition: '2026', candidate: { name: 'Test' }, proposal: {} }));
   await send('Page.enable');
   await send('Runtime.enable');
   await send('Log.enable');
@@ -207,6 +210,12 @@ async function run() {
       await open('FillOfficialPDF.html', '!!window.EagleOfficialPdf');
       await setFile('#json-file', bad);
       await waitFor('document.getElementById("json-chosen").textContent.includes("not an Eagle workbook backup file")');
+      assert.equal(await evaluate('document.getElementById("create").disabled'), true);
+    });
+    await test('refuses a 2026 backup file, in plain words', async () => {
+      await open('FillOfficialPDF.html', '!!window.EagleOfficialPdf');
+      await setFile('#json-file', OTHER_EDITION);
+      await waitFor('document.getElementById("json-chosen").textContent.includes("This backup file is for the 2026 workbook.")');
       assert.equal(await evaluate('document.getElementById("create").disabled'), true);
     });
     await test('says right away when the chosen PDF is not the workbook', async () => {
@@ -704,6 +713,21 @@ async function run() {
         await waitFor('!!document.getElementById("f-fundraising-beginDate")');
         assert.equal(await evaluate('document.getElementById("f-fundraising-beginDate").value'), 'next spring');
         assert.deepEqual(problems, []);
+      });
+      await test('refuses a 2026 backup file and changes nothing', async () => {
+        await open(file, ready);
+        const before = await evaluate(`localStorage.getItem(${JSON.stringify(key)})`);
+        await evaluate(`(() => { const orig = HTMLInputElement.prototype.click; HTMLInputElement.prototype.click = function () { if (this.type === 'file') { window.__picker = this; return; } return orig.call(this); }; })()`);
+        await click('Open backup file');
+        await waitFor('!!window.__picker');
+        const { root } = await send('DOM.getDocument');
+        await evaluate('document.body.appendChild(window.__picker); window.__picker.id = "picked-other"; true');
+        const { nodeId } = await send('DOM.querySelector', { nodeId: root.nodeId, selector: '#picked-other' });
+        dialogs = [];
+        await send('DOM.setFileInputFiles', { nodeId, files: [OTHER_EDITION] });
+        for (let t = 0; t < 50 && !dialogs.length; t++) await sleep(100);
+        assert.match(dialogs.join(' '), /This backup file is for the 2026 workbook\./, dialogs.join(' '));
+        assert.equal(await evaluate(`localStorage.getItem(${JSON.stringify(key)})`), before);
       });
       await test('cost lists add up as you type', async () => {
         await open(file, ready);
