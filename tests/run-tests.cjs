@@ -548,6 +548,12 @@ function everyAnswer() {
         assert.ok(home.includes(q), `home page quotes the FAQ: ${q.slice(0, 40)}`);
       }
       assert.ok(home.includes('<h2>Which workbook?</h2>'), 'home page has the chooser');
+      for (const f of ['EagleWorkbook-guided.html', 'EagleWorkbook.html', 'FillOfficialPDF.html']) {
+        assert.ok(read(f).includes('For the 2023 workbook (No. 2023a).'), `${f} says which workbook it is for`);
+      }
+      assert.doesNotMatch(read('index.html'), /Guided workbook \(start here\)/, 'the home page no longer sends every Scout to the 2023 Guided page');
+      // A preserved unreadable copy of a draft (<key>_corrupt) can hold scans, so the sweep must count its pictures too.
+      assert.match(read('lib/attachments.js'), /_corrupt/, 'the picture sweep reads the preserved _corrupt copies');
       assert.ok(readme.includes('Which workbook?'), 'README has the chooser');
       if (process.env.EAGLE_FAQ) {
         // Optional: check the quotes against the published FAQ PDF (Poppler's pdftotext).
@@ -1530,11 +1536,24 @@ function everyAnswer() {
     d.report.collected = '500'; d.report.spent = '480.25';
     assert.equal(M26.totals(d).values['Difference'], 19.75);
   });
+  await test('2026 totals: two halves of a cent add up to what the page prints', () => {
+    const d = M26.defaults();
+    d.plan.funds = { beneficiary: '12.345', exempt: '12.345', others: '', future: '', futureDate: '', donated: '' };
+    assert.equal(M26.totals(d).values['Funds Raised So Far'], 24.7);
+    d.proposal.costs = { materials: '0.125', supplies: '0.125', tools: '', other: '' };
+    assert.equal(M26.totals(d).values['Total Prelimary Cost Estimate'], 0.26);
+  });
   await test('2026 totals: a part that is not a number leaves that total out, and says so', () => {
     const d = M26.defaults();
     d.proposal.costs.tools = 'about 20';
     const t = M26.totals(d);
     assert.ok(!('Total Prelimary Cost Estimate' in t.values));
+    d.plan.items[0] = { qty: 'two', unitCost: '5', totalCost: '', item: '', description: '', source: '' };
+    d.plan.items[1] = { qty: '', unitCost: '5', totalCost: '', item: '', description: '', source: '' };
+    const rows = M26.totals(d);
+    assert.equal(rows.rowProblem['Total CostRow1'], 'notNumber');
+    assert.equal(rows.rowProblem['Total CostRow2'], 'noQty', 'a blank quantity with a unit cost is named as such');
+    assert.ok(M26.FIELDS.some((f) => f[0] === 'undefined' && f[2] === 'appendixD.howMuch') || M26.APPENDIX_D_FIELDS.some((f) => f[0] === 'undefined' && f[2] === 'appendixD.howMuch'), 'the money box PDF-named "undefined" maps to appendixD.howMuch');
     assert.deepEqual(t.invalid, ['Total Prelimary Cost Estimate']);
   });
   await test('2026 fit: the rounding traps and the Project Description capacities', () => {
@@ -1625,7 +1644,7 @@ function everyAnswer() {
     const v = W26.buildFieldValues(d);
     assert.equal(v.text['Estimated Cost of Tools'], 'about 20');
     assert.ok(v.notes.some((n) => /^PDF page 9, Preliminary cost: tools: “about 20” is not a plain number/.test(n)), v.notes.join(' | '));
-    assert.ok(!('Total Prelimary Cost Estimate' in v.text));
+    assert.equal(v.text['Total Prelimary Cost Estimate'], '', 'written blank, not the blank form\'s stored 0');
     assert.ok(v.notes.some((n) => /this total was left blank/.test(n)));
   });
   await test('2026 sample: every field path in the table is filled, except table rows 4 and later', () => {
@@ -1730,7 +1749,19 @@ function everyAnswer() {
       assert.equal(page11.length, 1, out.report.warnings.join(' | '));
       assert.equal(out.report.warnings.filter((x) => /Project Description/.test(x) && /page 7|PDF page 7/.test(x)).length, 1);
     });
-    await test('2026 PDF: a file that already had answers says so', async () => {
+    await test('2026 PDF: a fresh official download gives no false "already had answers" warning', async () => {
+    const out = await PDF26.fillWorkbook({ pdfjsLib, pdfBytes: w26.slice(), data: SAMPLE26 });
+    assert.ok(!out.report.warnings.some((x) => /already had answers/.test(x)), out.report.warnings.join(' | '));
+    const bad = JSON.parse(JSON.stringify(SAMPLE26));
+    bad.proposal.hours[1].w = 'two';
+    bad.proposal.costs.tools = 'about 20';
+    const filled = await PDF26.fillWorkbook({ pdfjsLib, pdfBytes: w26.slice(), data: bad });
+    const ws = await allWidgets(filled.bytes);
+    const val = (n) => ws.find((w) => w.name === n).value;
+    assert.equal(val('Total People'), '', 'an invalid head count is blank, not the stored 1');
+    assert.equal(val('Total Prelimary Cost Estimate'), '', 'an invalid total is blank, not the stored 0');
+  });
+  await test('2026 PDF: a file that already had answers says so', async () => {
       const again = await PDF26.fillWorkbook({ pdfjsLib, pdfBytes: filled26.bytes.slice(), data: SAMPLE26 });
       assert.ok(again.report.warnings.some((x) => /already had answers typed in/.test(x)));
     });

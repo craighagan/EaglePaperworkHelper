@@ -1,6 +1,6 @@
 # Personal workbook data and generated documents. Never commit real Scout data.
 *.json
-# Only these two test files are allowed. Never add a real Scout's backup file.
+# Only the named test fixtures are allowed (listed below). Never add a real Scout's backup file.
 !tests/fixtures/sample-workbook.json
 !tests/fixtures/official-2023a-fields.json
 !tests/fixtures/official-2026-fields.json

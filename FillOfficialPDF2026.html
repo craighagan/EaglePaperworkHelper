@@ -10,6 +10,7 @@
 <meta property="og:title" content="Fill the Official 2026 Eagle Workbook PDF and Appendix D">
 <meta property="og:description" content="Put your answers into the official 2026 Eagle Scout Leadership Service Project Workbook PDF and its Appendix D. Free, runs in your browser.">
 <style>
+#report p{overflow-wrap:anywhere}
 :root{--blue:#003f87;--blue2:#0066b8;--gold:#f6be00;--ink:#172537;--muted:#46566a;--line:#c5d5e5;--mist:#f2f7fc;--red:#9a0a1e;--green:#155c36}
 *{box-sizing:border-box}
 body{margin:0;min-height:100vh;color:var(--ink);background:radial-gradient(circle at 10% 0,#dcecfb,transparent 28rem),radial-gradient(circle at 95% 14%,#fff0cf,transparent 24rem),#f6f5f0;font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
@@ -97,15 +98,18 @@ summary{cursor:pointer;font-weight:700;color:#33495f}
       <label class="check"><input type="checkbox" id="skip-names"> Leave the printed names blank</label>
       <p class="help" id="skip-help">The approvers can write their own names. The Scoutmaster’s name still appears on pages 11 and 22, and the beneficiary organization on page 22, because the official PDF repeats them from page 5.</p>
       <p><button type="button" id="create" class="btn btn-next" disabled>Make the filled PDF</button></p>
+      <p class="help" id="create-hint"></p>
     </section>
 
     <section class="step" aria-labelledby="step4">
       <h2 id="step4">Step 4. Appendix D (only if you need a Fundraising Application)</h2>
+      <p class="help">Appendix D’s printed page numbers are its own. In the workbook, Project Description is page 7 and Fundraising is page 10.</p>
       <p><button type="button" id="fetch-appd" class="btn btn-prev">Get Appendix D for me</button></p>
       <label for="appd-file">Or choose the Appendix D PDF you downloaded</label>
       <input type="file" id="appd-file" accept="application/pdf,.pdf">
       <p class="chosen" id="appd-chosen" aria-live="polite"></p>
       <p><button type="button" id="create-appd" class="btn btn-prev" disabled>Make the filled Appendix D</button></p>
+      <p class="help" id="create-appd-hint"></p>
     </section>
 
     <p class="status" id="status" role="status" aria-live="polite"></p>

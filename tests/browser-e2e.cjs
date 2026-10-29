@@ -810,10 +810,11 @@ async function run() {
     });
     await test('2026 page: the description fit line says which pages it fits, and warns when it will not', async () => {
       await setValue('#f-proposal-description', 'installation '.repeat(12).trim());
-      await waitFor('document.querySelector(".fit") && document.querySelector(".fit").textContent.startsWith("Fits in the official box")');
+      const descFit = 'Array.from(document.querySelectorAll(".fit")).find((e) => e.textContent.includes("page 11"))';
+      await waitFor(`${descFit} && ${descFit}.textContent.startsWith("Fits in the official box")`);
       await setValue('#f-proposal-description', 'installation '.repeat(40).trim());
-      await waitFor('document.querySelector(".fit") && document.querySelector(".fit").textContent.startsWith("May not fit in the official box")');
-      assert.match(await evaluate('document.querySelector(".fit").textContent'), /page 11, about 5 of 3 lines/);
+      await waitFor(`${descFit} && ${descFit}.textContent.startsWith("May not fit in the official box")`);
+      assert.match(await evaluate(`${descFit}.textContent`), /page 11, about 5 of 3 lines/);
     });
     await test('2026 page: the hours table adds up as the Scout types', async () => {
       await setValue('#f-proposal-description', 'Short description.');

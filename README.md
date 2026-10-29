@@ -10,7 +10,7 @@ Free, offline helpers for the **Eagle Scout Service Project Workbook**. Type you
 
 **Which workbook?** Scouting America published the **2026 workbook** (No. 512-927). This helper fills it on the 2026 pages (`EagleWorkbook2026.html` and `FillOfficialPDF2026.html`). The **2023 workbook** (No. 2023a) is still on the 2023 pages. Scouting America's 2026 workbook FAQ says: "A Scout whose project proposal was fully approved before January 1, 2027, using the 2023 workbook, may continue using that workbook to complete the project." It also says the 2026 workbook "will be required for every Life Scout starting work for the first time on an Eagle Scout leadership service project." Not sure which one is yours? Ask your Scoutmaster or council.
 
-> This project is not made, endorsed, or supported by Scouting America. Read the entire official workbook (and its “Message to Scouts and Parents or Guardians” with a parent or guardian). The official workbook, your council’s procedures, and the required signatures are what count.
+> This project is not made, endorsed, or supported by Scouting America. Read the entire official workbook you are using, including its appendices. The official workbook, your council’s procedures, and the required signatures are what count.
 > Using this helper is your choice. Scouting America’s workbook says no council, district, unit, or individual may add forms, change requirements, or change the workbook itself, so the official workbook, filled and signed, is what you complete. Your unit leader and council still tell you how to hand it in.
 
 **Try it online:** <https://www.cih.com/troop6/eagle/>. It works the same as the downloaded copy, and your answers still stay in your own browser.
@@ -25,7 +25,7 @@ Free, offline helpers for the **Eagle Scout Service Project Workbook**. Type you
    - **Mac:** double-click the ZIP file.
 
    You get a folder named something like `EaglePaperworkHelper-main`. Move it somewhere easy to find, such as Documents. Keep everything in it together.
-3. **Open `index.html`.** Double-click it. It opens in your web browser and links to every page. (Windows may hide the `.html` ending, so look for **index**.) Click **Guided workbook (start here)**. Bookmark it, and always use the same browser.
+3. **Open `index.html`.** Double-click it. It opens in your web browser and links to every page. (Windows may hide the `.html` ending, so look for **index**.) Click **Guided workbook (2023)**. Bookmark it, and always use the same browser.
 4. **Type your answers.** Start with **1. Set Up** and **2. Proposal**. Your draft saves automatically in this browser. Click **? Tips** next to a box for an example and what to avoid.
 5. **Save a backup file often.** Click **💾 Save backup file**. It saves a file such as `Eagle-workbook-backup-2026-10-16-1930.json` (date and time), usually in your Downloads folder. This file is your real save: browsers can erase saved data. Then copy it somewhere safe, such as Google Drive, Dropbox, or OneDrive, or email it to yourself. On an iPhone or iPad you will also see **📤 Share backup file…**, which opens the share menu (Drive, Mail, Messages, and more). Chrome and Edge don’t allow sharing this kind of file, so there, and on Android, the button is hidden: dragging the file into Drive is the dependable way. The page must be on `https://` for the share menu to be available. The page “How to keep your work safe” (at the bottom of each workbook page) has the steps.
 6. **Fill the official PDF.** Click **Fill the official PDF →** and follow the steps on that page.
