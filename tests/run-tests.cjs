@@ -777,6 +777,23 @@ function everyAnswer() {
       assert.equal(J.editionOf({ edition: '2026' }), '2026');
       assert.equal(J.editionOf({ edition: 'something else' }), '2023a');
     });
+    await test('key boxes 2026: the 2026 table, tab order and fundraising rule', () => {
+      const W26 = require(path.join(ROOT, 'lib/w26-model.js'));
+      const d26 = W26.defaults();
+      assert.deepEqual(J.tabOrder(d26), ['setup', 'proposal', 'fundraising', 'plan', 'report']);
+      assert.deepEqual(J.tabOrder({}), J.TAB_ORDER);
+      for (const tab of ['setup', 'proposal', 'fundraising', 'plan', 'report']) {
+        for (const b of J.keyBoxes(d26)[tab]) {
+          const value = b.path.split('.').reduce((o, k) => (o ? o[k] : undefined), d26);
+          assert.equal(typeof value, 'string', `${b.path} is not a text box in the 2026 draft`);
+        }
+      }
+      assert.equal(J.keyBoxCount(d26).total, J.keyBoxCount({ edition: '2026' }).total);
+      assert.ok(!('fundraising' in J.emptyKeyBoxes(d26)), 'fundraising is not counted until the Scout says yes');
+      const yes = { ...W26.defaults(), proposal: { ...d26.proposal, needFundraisingApp: 'yes' } };
+      assert.ok('fundraising' in J.emptyKeyBoxes(yes));
+      assert.equal(J.keyBoxCount(yes).total, J.keyBoxCount(d26).total + J.keyBoxes(d26).fundraising.length);
+    });
     await test('key boxes: every key box is a text box in defaults() and has a short label', () => {
       const d = W.defaults();
       for (const [tab, boxes] of Object.entries(J.KEY_BOXES['2023a'])) {
@@ -1141,7 +1158,7 @@ function everyAnswer() {
       const connect = (/connect-src ([^;]+);/.exec(csp[1]) || [null, "'none'"])[1]; // default-src 'none' covers a missing connect-src
       assert.ok(connect === "'none'" || connect === lib.OFFICIAL_PDF_URL, `connect-src ${connect}`);
       const frame = (/frame-src ([^;]+);/.exec(csp[1]) || [null, "'none'"])[1]; // default-src 'none' covers a missing frame-src
-      const mayFrame = file === 'EagleWorkbook-guided.html' || file === 'EagleWorkbook.html';
+      const mayFrame = ['EagleWorkbook-guided.html', 'EagleWorkbook.html', 'EagleWorkbook2026.html', 'EagleWorkbook2026-guided.html'].includes(file);
       assert.equal(frame, mayFrame ? 'https://scoutly.scouting.org' : "'none'", `frame-src ${frame}`);
     });
   }
