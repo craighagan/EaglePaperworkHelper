@@ -1605,6 +1605,123 @@ function everyAnswer() {
       assert.ok(v !== undefined && String(v).trim() !== '', `${name} (${p}) is blank in the sample`);
     }
   });
+  console.log('2026 PDF');
+  const PDF26 = require(path.join(ROOT, 'lib/w26-pdf.js'));
+  const allWidgets = async (bytes) => {
+    const doc = await pdfjsLib.getDocument({ data: bytes.slice(), verbosity: 0, isEvalSupported: false }).promise;
+    const out = [];
+    for (let p = 1; p <= doc.numPages; p++) for (const a of await (await doc.getPage(p)).getAnnotations()) if (a.fieldName) out.push({ name: a.fieldName, page: p, type: a.fieldType, radio: !!a.radioButton, buttonValue: a.buttonValue, value: a.fieldValue });
+    await doc.destroy();
+    return out;
+  };
+  if (w26 && w26d) {
+    await test('2026 PDF: chosen files are identified, and the published ones are exact', async () => {
+      const wb = await PDF26.checkPdf(pdfjsLib, w26.slice());
+      assert.deepEqual(wb, { ok: true, kind: 'workbook', exact: true });
+      const ad = await PDF26.checkPdf(pdfjsLib, w26d.slice());
+      assert.deepEqual(ad, { ok: true, kind: 'appendixD', exact: true });
+      const changed = new Uint8Array([...w26, 10, 37, 120]);
+      assert.deepEqual(await PDF26.checkPdf(pdfjsLib, changed), { ok: true, kind: 'workbook', exact: false });
+      const old = await PDF26.checkPdf(pdfjsLib, original.slice());
+      assert.equal(old.ok, false); assert.equal(old.message, PDF26.TWO023);
+    });
+    let filled26 = null;
+    await test('2026 PDF: filling the sample writes every answer, and the count matches the values', async () => {
+      const values = PDF26.buildFieldValues(SAMPLE26);
+      const expected = Object.keys(values.text).length + Object.keys(values.radio).length + Object.keys(values.choice).length;
+      filled26 = await PDF26.fillWorkbook({ pdfjsLib, pdfBytes: w26.slice(), data: SAMPLE26 });
+      assert.equal(filled26.report.filled, expected);
+      assert.equal(filled26.report.totalFields, 382, 'distinct field names, as the 2023a report counts them');
+      assert.ok(filled26.bytes.subarray(0, w26.length).every((b, i) => b === w26[i]), 'the official file is kept, with the update appended');
+      const ws = await allWidgets(filled26.bytes);
+      assert.equal(ws.length, 446, 'no fields lost');
+      const val = (n) => ws.filter((w) => w.name === n).map((w) => w.value);
+      assert.equal(new Set(val('Candidates Full Name')).size, 1);
+      assert.equal(val('Candidates Full Name').length, 23);
+      assert.equal(val('Candidates Full Name')[0], 'Alex Example');
+      assert.equal(val('Dropdown1')[0] && (Array.isArray(val('Dropdown1')[0]) ? val('Dropdown1')[0][0] : val('Dropdown1')[0]), 'Crew');
+      assert.equal(val('Estimated Cost of Materials')[0], '1200.00');
+      assert.equal(val('Birth Date')[0], '1/2/2010');
+    });
+    await test('2026 PDF: signature fields stay empty and unsigned after filling', async () => {
+      if (!filled26) return;
+      const ws = await allWidgets(filled26.bytes);
+      const sigs = ws.filter((w) => w.type === 'Sig');
+      assert.equal(sigs.length, 9);
+      assert.ok(sigs.every((w) => !w.value), 'a signature field has a value');
+    });
+    await test('2026 PDF: the round trip gives back every answer that a box holds', async () => {
+      const back = await PDF26.readBackup({ pdfjsLib, pdfBytes: filled26.bytes.slice() });
+      const want = answers(SAMPLE26), got = answers(back.data);
+      const skip = /^(attachments|links|journey|appendixD)(\.|$)/;
+      const wrong = [];
+      for (const [k, v] of Object.entries(want)) {
+        if (skip.test(k)) continue;
+        if (!(k in got)) { wrong.push(`${k} missing`); continue; }
+        if (!sameAnswer(v, got[k])) wrong.push(`${k}: ${v} != ${got[k]}`);
+      }
+      assert.deepEqual(wrong.filter((x) => !/^(proposal\.costs\.totals|plan\.items\.\d+\.totalCost|report\.spending\.\d+\.totalCost)/.test(x)), [], wrong.slice(0, 8).join('; '));
+    });
+    await test('2026 PDF: the blank form is told it has no answers typed in yet', async () => {
+      await assert.rejects(PDF26.readBackup({ pdfjsLib, pdfBytes: w26.slice() }), /no answers typed in yet/);
+    });
+    await test('2026 PDF: a 2023a PDF, an Appendix D PDF, and a flat PDF each get a plain message', async () => {
+      await assert.rejects(PDF26.fillWorkbook({ pdfjsLib, pdfBytes: original.slice(), data: SAMPLE26 }), (e) => e.message === PDF26.TWO023);
+      await assert.rejects(PDF26.readBackup({ pdfjsLib, pdfBytes: original.slice() }), /This is the 2023 workbook \(No\. 2023a\)/);
+      await assert.rejects(PDF26.readBackup({ pdfjsLib, pdfBytes: w26d.slice() }), /already in your workbook draft/);
+      await assert.rejects(PDF26.fillWorkbook({ pdfjsLib, pdfBytes: w26d.slice(), data: SAMPLE26 }), /This is Appendix D/);
+    });
+    await test('2026 PDF: Appendix D fills from the draft, names no fields it does not have, and warns about the organization name and EIN', async () => {
+      const out = await PDF26.fillAppendixD({ pdfjsLib, pdfBytes: w26d.slice(), data: SAMPLE26 });
+      const ws = await allWidgets(out.bytes);
+      assert.equal(ws.find((w) => w.name === 'Name').value, 'Alex Example');
+      assert.ok(out.report.warnings.some((x) => /no boxes for “Name of Organization” and “EIN”/.test(x)));
+      assert.ok(ws.filter((w) => w.type === 'Sig').every((w) => !w.value), 'Appendix D signatures stay empty');
+    });
+    await test('2026 PDF: a long description warns once, and page 11 gets the page 7 explanation', async () => {
+      const d = JSON.parse(JSON.stringify(SAMPLE26));
+      d.proposal.description = 'installation '.repeat(40).trim();
+      const out = await PDF26.fillWorkbook({ pdfjsLib, pdfBytes: w26.slice(), data: d });
+      const page11 = out.report.warnings.filter((x) => /Brief Project Description: only about the first 3 lines/.test(x));
+      assert.equal(page11.length, 1, out.report.warnings.join(' | '));
+      assert.equal(out.report.warnings.filter((x) => /Project Description/.test(x) && /page 7|PDF page 7/.test(x)).length, 1);
+    });
+    await test('2026 PDF: a file that already had answers says so', async () => {
+      const again = await PDF26.fillWorkbook({ pdfjsLib, pdfBytes: filled26.bytes.slice(), data: SAMPLE26 });
+      assert.ok(again.report.warnings.some((x) => /already had answers typed in/.test(x)));
+    });
+  }
+  if (w26 && w26d && process.platform === 'darwin' && has('swiftc')) {
+    await test('2026 PDF: Apple PDFKit (Preview) reads the filled values', async () => {
+      const out = await PDF26.fillWorkbook({ pdfjsLib, pdfBytes: w26.slice(), data: SAMPLE26 });
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'eph26-'));
+      const pdf = path.join(tmp, 'filled.pdf'), bin = path.join(tmp, 'check');
+      fs.writeFileSync(pdf, out.bytes);
+      execFileSync('swiftc', ['-O', path.join(ROOT, 'tests/pdfkit-check.swift'), '-o', bin], { stdio: 'ignore' });
+      const result = JSON.parse(execFileSync(bin, [pdf]).toString());
+      assert.equal(result.text['Candidates Full Name'].length, 23);
+      assert.ok(result.text['Candidates Full Name'].every((v) => v === 'Alex Example'));
+      assert.deepEqual(result.text.Dropdown1, ['Crew']);
+      assert.equal(result.radio['Need Fundraising App?'], 'Yes');
+      assert.equal(result.locked, false);
+    });
+  } else console.log('  skip 2026 PDFKit check (needs macOS and swiftc)');
+  if (w26 && has('pdftotext')) {
+    await test('2026 PDF: Poppler shows the typed answers on the right pages', () => {
+      const out = PDF26.fillWorkbook;
+      return out({ pdfjsLib, pdfBytes: w26.slice(), data: SAMPLE26 }).then((r) => {
+        const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'eph26p-'));
+        const pdf = path.join(tmp, 'f.pdf');
+        fs.writeFileSync(pdf, r.bytes);
+        const page = (n) => execFileSync('pdftotext', ['-f', String(n), '-l', String(n), '-layout', pdf, '-']).toString();
+        assert.match(page(1), /Alex Example/);
+        assert.match(page(5), /alex@example\.org/);
+        assert.match(page(7), /Build and install a bike repair stand/);
+        assert.match(page(9), /1200\.00/);
+        assert.match(page(20), /68\.00/);
+      });
+    });
+  }
   console.log(`\n${passed} passed, ${failures.length} failed${skipped ? `, ${skipped} skipped` : ''}`);
   process.exit(failures.length ? 1 : 0);
 })();

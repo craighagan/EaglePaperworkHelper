@@ -31,6 +31,8 @@ Breaking any of these is a defect, even if the tests pass.
 | `EagleWorkbook.html` + `lib/classic-workbook.js` | Classic workbook: official wording and order. |
 | `lib/workbook-common.js` | Shared by both workbooks: `defaults()` (the data model), browser storage, backup files (save, open, share), the "keep your work safe" panel, print draft, form helpers (`createForm`, including the "? Tips" buttons), `h()`. |
 | `lib/attachments.js` | Signed pages, attachments, and links: the three signature slots (`SLOTS`, PDF pages 15, 23, 29), photo and PDF → JPEG pages, IndexedDB storage, pictures in backup files (`withPictures`, `absorb`), and the submission copy (`buildSubmission`, a small JPEG-and-text PDF writer). Runs in the browser and in Node tests. |
+| `lib/w26-model.js` | The 2026 workbook (No. 512-927): draft shape, field table (generated from `todo/2026-field-map.md`), the form's totals, and the fixed-box fit check. Pure. |
+| `lib/w26-pdf.js` | Fill the 2026 workbook and Appendix D, check a chosen PDF, read a filled 2026 PDF back. Uses `lib/official-pdf.js` and `lib/w26-model.js`. |
 | `lib/tips.js` | The text behind each "? Tips" button, keyed by backup-file path. Limits on length and the official page of each box are checked by tests. |
 | `FillOfficialPDF.html` + `lib/fill-page.js` | Fill the official PDF from a backup file or a saved draft. |
 | `BackupFromPDF.html` + `lib/backup-from-pdf-page.js` | Read a filled (fillable) workbook PDF back into a backup file. Flattened PDFs are intentionally unsupported. |

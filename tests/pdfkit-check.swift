@@ -18,6 +18,8 @@ for index in 0..<doc.pageCount {
     guard let name = annotation.fieldName else { continue }
     if annotation.widgetFieldType == .text {
       text[name, default: []].append(annotation.widgetStringValue ?? "")
+    } else if annotation.widgetFieldType == .choice {
+      text[name, default: []].append(annotation.widgetStringValue ?? "")
     } else if annotation.widgetFieldType == .button, annotation.buttonWidgetState == .onState {
       radio[name] = annotation.buttonWidgetStateString
     }
