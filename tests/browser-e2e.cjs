@@ -860,6 +860,70 @@ async function run() {
       assert.equal(problems.length, 0, problems.join(' | '));
     });
 
+    console.log('FillOfficialPDF2026.html (file://)');
+    const FILL26 = 'FillOfficialPDF2026.html', READY_FILL26 = '!!window.EagleW26Pdf';
+    const W26_PDF = path.join(ROOT, 'tests/.cache/512-92726-Eagle-Scout-Leadership-Service-Project-Workbook.pdf');
+    const W26_APPD = path.join(ROOT, 'tests/.cache/Appendix-D-Fundraising-Application.pdf');
+    const SAMPLE26_FILE = path.join(ROOT, 'tests/fixtures/sample-workbook-2026.json');
+    const chosen = (id) => evaluate(`document.getElementById(${JSON.stringify(id)}).textContent`);
+    await test('2026 Fill page opens, and the make buttons wait for a PDF and answers', async () => {
+      await open(FILL26, READY_FILL26);
+      assert.equal(await evaluate('document.getElementById("create").disabled'), true);
+      assert.deepEqual(problems, []);
+    });
+    await test('2026 Fill page: a 2023a PDF and a 2023a backup file each get a plain message', async () => {
+      await open(FILL26, READY_FILL26);
+      await setFile('#pdf-file', PDF);
+      await waitFor('document.getElementById("pdf-chosen").textContent.includes("This is the 2023 workbook (No. 2023a), but this page fills the 2026 workbook.")');
+      await setFile('#json-file', SAMPLE);
+      await waitFor('document.getElementById("json-chosen").textContent.includes("This backup file is for the 2023 workbook (No. 2023a).")');
+      assert.equal(await evaluate('document.getElementById("create").disabled'), true);
+    });
+    await test('2026 Fill page: the workbook fills from the 2026 sample and downloads a 2026 file', async () => {
+      if (!fs.existsSync(W26_PDF)) throw new Error('2026 workbook not cached: run tests/run-tests.cjs first');
+      await open(FILL26, READY_FILL26);
+      await setFile('#pdf-file', W26_PDF);
+      await waitFor('document.getElementById("pdf-chosen").textContent.startsWith("Using")');
+      await setFile('#json-file', SAMPLE26_FILE);
+      await waitFor('!document.getElementById("create").disabled');
+      clearDownloads();
+      await evaluate('document.getElementById("create").click(); true');
+      await waitFor('document.getElementById("report").hidden === false', 60000);
+      const file = await waitForDownload('.pdf');
+      assert.equal(path.basename(file), 'Community-Bike-Repair-Station-2026-Workbook-filled.pdf', path.basename(file));
+      const bytes = fs.readFileSync(file);
+      assert.ok(bytes.subarray(0, fs.statSync(W26_PDF).size).equals(fs.readFileSync(W26_PDF)), 'the official file is kept, with an update appended');
+      assert.match(await evaluate('document.getElementById("report").textContent'), /Filled \d+ answers\./);
+      assert.deepEqual(problems, []);
+    });
+    await test('2026 Fill page: Appendix D downloads, and a workbook in the Appendix D step is refused', async () => {
+      if (!fs.existsSync(W26_APPD)) throw new Error('Appendix D not cached: run tests/run-tests.cjs first');
+      await open(FILL26, READY_FILL26);
+      await setFile('#appd-file', W26_PDF);
+      await waitFor('document.getElementById("appd-chosen").textContent.includes("This is the workbook, not Appendix D.")');
+      await setFile('#appd-file', W26_APPD);
+      await waitFor('document.getElementById("appd-chosen").textContent.startsWith("Using")');
+      await setFile('#json-file', SAMPLE26_FILE);
+      await waitFor('!document.getElementById("create-appd").disabled');
+      clearDownloads();
+      await evaluate('document.getElementById("create-appd").click(); true');
+      const file = await waitForDownload('.pdf');
+      assert.equal(path.basename(file), 'Community-Bike-Repair-Station-2026-Appendix-D-filled.pdf');
+      await waitFor('document.getElementById("report").textContent.includes("Name of Organization")', 30000);
+    });
+    await test('2026 Fill page: a 2026 draft in this browser is offered, and a 2023a backup is refused', async () => {
+      await open(FILL26, READY_FILL26);
+      await evaluate(`localStorage.setItem("eagle_workbook2026_v1", ${JSON.stringify(JSON.stringify(JSON.parse(fs.readFileSync(SAMPLE26_FILE, 'utf8'))))}); true`);
+      await open(FILL26, READY_FILL26);
+      await waitFor('[...document.querySelectorAll(".use-draft")].some((b) => b.textContent.includes("Classic 2026 workbook"))');
+      await evaluate('localStorage.removeItem("eagle_workbook2026_v1"); true');
+    });
+    await test('the 2023a Fill page names a 2026 PDF and points to the 2026 Fill page', async () => {
+      await open('FillOfficialPDF.html', '!!window.EagleOfficialPdf');
+      await setFile('#pdf-file', W26_PDF);
+      await waitFor('document.getElementById("pdf-chosen").textContent.includes("This is the 2026 workbook, but this page fills the 2023 workbook (No. 2023a).")');
+    });
+
     console.log('BackupFromPDF.html (file://)');
     await test('reads a filled PDF into a backup file and opens it in the Guided workbook', async () => {
       assert.ok(filledPdf, 'needs the PDF from the fill test');

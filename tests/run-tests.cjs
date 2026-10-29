@@ -538,9 +538,22 @@ function everyAnswer() {
         assert.match(text, /no council, district, unit, or individual may add forms, change requirements, or change the workbook itself, so the official workbook, filled and signed, is what you complete\. Your unit leader and council still tell you how to hand it in\./, `${name}: the workbook's own rule, and who decides how to hand in`);
       }
       assert.doesNotMatch(home + readme, /can require additional forms/, 'the looser wording is gone');
-      const S19 = 'Support for the 2026 workbook is being built. For now this helper fills only the 2023 workbook (No. 2023a). The 2026 workbook is on scouting.org.';
-      assert.ok(home.includes(S19), 'home page has S19');
-      assert.ok(readme.includes(S19), 'README has S19');
+      // The edition chooser (S18): the FAQ sentences are quoted word for word.
+      const FAQ_QUOTES = [
+        'Any Scout can start using the 2026 Eagle Scout leadership service project workbook now that Scouting America has published it. The 2026 workbook will be required for every Life Scout starting work for the first time on an Eagle Scout leadership service project.',
+        'A Scout whose project proposal was fully approved before January 1, 2027, using the 2023 workbook, may continue using that workbook to complete the project.',
+        'The 2027 Guide to Advancement, published in January 2027, will require Scouts to obtain the beneficiary’s and Scoutmaster’s approval of the project plan before starting work. That requirement will apply to all Scouts effective January 1, 2027, whether using the 2023 or the 2026 project workbook.'
+      ];
+      for (const q of FAQ_QUOTES) {
+        assert.ok(home.includes(q), `home page quotes the FAQ: ${q.slice(0, 40)}`);
+      }
+      assert.ok(home.includes('<h2>Which workbook?</h2>'), 'home page has the chooser');
+      assert.ok(readme.includes('Which workbook?'), 'README has the chooser');
+      if (process.env.EAGLE_FAQ) {
+        // Optional: check the quotes against the published FAQ PDF (Poppler's pdftotext).
+        const text = execFileSync('pdftotext', [process.env.EAGLE_FAQ, '-']).toString().replace(/\s+/g, ' ');
+        for (const q of FAQ_QUOTES) assert.ok(text.replace(/\s+/g, ' ').includes(q.slice(0, 60)), `FAQ text: ${q.slice(0, 40)}`);
+      }
     });
   }
 
@@ -1646,6 +1659,15 @@ function everyAnswer() {
       assert.deepEqual(await PDF26.checkPdf(pdfjsLib, changed), { ok: true, kind: 'workbook', exact: false });
       const old = await PDF26.checkPdf(pdfjsLib, original.slice());
       assert.equal(old.ok, false); assert.equal(old.message, PDF26.TWO023);
+    });
+    await test('2026 PDF: the 2023a pages name a 2026 file, and the 2023a reader says what to do', async () => {
+      const S4 = 'This is the 2026 workbook, but this page fills the 2023 workbook (No. 2023a). Use the 2026 Fill page from the home page.';
+      const S16 = 'This is the 2026 workbook. Making a backup file from a 2026 PDF comes in a later version of this helper. Keep using your backup file.';
+      const check = await lib.checkWorkbookPdf(pdfjsLib, w26.slice());
+      assert.equal(check.ok, false);
+      assert.equal(check.message, S4);
+      await assert.rejects(lib.readBackupFromPdf({ pdfjsLib, pdfBytes: w26.slice(), defaults: workbookCommon().defaults }), (e) => e.message === S16);
+      await assert.rejects(lib.fillOfficialPdf({ pdfjsLib, pdfBytes: w26.slice(), data: sample }), (e) => e.message === S4);
     });
     let filled26 = null;
     await test('2026 PDF: filling the sample writes every answer, and the count matches the values', async () => {

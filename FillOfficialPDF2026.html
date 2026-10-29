@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' file: 'wasm-unsafe-eval'; style-src 'unsafe-inline'; img-src 'none'; connect-src https://www.scouting.org/wp-content/uploads/2026/10/512-92726-Eagle-Scout-Leadership-Service-Project-Workbook.pdf https://filestore.scouting.org/filestore/scoutsbsa/Project-Workbook/Appendix-D-Fundraising-Application.pdf; form-action 'none'; base-uri 'none'">
+<title>Fill the Official 2026 Eagle Workbook PDF and Appendix D</title>
+<meta name="description" content="Put your answers into the official 2026 Eagle Scout Leadership Service Project Workbook PDF and its Appendix D. Free, runs in your browser.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Fill the Official 2026 Eagle Workbook PDF and Appendix D">
+<meta property="og:description" content="Put your answers into the official 2026 Eagle Scout Leadership Service Project Workbook PDF and its Appendix D. Free, runs in your browser.">
+<style>
+:root{--blue:#003f87;--blue2:#0066b8;--gold:#f6be00;--ink:#172537;--muted:#46566a;--line:#c5d5e5;--mist:#f2f7fc;--red:#9a0a1e;--green:#155c36}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;color:var(--ink);background:radial-gradient(circle at 10% 0,#dcecfb,transparent 28rem),radial-gradient(circle at 95% 14%,#fff0cf,transparent 24rem),#f6f5f0;font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+.topnav{width:min(760px,calc(100% - 24px));margin:16px auto 0;display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.9rem}
+main{width:min(760px,calc(100% - 24px));margin:10px auto 40px;background:#fff;border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 14px 34px rgb(13 59 105/.12)}
+header{padding:22px 28px 18px;color:#fff;background:linear-gradient(135deg,#002f6c,#005aab 58%,#1375b9);border-bottom:5px solid var(--gold)}
+h1{margin:0 0 4px;font-size:clamp(1.4rem,4vw,1.9rem);line-height:1.2}
+header p{margin:0;color:#e3f0ff}
+.content{padding:20px 28px 26px}
+a{color:#00509e}
+.note{margin:0 0 16px;padding:11px 14px;background:#fff8df;border-left:4px solid #e0a500;border-radius:6px;font-size:.93rem}
+.step{margin-top:16px;padding:18px;border:1px solid var(--line);border-radius:12px;background:linear-gradient(150deg,#fbfdff,#f3f8fd)}
+.step h2{margin:0 0 6px;color:var(--blue);font-size:1.1rem}
+.step p{margin:0 0 12px;color:var(--muted);font-size:.93rem}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.btn{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:999px;padding:10px 16px;color:#fff;background:linear-gradient(135deg,var(--blue),var(--blue2));box-shadow:0 2px 7px rgb(0 63 135/.22);font:700 .95rem system-ui,-apple-system,sans-serif;cursor:pointer;text-decoration:none}
+.btn.secondary{background:#fff;color:var(--blue);border:1px solid var(--blue);box-shadow:none}
+.btn.go{background:linear-gradient(135deg,#1f6b34,#2e8b47);font-size:1.05rem;padding:12px 20px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid #0066b8;outline-offset:2px}
+.file{position:relative}
+.file:focus-within{outline:3px solid #0066b8;outline-offset:2px}
+.file input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+.chosen{font-size:.92rem;color:var(--muted);overflow-wrap:anywhere;margin-top:8px!important}
+.chosen.ok{padding:8px 11px;border:1px solid #9cd0ae;border-radius:8px;background:#eef9f1;color:var(--green);font-weight:600}
+.chosen.ok::before{content:"✓ "}
+.chosen.err{padding:8px 11px;border:1px solid #e3a3a3;border-radius:8px;background:#fff1f1;color:var(--red);font-weight:600}
+.chosen.err::before{content:"⚠ "}
+#drafts{display:flex;flex-direction:column;align-items:flex-start;gap:8px;margin-top:10px}
+label.text{display:grid;gap:5px;font-weight:700;font-size:.92rem}
+input[type=text]{width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:8px;background:#fff;font:inherit;font-weight:400;color:var(--ink)}
+label.check{display:flex;gap:8px;align-items:flex-start;margin-top:12px;font-size:.92rem;color:var(--ink)}
+label.check input{margin-top:4px}
+.status{min-height:1.4em;margin:10px 0 0;font-size:.95rem;overflow-wrap:anywhere}
+.status.error{color:var(--red);font-weight:600}
+.status.ok{color:var(--green);font-weight:600}
+.small{font-size:.85rem!important}
+.heads-up{margin:10px 0 0!important;padding:9px 12px;background:#fff8df;border-left:4px solid #e0a500;border-radius:6px;color:var(--ink)!important;font-size:.9rem!important}
+.report{margin-top:12px;padding:12px 14px;border-radius:8px;background:var(--mist);font-size:.92rem}
+.report h3{margin:0 0 6px;font-size:1rem}
+.report ul{margin:6px 0 0;padding-left:20px}
+.report li{margin:3px 0}
+ol.next{margin:8px 0 10px;padding-left:20px}
+footer{margin-top:20px;font-size:.85rem;color:var(--muted)}
+details{margin-top:14px;font-size:.88rem;color:var(--muted)}
+summary{cursor:pointer;font-weight:700;color:#33495f}
+[hidden]{display:none!important}
+@media(max-width:560px){header,.content{padding-left:18px;padding-right:18px}.step{padding:14px}}
+</style>
+</head>
+<body>
+<nav class="topnav" aria-label="EaglePaperworkHelper pages">
+  <a href="index.html">Home and help</a>
+  <a href="EagleWorkbook2026.html">Classic 2026 workbook</a>
+  <a href="FillOfficialPDF.html">Fill the 2023 workbook</a>
+</nav>
+<main>
+  <header>
+    <h1>Fill the Official 2026 Eagle Workbook PDF</h1>
+    <p>Copy your answers into the official 2026 Eagle Scout Leadership Service Project Workbook (No. 512-927), and into its Appendix D if you need one.</p>
+    <p class="banner" id="edition-banner">For the 2026 workbook (No. 512-927). <a href="index.html">Other workbook</a></p>
+  </header>
+  <div class="content">
+    <p class="note"><strong>This page never sends your answers anywhere.</strong> The finished PDF holds personal details, so it goes wherever you copy or share it.</p>
+
+    <section class="step" aria-labelledby="step1">
+      <h2 id="step1">Step 1. Get the official workbook PDF</h2>
+      <p>Choose the file you downloaded from <a href="https://www.scouting.org/programs/scouts-bsa/advancement-and-awards/eagle-scout-workbook/" target="_blank" rel="noopener noreferrer">scouting.org ↗</a>, or let this page download it.</p>
+      <p><button type="button" id="fetch-pdf" class="btn btn-next">Get the official PDF for me</button></p>
+      <label for="pdf-file">Or choose the workbook PDF you downloaded</label>
+      <input type="file" id="pdf-file" accept="application/pdf,.pdf">
+      <p class="chosen" id="pdf-chosen" aria-live="polite"></p>
+    </section>
+
+    <section class="step" aria-labelledby="step2">
+      <h2 id="step2">Step 2. Choose your answers</h2>
+      <div id="drafts"></div>
+      <p><button type="button" id="open-backup" class="btn btn-prev">Choose a backup file</button></p>
+      <input type="file" id="json-file" accept="application/json,.json" hidden>
+      <p class="chosen" id="json-chosen" aria-live="polite"></p>
+    </section>
+
+    <section class="step" aria-labelledby="step3">
+      <h2 id="step3">Step 3. Make the filled workbook PDF</h2>
+      <label class="check"><input type="checkbox" id="skip-names"> Leave the printed names blank</label>
+      <p class="help" id="skip-help">The approvers can write their own names. The Scoutmaster’s name still appears on pages 11 and 22, and the beneficiary organization on page 22, because the official PDF repeats them from page 5.</p>
+      <p><button type="button" id="create" class="btn btn-next" disabled>Make the filled PDF</button></p>
+    </section>
+
+    <section class="step" aria-labelledby="step4">
+      <h2 id="step4">Step 4. Appendix D (only if you need a Fundraising Application)</h2>
+      <p><button type="button" id="fetch-appd" class="btn btn-prev">Get Appendix D for me</button></p>
+      <label for="appd-file">Or choose the Appendix D PDF you downloaded</label>
+      <input type="file" id="appd-file" accept="application/pdf,.pdf">
+      <p class="chosen" id="appd-chosen" aria-live="polite"></p>
+      <p><button type="button" id="create-appd" class="btn btn-prev" disabled>Make the filled Appendix D</button></p>
+    </section>
+
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+    <section id="report" hidden aria-live="polite"></section>
+  </div>
+</main>
+<script src="vendor/pdfjs/openjpeg-wasm.js"></script>
+<script src="vendor/pdfjs/pdf.worker.js"></script>
+<script src="vendor/pdfjs/pdf.js"></script>
+<script src="lib/official-pdf.js"></script>
+<script src="lib/w26-model.js"></script>
+<script src="lib/w26-pdf.js"></script>
+<script src="lib/w26-fill-page.js"></script>
+</body>
+</html>
