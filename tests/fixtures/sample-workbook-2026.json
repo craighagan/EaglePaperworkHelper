@@ -1,0 +1,530 @@
+{
+  "edition": "2026",
+  "candidate": {
+    "name": "Alex Example",
+    "dob": "2010-01-02",
+    "address": "100 Sample Street",
+    "city": "Springfield",
+    "state": "ST",
+    "email": "alex@example.org",
+    "phone": "555-0100",
+    "pid": "000000001",
+    "borDate": "2027-02-14"
+  },
+  "parent": {
+    "name": "Sample parent name",
+    "address": "Sample parent address",
+    "city": "Sample parent city",
+    "state": "Sample parent state",
+    "email": "Sample parent email",
+    "phone": "Sample parent phone"
+  },
+  "unit": {
+    "type": "Crew",
+    "number": "123",
+    "district": "Sample District",
+    "council": "Sample Council"
+  },
+  "contacts": {
+    "leader": {
+      "name": "Sample leader name",
+      "email": "Sample leader email",
+      "phone": "Sample leader phone"
+    },
+    "committee": {
+      "name": "Sample committee name",
+      "email": "Sample committee email",
+      "phone": "Sample committee phone"
+    },
+    "beneficiary": {
+      "name": "Riverside Community Center",
+      "address": "1 Example Road",
+      "city": "Springfield",
+      "state": "ST",
+      "email": "office@example.org",
+      "phone": "555-0101"
+    },
+    "beneficiaryRep": {
+      "name": "Sample beneficiaryRep name",
+      "email": "Sample beneficiaryRep email",
+      "phone": "Sample beneficiaryRep phone"
+    },
+    "serviceCenter": {
+      "name": "Sample serviceCenter name",
+      "address": "Sample serviceCenter address",
+      "city": "Sample serviceCenter city",
+      "state": "Sample serviceCenter state",
+      "email": "Sample serviceCenter email",
+      "phone": "Sample serviceCenter phone"
+    },
+    "approvalRep": {
+      "name": "Sample approvalRep name",
+      "email": "Sample approvalRep email",
+      "phone": "Sample approvalRep phone"
+    },
+    "coach": {
+      "name": "Sample coach name",
+      "email": "Sample coach email",
+      "phone": "Sample coach phone"
+    }
+  },
+  "proposal": {
+    "projectName": "Community Bike Repair Station",
+    "beneficiaryImpact": "Sample proposal beneficiaryImpact",
+    "description": "Build and install a bike repair stand with tools at the community center.",
+    "motivation": "Sample proposal motivation",
+    "approvedDate": "2027-03-01",
+    "planDate": "2027-03-15",
+    "beginDate": "2027-04-01",
+    "completeDate": "2027-05-01",
+    "work": "Sample proposal work",
+    "leadership": "Sample proposal leadership",
+    "hours": [
+      {
+        "w": "1",
+        "h": "0"
+      },
+      {
+        "w": "2",
+        "h": "8"
+      },
+      {
+        "w": "1",
+        "h": "3"
+      },
+      {
+        "w": "2",
+        "h": "4"
+      },
+      {
+        "w": "1",
+        "h": "2"
+      }
+    ],
+    "resources": "Sample proposal resources",
+    "costs": {
+      "materials": "$1,200.00",
+      "supplies": "250.00",
+      "tools": "250.00",
+      "other": "250.00"
+    },
+    "fundraising": "Sample proposal fundraising",
+    "needFundraisingApp": "yes",
+    "safety": "Sample proposal safety"
+  },
+  "appendixD": {
+    "useOfFunds": "",
+    "dates": "2027-04-20",
+    "howMuch": "600",
+    "donors": "",
+    "contracts": "",
+    "safeguarding": ""
+  },
+  "plan": {
+    "reviewComments": "Sample plan reviewComments",
+    "presentCondition": "Sample plan presentCondition",
+    "steps": [
+      {
+        "step": "Sample 0 step",
+        "duration": "Sample 0 duration"
+      },
+      {
+        "step": "Sample 1 step",
+        "duration": "Sample 1 duration"
+      },
+      {
+        "step": "Sample 2 step",
+        "duration": "Sample 2 duration"
+      },
+      {
+        "step": "",
+        "duration": ""
+      },
+      {
+        "step": "",
+        "duration": ""
+      },
+      {
+        "step": "",
+        "duration": ""
+      },
+      {
+        "step": "",
+        "duration": ""
+      },
+      {
+        "step": "",
+        "duration": ""
+      },
+      {
+        "step": "",
+        "duration": ""
+      },
+      {
+        "step": "",
+        "duration": ""
+      }
+    ],
+    "helpers": [
+      {
+        "job": "Sample 0 job",
+        "skills": "Sample 0 skills",
+        "adultYouth": "Sample 0 adultYouth",
+        "needed": "Sample 0 needed",
+        "soFar": "Sample 0 soFar"
+      },
+      {
+        "job": "Sample 1 job",
+        "skills": "Sample 1 skills",
+        "adultYouth": "Sample 1 adultYouth",
+        "needed": "Sample 1 needed",
+        "soFar": "Sample 1 soFar"
+      },
+      {
+        "job": "Sample 2 job",
+        "skills": "Sample 2 skills",
+        "adultYouth": "Sample 2 adultYouth",
+        "needed": "Sample 2 needed",
+        "soFar": "Sample 2 soFar"
+      },
+      {
+        "job": "",
+        "skills": "",
+        "adultYouth": "",
+        "needed": "",
+        "soFar": ""
+      },
+      {
+        "job": "",
+        "skills": "",
+        "adultYouth": "",
+        "needed": "",
+        "soFar": ""
+      },
+      {
+        "job": "",
+        "skills": "",
+        "adultYouth": "",
+        "needed": "",
+        "soFar": ""
+      },
+      {
+        "job": "",
+        "skills": "",
+        "adultYouth": "",
+        "needed": "",
+        "soFar": ""
+      },
+      {
+        "job": "",
+        "skills": "",
+        "adultYouth": "",
+        "needed": "",
+        "soFar": ""
+      },
+      {
+        "job": "",
+        "skills": "",
+        "adultYouth": "",
+        "needed": "",
+        "soFar": ""
+      },
+      {
+        "job": "",
+        "skills": "",
+        "adultYouth": "",
+        "needed": "",
+        "soFar": ""
+      },
+      {
+        "job": "",
+        "skills": "",
+        "adultYouth": "",
+        "needed": "",
+        "soFar": ""
+      },
+      {
+        "job": "",
+        "skills": "",
+        "adultYouth": "",
+        "needed": "",
+        "soFar": ""
+      }
+    ],
+    "organizing": "Sample plan organizing",
+    "training": "Sample plan training",
+    "communication": "Sample plan communication",
+    "workSessions": "Sample plan workSessions",
+    "hours": [
+      {
+        "w": "1",
+        "h": "0"
+      },
+      {
+        "w": "5",
+        "h": "10"
+      },
+      {
+        "w": "1",
+        "h": "2"
+      },
+      {
+        "w": "2",
+        "h": "3"
+      },
+      {
+        "w": "1",
+        "h": "1"
+      }
+    ],
+    "firstAidKit": "Sample plan firstAidKit",
+    "firstAidSpecialist": "Sample plan firstAidSpecialist",
+    "safetyAdults": "Sample plan safetyAdults",
+    "hazards": [
+      {
+        "hazard": "Sample 0 hazard",
+        "prevention": "Sample 0 prevention"
+      },
+      {
+        "hazard": "Sample 1 hazard",
+        "prevention": "Sample 1 prevention"
+      },
+      {
+        "hazard": "Sample 2 hazard",
+        "prevention": "Sample 2 prevention"
+      }
+    ],
+    "ppe": "Sample plan ppe",
+    "toolSafety": "Sample plan toolSafety",
+    "adultTools": "Sample plan adultTools",
+    "safetyBriefing": "Sample plan safetyBriefing",
+    "emergencyAccess": "Sample plan emergencyAccess",
+    "permits": "Sample plan permits",
+    "items": [
+      {
+        "item": "Sample 0 item",
+        "description": "Sample 0 description",
+        "qty": "Sample 0 qty",
+        "unitCost": "Sample 0 unitCost",
+        "totalCost": "",
+        "source": "Sample 0 source"
+      },
+      {
+        "item": "Sample 1 item",
+        "description": "Sample 1 description",
+        "qty": "Sample 1 qty",
+        "unitCost": "Sample 1 unitCost",
+        "totalCost": "",
+        "source": "Sample 1 source"
+      },
+      {
+        "item": "Sample 2 item",
+        "description": "Sample 2 description",
+        "qty": "Sample 2 qty",
+        "unitCost": "Sample 2 unitCost",
+        "totalCost": "",
+        "source": "Sample 2 source"
+      },
+      {
+        "item": "",
+        "description": "",
+        "qty": "",
+        "unitCost": "",
+        "totalCost": "",
+        "source": ""
+      },
+      {
+        "item": "",
+        "description": "",
+        "qty": "",
+        "unitCost": "",
+        "totalCost": "",
+        "source": ""
+      },
+      {
+        "item": "",
+        "description": "",
+        "qty": "",
+        "unitCost": "",
+        "totalCost": "",
+        "source": ""
+      },
+      {
+        "item": "",
+        "description": "",
+        "qty": "",
+        "unitCost": "",
+        "totalCost": "",
+        "source": ""
+      },
+      {
+        "item": "",
+        "description": "",
+        "qty": "",
+        "unitCost": "",
+        "totalCost": "",
+        "source": ""
+      },
+      {
+        "item": "",
+        "description": "",
+        "qty": "",
+        "unitCost": "",
+        "totalCost": "",
+        "source": ""
+      },
+      {
+        "item": "",
+        "description": "",
+        "qty": "",
+        "unitCost": "",
+        "totalCost": "",
+        "source": ""
+      },
+      {
+        "item": "",
+        "description": "",
+        "qty": "",
+        "unitCost": "",
+        "totalCost": "",
+        "source": ""
+      },
+      {
+        "item": "",
+        "description": "",
+        "qty": "",
+        "unitCost": "",
+        "totalCost": "",
+        "source": ""
+      }
+    ],
+    "funds": {
+      "beneficiary": "250.00",
+      "exempt": "250.00",
+      "others": "250.00",
+      "future": "250.00",
+      "futureDate": "2027-04-20",
+      "donated": "250.00"
+    },
+    "fundingSources": "Sample plan fundingSources",
+    "materialTransport": "Sample plan materialTransport",
+    "workerTransport": "Sample plan workerTransport",
+    "beneficiaryInput": "Sample plan beneficiaryInput",
+    "leaderInput": "Sample plan leaderInput"
+  },
+  "report": {
+    "observations": "Sample report observations",
+    "challenges": "Sample report challenges",
+    "changes": "Sample report changes",
+    "leadershipStyle": "Sample report leadershipStyle",
+    "rewarding": "Sample report rewarding",
+    "materialsUse": "Sample report materialsUse",
+    "hours": [
+      {
+        "w": "1",
+        "h": "0"
+      },
+      {
+        "w": "10",
+        "h": "50"
+      },
+      {
+        "w": "1",
+        "h": "4"
+      },
+      {
+        "w": "2",
+        "h": "6"
+      },
+      {
+        "w": "1",
+        "h": "2"
+      }
+    ],
+    "spending": [
+      {
+        "item": "Sample 0 item",
+        "description": "Sample 0 description",
+        "qty": "Sample 0 qty",
+        "unitCost": "Sample 0 unitCost",
+        "totalCost": "",
+        "source": "Sample 0 source"
+      },
+      {
+        "item": "Sample 1 item",
+        "description": "Sample 1 description",
+        "qty": "Sample 1 qty",
+        "unitCost": "Sample 1 unitCost",
+        "totalCost": "",
+        "source": "Sample 1 source"
+      },
+      {
+        "item": "Sample 2 item",
+        "description": "Sample 2 description",
+        "qty": "Sample 2 qty",
+        "unitCost": "Sample 2 unitCost",
+        "totalCost": "",
+        "source": "Sample 2 source"
+      },
+      {
+        "item": "",
+        "description": "",
+        "qty": "",
+        "unitCost": "",
+        "totalCost": "",
+        "source": ""
+      },
+      {
+        "item": "",
+        "description": "",
+        "qty": "",
+        "unitCost": "",
+        "totalCost": "",
+        "source": ""
+      },
+      {
+        "item": "",
+        "description": "",
+        "qty": "",
+        "unitCost": "",
+        "totalCost": "",
+        "source": ""
+      },
+      {
+        "item": "",
+        "description": "",
+        "qty": "",
+        "unitCost": "",
+        "totalCost": "",
+        "source": ""
+      },
+      {
+        "item": "",
+        "description": "",
+        "qty": "",
+        "unitCost": "",
+        "totalCost": "",
+        "source": ""
+      },
+      {
+        "item": "",
+        "description": "",
+        "qty": "",
+        "unitCost": "",
+        "totalCost": "",
+        "source": ""
+      }
+    ],
+    "collected": "500",
+    "spent": "480.25",
+    "differenceExplained": "Sample report differenceExplained",
+    "thanks": "Sample report thanks",
+    "aiUse": "Sample report aiUse"
+  },
+  "attachments": [],
+  "links": [],
+  "journey": {
+    "raising": "",
+    "steps": {}
+  }
+}

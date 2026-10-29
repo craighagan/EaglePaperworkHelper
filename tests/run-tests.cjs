@@ -1527,6 +1527,84 @@ function everyAnswer() {
     assert.ok(checked > 100, `checked ${checked}`);
   });
 
+  console.log('2026 values');
+  const W26 = require(path.join(ROOT, 'lib/w26-pdf.js'));
+  const SAMPLE26 = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/sample-workbook-2026.json'), 'utf8'));
+  await test('2026 formats: dates in each box\'s own format, and anything that is not one date is kept as typed', () => {
+    assert.equal(W26.formatDateAs('2010-01-02', 'm/d/yyyy'), '1/2/2010');
+    assert.equal(W26.formatDateAs('2027-03-04', 'mm/dd/yyyy'), '03/04/2027');
+    assert.equal(W26.formatDateAs('2027-03-04', 'm/d/yy'), '3/4/27');
+    assert.equal(W26.formatDateAs('3/1/2027', 'mm/dd/yyyy'), '03/01/2027');
+    assert.equal(W26.formatDateAs('2026-02-30', 'm/d/yyyy'), '2026-02-30');
+    assert.equal(W26.formatDateAs('3/1/2027 to 3/15/2027', 'mm/dd/yyyy'), '3/1/2027 to 3/15/2027');
+    assert.equal(W26.formatDateAs('', 'mm/dd/yyyy'), '');
+    assert.equal(W26.dateOk('3/1/2027 to 3/15/2027'), false);
+  });
+  await test('2026 formats: plain numbers, no $ or commas; not a plain number gives null', () => {
+    assert.equal(W26.plainNumber('$1,250.5', 2), '1250.50');
+    assert.equal(W26.plainNumber('12', 0), '12');
+    assert.equal(W26.plainNumber('2.5', 0), null);
+    assert.equal(W26.plainNumber('-0.001', 2), '0.00');
+    assert.equal(W26.plainNumber('about 20', 2), null);
+    assert.equal(W26.plainNumber('  ', 2), '');
+  });
+  await test('2026 values: a blank draft writes only the fixed and computed boxes', () => {
+    const v = W26.buildFieldValues(M26.defaults());
+    assert.equal(v.text['Eagle Scout Candidate'], '1');
+    assert.equal(v.text['Total People'], '1');
+    assert.equal(v.choice.Dropdown1, 'Troop');
+    assert.deepEqual(v.notes, []);
+    assert.ok(!('Candidates Full Name' in v.text));
+  });
+  await test('2026 values: signatures, their dates, and approver boxes are never written', () => {
+    const neverNames = M26.FIELDS.filter((f) => f[1] === 'never').map((f) => f[0]);
+    const sample = W26.buildFieldValues(SAMPLE26, { skipApprovalNames: false });
+    const every = W26.buildFieldValues(JSON.parse(JSON.stringify(SAMPLE26, (k, val) => (typeof val === 'string' ? 'X' : val))));
+    for (const v of [sample, every]) {
+      for (const n of neverNames) {
+        assert.ok(!(n in v.text) && !(n in v.radio) && !(n in v.choice), `wrote ${n}`);
+      }
+    }
+  });
+  await test('2026 values: printed approval names follow the opt-out', () => {
+    const on = W26.buildFieldValues(SAMPLE26, { skipApprovalNames: false }).text;
+    const off = W26.buildFieldValues(SAMPLE26, { skipApprovalNames: true }).text;
+    assert.ok(on['Unit Committee Approval Name'] !== undefined, 'committee name is written by default');
+    assert.equal(off['Unit Committee Approval Name'], undefined);
+    assert.equal(off['Beneficiary Approval Name'], undefined);
+  });
+  await test('2026 values: the sample writes the form\'s totals, its dates, and its money', () => {
+    const v = W26.buildFieldValues(SAMPLE26);
+    assert.equal(v.text['Birth Date'], '1/2/2010');
+    assert.equal(v.text['Proposal Approved Date'], '03/01/2027');
+    assert.equal(v.text['Estimated Cost of Materials'], '1200.00');
+    assert.equal(v.text['AmountCollected'], '500.00');
+    assert.equal(v.text['Difference'], '19.75');
+    assert.equal(v.text['Youth Members Total Hours'], '68.00');
+    assert.equal(v.radio['Need Fundraising App?'], 'Yes');
+    assert.equal(v.choice.Dropdown1, 'Crew');
+  });
+  await test('2026 values: a bad amount is written as typed with a plain note; a bad total is left blank with a note', () => {
+    const d = JSON.parse(JSON.stringify(SAMPLE26));
+    d.proposal.costs.tools = 'about 20';
+    const v = W26.buildFieldValues(d);
+    assert.equal(v.text['Estimated Cost of Tools'], 'about 20');
+    assert.ok(v.notes.some((n) => /^PDF page 9, Preliminary cost: tools: “about 20” is not a plain number/.test(n)), v.notes.join(' | '));
+    assert.ok(!('Total Prelimary Cost Estimate' in v.text));
+    assert.ok(v.notes.some((n) => /this total was left blank/.test(n)));
+  });
+  await test('2026 sample: every field path in the table is filled, except table rows 4 and later', () => {
+    const merged = M26.defaults();
+    const sameKeys = (a, b) => JSON.stringify(Object.keys(a).sort()) === JSON.stringify(Object.keys(b).sort());
+    assert.ok(sameKeys(merged, SAMPLE26) || Object.keys(SAMPLE26).every((k) => k in merged), 'sample keys are 2026 keys');
+    for (const [name, kind, p] of M26.FIELDS) {
+      if (!p || ['computed', 'never', 'fixed'].includes(kind)) continue;
+      const idx = /\.(\d+)\./.exec(p);
+      if (idx && +idx[1] >= 3 && !/\.hours\./.test(p)) continue;
+      const v = p.split('.').reduce((o, k) => (o ? o[k] : undefined), SAMPLE26);
+      assert.ok(v !== undefined && String(v).trim() !== '', `${name} (${p}) is blank in the sample`);
+    }
+  });
   console.log(`\n${passed} passed, ${failures.length} failed${skipped ? `, ${skipped} skipped` : ''}`);
   process.exit(failures.length ? 1 : 0);
 })();
