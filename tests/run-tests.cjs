@@ -525,6 +525,30 @@ function everyAnswer() {
     });
   }
 
+  console.log('Privacy');
+  await test('privacy: no internal hostnames, real IP addresses, private keys, or personal emails in tracked files', () => {
+    // Scans what git tracks (not what is on disk). Documentation addresses and the project's example names are allowed.
+    const files = execFileSync('git', ['ls-files'], { cwd: ROOT }).toString().split('\n').filter(Boolean)
+      .filter((f) => !/\.(pdf|jpe?g|png|heic|docx|xlsx|odt|zip)$/i.test(f) && !f.startsWith('vendor/'));
+    // Not addresses: loopback, the documentation ranges (RFC 5737), and Scouting requirement numbers such as 9.0.2.10.
+    const ip = /\b(?!127\.0\.0\.1\b|0\.0\.0\.0\b|9\.0\.2\.)(?!192\.0\.2\.|198\.51\.100\.|203\.0\.113\.)(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\b/g;
+    const internal = /\.corp\b|\.internal\b|\.lan\b/i;
+    const email = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}/g;
+    const allowedEmail = (e) => /@example\.org$/.test(e) || e === 'hagan@cih.com';
+    const problems = [];
+    for (const f of files) {
+      if (f === 'tests/run-tests.cjs') continue;   // this file holds the patterns themselves, and the bad-URL examples
+      const buf = fs.readFileSync(path.join(ROOT, f));
+      if (buf.includes(0)) continue;   // binary
+      const text = buf.toString('utf8');
+      for (const m of text.matchAll(ip)) problems.push(`${f}: IP address ${m[0]}`);
+      if (internal.test(text)) problems.push(`${f}: internal host or domain`);
+      for (const m of text.matchAll(email)) if (!allowedEmail(m[0])) problems.push(`${f}: email ${m[0]}`);
+      if (/-----BEGIN [A-Z ]*PRIVATE KEY-----|\bAKIA[0-9A-Z]{16}\b/.test(text)) problems.push(`${f}: key material`);
+    }
+    assert.deepEqual(problems, [], problems.slice(0, 10).join('; '));
+  });
+
   console.log('Official-workbook wording');
   {
     const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
