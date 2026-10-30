@@ -940,6 +940,51 @@ async function run() {
       assert.match(await evaluate('document.querySelector("#j-tick-planApproved").closest("li").className'), /j-done/);
       await evaluate(`localStorage.removeItem(${JSON.stringify(KG26)}); true`);
     });
+    await test('guided 2026 page: a long prompt shows "In short", the workbook\'s rule sentences word for word, and the full question one tap away', async () => {
+      await evaluate(`localStorage.removeItem(${JSON.stringify(KG26)}); true`);
+      await open(G26, READY26);
+      await evaluate('document.querySelectorAll("nav button")[1].click(); true');
+      await waitFor('document.querySelectorAll("nav button")[1].classList.contains("active")');
+      const lead = 'document.getElementById("f-proposal-leadership").closest(".field")';
+      assert.match(await evaluate(`${lead}.querySelector(".plain-short").textContent`), /^In short: Say how you will lead your helpers/);
+      const rules = await evaluate(`[...${lead}.querySelectorAll(".plain-rule")].map((e) => e.textContent)`);
+      assert.deepEqual(rules, ['The workbook says: “You must demonstrate leadership of at least two people in addition to yourself.”', 'The workbook says: “Your family members may assist, but you must recruit the help needed to complete the project.”']);
+      assert.equal(await evaluate(`${lead}.querySelector(".plain-full").open`), false, 'the full question starts closed');
+      assert.equal(await evaluate(`${lead}.querySelector(".plain-full summary").textContent`), 'Show the full official question');
+      await evaluate(`${lead}.querySelector(".plain-full summary").click(); true`);
+      assert.match(await evaluate(`${lead}.querySelector(".plain-full p").textContent`), /^How will you show leadership\? You must demonstrate leadership of at least two people in addition to yourself\..*How will you delegate authority to others\?$/);
+      assert.equal(await evaluate('document.querySelectorAll(".plain-help").length > 3'), true, 'several long prompts have an In short line');
+      assert.equal(await evaluate('document.getElementById("f-proposal-motivation").closest(".field").querySelector(".plain-help")'), null, 'a short prompt is shown as printed');
+      assert.match(await evaluate('document.getElementById("f-proposal-motivation").closest(".field").querySelector(".help").textContent'), /^Why do you want to do this project\?/);
+    });
+    await test('guided 2026 page: the input is described by the short line and rules (not the whole question), and typing still saves', async () => {
+      const described = await evaluate('document.getElementById("f-proposal-leadership").getAttribute("aria-describedby")');
+      assert.match(described, /f-proposal-leadership-plain/);
+      const target = await evaluate(`document.getElementById("f-proposal-leadership-plain").textContent`);
+      assert.doesNotMatch(target, /How will you delegate authority/, 'the full question is not read out on every focus');
+      await setValue('#f-proposal-leadership', 'I will lead four helpers.');
+      await waitFor(`(localStorage.getItem(${JSON.stringify(KG26)}) || '').includes("I will lead four helpers.")`, 5000);
+      assert.deepEqual(problems, []);
+    });
+    await test('guided 2026 page: Permits and Safety keep their "must" and "DO NOT" sentences, and Appendix D keeps the donor exception', async () => {
+      await evaluate('document.querySelectorAll("nav button")[3].click(); true');
+      await waitFor('document.querySelectorAll("nav button")[3].classList.contains("active")');
+      assert.match(await evaluate('document.getElementById("f-plan-permits").closest(".field").querySelector(".plain-rule").textContent'), /“DO NOT START WORK UNTIL YOU HAVE ALL PERMITS AND PERMISSIONS\.”/);
+      await evaluate('document.querySelectorAll("nav button")[1].click(); true');
+      await waitFor('document.querySelectorAll("nav button")[1].classList.contains("active")');
+      const safety = await evaluate('[...document.getElementById("f-proposal-safety").closest(".field").querySelectorAll(".plain-rule")].length');
+      assert.equal(safety, 3);
+      await evaluate('document.querySelectorAll("nav button")[2].click(); true');
+      await waitFor('document.querySelectorAll("nav button")[2].classList.contains("active")');
+      assert.match(await evaluate('document.getElementById("f-appendixD-donors").closest(".field").innerText'), /You do not need to list parents, family members/);
+    });
+    await test('Classic 2026 page: the official prompts are shown as printed, with no In short lines', async () => {
+      await open(F26, READY26);
+      await evaluate('document.querySelectorAll("nav button")[1].click(); true');
+      await waitFor('document.querySelectorAll("nav button")[1].classList.contains("active")');
+      assert.equal(await evaluate('document.querySelectorAll(".plain-help, .plain-full").length'), 0);
+      assert.match(await evaluate('document.getElementById("f-proposal-leadership").closest(".field").querySelector(".help").textContent'), /^How will you show leadership\? You must demonstrate leadership of at least two people in addition to yourself\./);
+    });
     await test('guided 2026 page on a 390px phone: the stage card and Your path fit with no sideways scrolling', async () => {
       await open(G26, READY26);
       await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });

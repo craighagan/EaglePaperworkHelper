@@ -13,10 +13,11 @@ Found in the Phase 4 review (review panel p4, rounds 1 and 2). Fixed: the AI dis
 
 ## Guided 2026 page
 
-- It is the Classic page with stage names. The 2023 Guided page has stage cards, "Your path", and plain-language labels. The 2026 Guided page does not have them. Its title and home card say "stages"; reword them, or add those features.
+- Done in this round: stage cards, "Your path" (from the workbook's page 3 checklist), and "In short" lines for the 13 long prompts.
+- Not done: examples under short boxes, and plain error messages like the 2023 Guided page has.
 - Print titles use the Classic names ("Project Contacts") while the screen uses "1. Set Up". Use one set of names.
 - The Guided page takes its identity from the file name. A renamed copy opens as the Classic page.
-- The official wording is the only help under each box. A plain version could be shown by default, with the official wording behind a disclosure.
+- The page title and home card say "stages"; that is now true (stage cards). Re-read both after the review.
 
 ## Smaller gaps
 

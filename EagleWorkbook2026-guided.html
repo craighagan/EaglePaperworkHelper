@@ -50,6 +50,12 @@ td input{padding:5px 6px;font-size:13px;border-color:#ccc}
 .phase-num{font-size:12px;font-weight:700;color:#555;width:22px;text-align:right;flex-shrink:0}
 .phase-row input{flex:1}
 .phase-row input.phase-date{flex:0 0 140px}
+.plain-help{margin:4px 0 6px}
+.plain-short{font-size:14.5px;color:#1a1a1a}
+.plain-rule{font-size:13px;color:#4e2a00;background:#fff4e0;border-left:3px solid #c9a227;padding:4px 8px;margin-top:4px}
+.plain-full{margin:2px 0 6px;font-size:12.5px;color:#4e5a66}
+.plain-full summary{cursor:pointer;color:#00509e;font-weight:600}
+.plain-full p{margin-top:4px}
 .stage-card{background:#eaf2fb;border:1px solid #9bbce1;border-radius:10px;padding:16px;margin-bottom:16px}
 .stage-card h2{font-size:18px;color:#003f87;margin-bottom:4px}
 .next-step{font-weight:700;color:#003f87;font-size:14px}
@@ -86,7 +92,7 @@ td input{padding:5px 6px;font-size:13px;border-color:#ccc}
 .print-footer{display:none}
 @media(max-width:600px){.row{grid-template-columns:1fr}main{padding:12px}.phase-row{flex-wrap:wrap}.phase-row input{flex:1 1 100%}.phase-row input.phase-date{flex:1 1 45%}}
 @media print{
-  header,nav,.nav-btns,.workbook-controls,.page-footer,.print-only-bar,.stage-card,.help,.intro,.official-label{display:none!important}
+  header,nav,.nav-btns,.workbook-controls,.page-footer,.print-only-bar,.stage-card,.help,.intro,.official-label,.plain-help,.plain-full{display:none!important}
   body{background:#fff;font-size:10.5pt}
   .app{max-width:100%}
   main{padding:0}
@@ -165,6 +171,7 @@ td input{padding:5px 6px;font-size:13px;border-color:#ccc}
 <script src="lib/w26-model.js"></script>
 <script src="lib/attachments.js"></script>
 <script src="lib/workbook-common.js"></script>
+<script src="lib/w26-plain.js"></script>
 <script src="lib/w26-ui.js"></script>
 <script src="lib/w26-guided.js"></script>
 <script src="lib/w26-classic.js"></script>

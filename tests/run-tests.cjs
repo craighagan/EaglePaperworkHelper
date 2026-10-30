@@ -485,10 +485,11 @@ function everyAnswer() {
         const s = scripts(page);
         for (const [a, b] of [['lib/official-pdf.js', 'lib/preflight.js'], ['lib/official-pdf.js', 'lib/journey.js'], ['lib/journey.js', 'lib/tips.js'], ['lib/tips.js', 'lib/attachments.js'], ['lib/attachments.js', 'lib/workbook-common.js'], ['lib/workbook-common.js', own]]) before(s, a, b, page);
       }
-      for (const [page, extra] of [['EagleWorkbook2026.html', []], ['EagleWorkbook2026-guided.html', ['lib/w26-guided.js']]]) {
+      // The Guided 2026 page also loads w26-plain.js (before w26-ui.js) and w26-guided.js (after it). The Classic page loads neither.
+      for (const [page, before, after] of [['EagleWorkbook2026.html', [], []], ['EagleWorkbook2026-guided.html', ['lib/w26-plain.js'], ['lib/w26-guided.js']]]) {
         const s26 = scripts(page);
-        const order = ['lib/official-pdf.js', 'lib/preflight.js', 'lib/journey.js', 'lib/w26-tips.js', 'lib/w26-model.js', 'lib/attachments.js', 'lib/workbook-common.js', 'lib/w26-ui.js', ...extra, 'lib/w26-classic.js'];
-        assert.deepEqual(s26.filter((x) => order.includes(x) || x === 'lib/w26-guided.js'), order, page + ' script order');
+        const order = ['lib/official-pdf.js', 'lib/preflight.js', 'lib/journey.js', 'lib/w26-tips.js', 'lib/w26-model.js', 'lib/attachments.js', 'lib/workbook-common.js', ...before, 'lib/w26-ui.js', ...after, 'lib/w26-classic.js'];
+        assert.deepEqual(s26.filter((x) => order.includes(x) || /w26-(plain|guided)\.js$/.test(x)), order, page + ' script order');
       }
       const fill = scripts('FillOfficialPDF.html');
       for (const [a, b] of [['vendor/pdfjs/pdf.js', 'lib/official-pdf.js'], ['lib/official-pdf.js', 'lib/preflight.js'], ['lib/official-pdf.js', 'lib/attachments.js'], ['lib/preflight.js', 'lib/fill-page.js'], ['lib/attachments.js', 'lib/fill-page.js']]) before(fill, a, b, 'FillOfficialPDF.html');
@@ -1921,6 +1922,49 @@ function everyAnswer() {
       const src = ['lib/w26-classic.js', 'lib/w26-ui.js'].map((f) => read(f)).join('\n');
       for (const bad of ['innerHTML', 'insertAdjacentHTML', 'document.write']) assert.ok(!src.includes(bad), `${bad} in the 2026 page`);
       for (const f of ['lib/w26-classic.js', 'lib/w26-ui.js', 'lib/w26-model.js', 'lib/w26-pdf.js']) assert.doesNotMatch(read(f), /\binnerHTML\b/, f);
+    });
+    await test('2026 plain lines: every long official prompt has an "In short" line, and no short prompt has one', () => {
+      const PL = require(path.join(ROOT, 'lib/w26-plain.js'));
+      const all = { ...W26M.OFFICIAL.boxes, ...W26M.OFFICIAL.appendixD };
+      const long = Object.keys(all).filter((k) => PL.needsPlain(all[k][2]));
+      assert.ok(long.length >= 12, 'there are long prompts: ' + long.length);
+      assert.deepEqual(long.filter((k) => !PL.PLAIN[k]), [], 'long prompts with no In short line');
+      assert.deepEqual(Object.keys(PL.PLAIN).filter((k) => !all[k]), [], 'In short lines for boxes that do not exist');
+      assert.deepEqual(Object.keys(PL.PLAIN).filter((k) => !PL.needsPlain(all[k][2])), [], 'In short lines for prompts that are already short');
+    });
+    await test('2026 plain lines: every "must", "DO NOT", and exception sentence of the official prompt is shown word for word', () => {
+      const PL = require(path.join(ROOT, 'lib/w26-plain.js'));
+      const all = { ...W26M.OFFICIAL.boxes, ...W26M.OFFICIAL.appendixD };
+      let rules = 0;
+      for (const k of Object.keys(PL.PLAIN)) {
+        const official = all[k][2];
+        const shown = PL.plainFor(k, official);
+        const expected = official.split(/(?<=[.?!])\s+/).filter((x) => /\bmust\b|\bDO NOT\b|\bdo not need\b|\bmay not\b/i.test(x));
+        assert.deepEqual(shown.musts, expected, k);
+        for (const x of shown.musts) assert.ok(official.includes(x), `${k}: shown sentence is not in the official prompt`);
+        assert.equal(shown.full, official, k + ': the full question is shown unchanged');
+        rules += shown.musts.length;
+      }
+      assert.ok(rules >= 8, 'the leadership, safety, permits, and donors rules are all there: ' + rules);
+      assert.ok(PL.plainFor('proposal.leadership', all['proposal.leadership'][2]).musts.includes('You must demonstrate leadership of at least two people in addition to yourself.'));
+      assert.ok(PL.plainFor('plan.permits', all['plan.permits'][2]).musts.includes('DO NOT START WORK UNTIL YOU HAVE ALL PERMITS AND PERMISSIONS.'));
+      assert.equal(PL.plainFor('proposal.motivation', 'anything'), null, 'a box with no entry is shown as printed');
+    });
+    await test('2026 plain lines: an In short line is short, states no rule, and draws its words from the official prompt', () => {
+      const PL = require(path.join(ROOT, 'lib/w26-plain.js'));
+      const all = { ...W26M.OFFICIAL.boxes, ...W26M.OFFICIAL.appendixD };
+      const stem = (w) => w.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 5);
+      const stop = new Set('the a an and or of to in on for is are be it its you your will can how what who when where that this with as at by from not any may'.split(' '));
+      const words = (t) => t.split(/\s+/).map(stem).filter((w) => w.length >= 3 && !stop.has(w));
+      for (const [k, line] of Object.entries(PL.PLAIN)) {
+        assert.ok(line.length <= 300, `${k}: ${line.length} characters`);
+        assert.doesNotMatch(line, /\b(must|required|requirement|mandatory|have to|need to|always|never|only if|in writing)\b/i, `${k}: a rule word in the In short line`);
+        assert.doesNotMatch(line, PL.RULE_WORDS, k);
+        // A smoke alarm, not proof: most content words should come from the official prompt or label. The review panel checks meaning.
+        const off = new Set(words(all[k][2] + ' ' + all[k][1]));
+        const w = words(line), shared = w.filter((x) => off.has(x)).length / w.length;
+        assert.ok(shared >= 0.4, `${k}: only ${Math.round(shared * 100)}% of its words are in the official prompt`);
+      }
     });
     await test('2026 path: every sentence it quotes is on its stated page of the official PDF', async () => {
       if (!w26) return;
