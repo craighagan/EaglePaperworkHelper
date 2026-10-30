@@ -22,16 +22,14 @@ A final four-lens review (fidelity, teen and accessibility, security and history
 
 ## Smaller gaps
 
-- Privacy scan: a file with a NUL byte is skipped as binary (`buf.includes(0)`), so a planted address in such a file is not reported. The scan also does not cover IPv6 addresses or bare `user@host` strings. The uppercase-domain and `-J` checks were added.
+- Privacy scan: a file with a NUL byte is skipped as binary (`buf.includes(0)`), so a planted address in such a file is not reported. A bare `user@host` string without a TLD is not reported either.
 - Tip test: "every tip key matches the field path" checks only that there are at least ten keys. Check each key against the paths the page renders.
 - The browser test "a Scout with no tip panel open gets none" checks only the home-page link. Add the checks its name promises.
-- The Fill page, its help, and the README name only the Classic 2026 page.
 - "Open in" buttons and an unreadable draft: the repair copy is kept, but no confirmation asks first for a draft that is unreadable.
 
 ## Not built
 
 - Option B for 2026 attachments: a whole-workbook drawn copy with scans after pages 11, 18, and 22.
-- "Your path" for 2026 (`journeySteps` for the 2026 edition).
 - Carrying names and contacts from a 2023 draft into a 2026 draft.
 
 ## From the Guided 2026 review, not yet done

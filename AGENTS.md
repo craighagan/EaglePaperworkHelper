@@ -25,13 +25,28 @@ Breaking any of these is a defect, even if the tests pass.
 
 ## Personal and infrastructure data
 
-The test `privacy: no internal hostnames, real IP addresses, private keys, or personal emails in tracked files` in `tests/run-tests.cjs` scans every tracked text file for IP addresses (outside loopback and the documentation ranges), internal domains, email addresses other than `@example.org` and `hagan@cih.com`, and private-key markers. It cannot see names or street addresses, so review the diff by eye before every commit that touches fixtures, examples, or docs. The scan reads `tests/run-tests.cjs` too. Its deliberately bad samples have a `~` inside them that the test removes before use, so the file holds no leak of its own.
+The test `privacy: ...` in `tests/run-tests.cjs` runs `privacyProblems(name, text)` over every text file git tracks, plus new files that are not ignored yet (only `vendor/` and binary files are skipped; a file with a NUL byte counts as binary). It reports:
+
+- IPv4 addresses outside loopback and the documentation ranges, and IPv6 addresses (checked with `net.isIPv6`, so CSS such as `a::before` and times such as `12:34:56` pass).
+- Any host on the maintainer's own domain except the public troop page, and any other email than `@example.org` and `hagan@cih.com`.
+- Jump hosts (the `-J` flag, `ProxyJump`, `ProxyCommand`, and SSH URLs) other than `bastion.example.org`, and SSH targets on localhost.
+- Internal or private-network host names, local home-folder paths (macOS, Linux, Windows), cloud account IDs and ARNs.
+- Private keys, public SSH keys, and common cloud, code-host, chat, payment, and JWT tokens.
+
+It cannot see names, street addresses, or project themes, so review the diff by eye before every commit that touches fixtures, examples, tips, or docs. The scan reads `tests/run-tests.cjs` too. Its deliberately bad samples have a `~` inside them that the test removes before use, and its patterns are built from pieces, so the file holds no leak of its own. When you add a rule, add a planted sample that must be caught and a harmless sample that must pass.
 
 If personal or infrastructure data gets into a commit:
 1. Stop. Do not push.
 2. Tell the maintainer which commit and which string.
 3. A rewrite of local, unpushed history is fine with the maintainer's go-ahead. A rewrite does not change a remote: anything already pushed stays there, so check before you push, not after.
-4. Check the rewrite with `git grep` on every commit, and check the remote again after any push.
+4. Check the rewrite on every commit, not only the tip: list every blob of every commit (`git rev-list --objects --all`), search each one for the strings and patterns above, and read the commit messages. Check the remote again after any push.
+
+### Before any public push
+
+1. Run the unit tests (the privacy scan is one of them).
+2. Sweep every blob of every commit as in step 4 above, and compare the tip tree with the tree you reviewed.
+3. Look for names, places, and project themes by eye. A theme that you cannot show to be invented counts as real.
+4. Confirm the remote you are about to push to is the one you mean (`git remote -v`), and that the maintainer said yes.
 
 
 ## Layout
@@ -162,6 +177,12 @@ Run `node tools/screenshots.cjs` after any visible change to the Guided Proposal
 - **A test that encodes old behavior is a finding, not a nuisance.** When a fix changes behavior (Cancel used to delete signed pages), update the old test on purpose and say why in the commit.
 - **Reviewers can be wrong; check the primary text.** A reviewer called the council-exemption sentence unsupported; Fundraising Application Page B item 8 and Guide 9.0.2.10 support it. Quote the source before accepting or rejecting a finding.
 - **Deploying:** `tools/deploy.sh` refuses to run on a dirty tree and refuses any git-ignored file (pictures, Word files, spreadsheets) in a published folder. Test script changes on a throwaway copy (`rsync` the repo, commit there, run with `--target /tmp/...`), never with scratch commits in the real repo.
+- **`Element.append(null)` writes the text "null".** Build child lists with a filter (`.filter(Boolean)`) or conditional spreads. One stray "null" reached the Your path card this way.
+- **Shared text shows on both editions.** A sentence added to a function that both the 2023a and 2026 pages call appears on both. Pass the edition in (`attachmentsSection({ edition })`, `journeyCard({ collapse })`) and test each edition's page for the other's wording.
+- **Edition detection is one rule in four places** (`EagleJourney.editionOf`, `editionOfData` in `workbook-common.js`, `editionOf` in `official-pdf.js`, and the Fill pages through `lib.editionOf`). Change all four together; a test keeps them equal.
+- **New tests need a mutation check.** Break the code under test on purpose (for example soften a sentence, drop a field, flip a comparison) and confirm the test fails, then restore it. A review found ten tests that passed with the code broken.
+- **Tip text avoids "must" and "required".** A test enforces it. To show the workbook's own sentence, add a `quote` to the tip; it shows as "The workbook says: ..." and is checked against the page.
+- **Never replace an official question with a paraphrase.** The plain lines in `lib/w26-plain.js` sit above the full official question and every non-question official sentence, and `HIDDEN` records why any sentence is not shown.
 - **A failing test you wrote first is worth keeping.** Several bugs here (missing cover art, duplicate signed pages) were only caught once a test failed before the fix and passed after.
 
 ## Review panel
@@ -196,7 +217,8 @@ Before committing any change users will see, run a review panel. That means word
 
 4. **Triage the reports yourself.** Reproduce each finding before fixing it. If a finding is wrong, say why and skip it. Don't apply advice blindly, and never let a fix add a requirement.
 5. **Fix, then run round 2 with fresh reviewers.** Their job: for every earlier finding say FIXED, NOT FIXED, or PARTIAL with evidence, and look for new problems the fixes caused. Repeat until no BLOCKING or IMPORTANT findings remain.
-6. **Final check** (one verifier): tests pass, one clean history, the right author email, nothing secret or personal staged.
+6. **Final check** (one verifier): tests pass, one clean history, the right author email, nothing secret or personal staged. Before a first public push or any history rewrite, the privacy lens also inventories every commit (all blobs and messages), not only the working tree.
+   Add a **mutation round** for new tests: break the code on purpose in a scratch copy and confirm a test fails.
 7. **Record it.** Put a short summary in the commit message. Put deferred MINOR items in `todo/`.
 
 ### If it goes wrong
