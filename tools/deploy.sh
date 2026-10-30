@@ -85,7 +85,7 @@ fi
 # 2. Refuse if a personal file somehow sits in a folder we copy.
 #    (a) Any .json, .pdf, or client_secret file there. (b) Anything git is hiding there: .gitignore keeps pictures,
 #    Word files, spreadsheets and zips out of `git status`, so the check above would not notice them.
-PUBLISHED=(index.html EagleWorkbook-guided.html EagleWorkbook.html FillOfficialPDF.html BackupFromPDF.html lib vendor docs)
+PUBLISHED=(index.html EagleWorkbook-guided.html EagleWorkbook.html EagleWorkbook2026.html EagleWorkbook2026-guided.html FillOfficialPDF.html FillOfficialPDF2026.html BackupFromPDF.html lib vendor docs)
 if find "${PUBLISHED[@]}" \( -name '*.json' -o -name '*.pdf' -o -name 'client_secret*' \) 2>/dev/null | grep -q .; then
   echo "A .json, .pdf, or client_secret file is in a folder that would be published. Remove it first." >&2
   exit 1
@@ -109,7 +109,8 @@ node tests/run-tests.cjs >"$LOG" 2>&1 || {
 
 # 4. Copy. --relative keeps the folder layout. Files are readable by everyone, writable only by you.
 FILES=(
-  index.html EagleWorkbook-guided.html EagleWorkbook.html FillOfficialPDF.html BackupFromPDF.html
+  index.html EagleWorkbook-guided.html EagleWorkbook.html EagleWorkbook2026.html EagleWorkbook2026-guided.html
+  FillOfficialPDF.html FillOfficialPDF2026.html BackupFromPDF.html
   README.md INSTALL.md LICENSE .nojekyll .htaccess
   lib/ vendor/ docs/
 )
@@ -143,7 +144,7 @@ if [ -n "$URL" ]; then
             {
               echo '<?xml version="1.0" encoding="UTF-8"?>'
               echo '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
-              for page in "" EagleWorkbook-guided.html EagleWorkbook.html FillOfficialPDF.html BackupFromPDF.html; do
+              for page in "" EagleWorkbook-guided.html EagleWorkbook.html EagleWorkbook2026.html EagleWorkbook2026-guided.html FillOfficialPDF.html FillOfficialPDF2026.html BackupFromPDF.html; do
                 echo "  <url><loc>${XML_BASE}${page}</loc></url>"
               done
               echo '</urlset>'

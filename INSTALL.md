@@ -18,7 +18,10 @@ Copy them with the same folder structure:
 index.html
 EagleWorkbook-guided.html
 EagleWorkbook.html
+EagleWorkbook2026.html
+EagleWorkbook2026-guided.html
 FillOfficialPDF.html
+FillOfficialPDF2026.html
 BackupFromPDF.html
 lib/
 vendor/
@@ -42,7 +45,8 @@ Example, copying from the downloaded folder to a server you reach over SSH:
 
 ```bash
 rsync -av --delete \
-  index.html EagleWorkbook-guided.html EagleWorkbook.html FillOfficialPDF.html BackupFromPDF.html \
+  index.html EagleWorkbook-guided.html EagleWorkbook.html EagleWorkbook2026.html EagleWorkbook2026-guided.html \
+  FillOfficialPDF.html FillOfficialPDF2026.html BackupFromPDF.html \
   lib vendor docs README.md INSTALL.md LICENSE .nojekyll .htaccess \
   you@your-server:/var/www/eagle/
 ```

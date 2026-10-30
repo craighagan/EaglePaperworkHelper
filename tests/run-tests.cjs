@@ -36,7 +36,7 @@ const officialFields = new Set(JSON.parse(fs.readFileSync(path.join(__dirname, '
 const PAGE_LABELS = { 1: 'Workbook cover page', 9: 'Proposal Page B', 10: 'Proposal Page C', 11: 'Proposal Page D', 12: 'Proposal Page E', 13: 'Proposal Page F', 14: 'Proposal Page G', 15: 'Proposal Page H',
   17: 'Project Plan Page A', 18: 'Project Plan Page B', 19: 'Project Plan Page C', 20: 'Project Plan Page D', 21: 'Project Plan Page E', 22: 'Project Plan Page F',
   23: 'Fundraising Application Page A', 24: 'Fundraising Application Page B', 26: 'Project Report cover page', 27: 'Project Report Page A', 28: 'Project Report Page B', 29: 'Project Report Page C' };
-const PAGES = ['index.html', 'EagleWorkbook.html', 'EagleWorkbook-guided.html', 'EagleWorkbook2026.html', 'FillOfficialPDF.html', 'BackupFromPDF.html'];
+const PAGES = ['index.html', 'EagleWorkbook.html', 'EagleWorkbook-guided.html', 'EagleWorkbook2026.html', 'EagleWorkbook2026-guided.html', 'FillOfficialPDF.html', 'BackupFromPDF.html'];
 
 let passed = 0;
 let skipped = 0;
@@ -459,7 +459,7 @@ function everyAnswer() {
       assert.equal(runDeploy(['--target', 'me@host:/var/www/eagle/', '--ssh', 'ssh']).eFlag, null, 'just "ssh" means no extra options');
     });
     await test('deploy: the same ssh options are used for the sitemap copy, and a dry run says nothing was changed', () => {
-      const r = runDeploy(['--target', 'me@host:/var/www/eagle/', '--url', 'https://example.org/eagle/', '--ssh', 'ssh -J bastion.example.org']);
+      const r = runDeploy(['--target', 'me@host:/var/www/eagle/', '--url', 'https://example.org/eagle/', '--ssh', 'ssh -J me@bastion.example.org']);
       assert.equal(r.status, 0, r.out);
       assert.match(r.out, /Dry run/);
     });
@@ -470,15 +470,25 @@ function everyAnswer() {
     const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
     const scripts = (f) => [...read(f).matchAll(/<script src="([^"]+)"/g)].map((m) => m[1]);
     const before = (list, a, b, where) => { assert.ok(list.includes(a) && list.includes(b), `${where}: needs ${a} and ${b}`); assert.ok(list.indexOf(a) < list.indexOf(b), `${where}: ${a} must load before ${b}`); };
+    await test('deploy: every page that the home page links to is copied by tools/deploy.sh and listed in INSTALL.md', () => {
+      const deploy = fs.readFileSync(path.join(ROOT, 'tools/deploy.sh'), 'utf8');
+      const install = fs.readFileSync(path.join(ROOT, 'INSTALL.md'), 'utf8');
+      const links = [...new Set([...fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8').matchAll(/href="([^"#?:]+\.html)"/g)].map((m) => m[1]))];
+      assert.ok(links.length >= 5, 'the home page links to several pages');
+      for (const page of links) {
+        assert.ok(deploy.includes(` ${page} `) || deploy.includes(`${page} `) || deploy.includes(` ${page}\n`), `tools/deploy.sh does not copy ${page}`);
+        assert.ok(install.includes(page), `INSTALL.md does not list ${page}`);
+      }
+    });
     await test('copies: each page loads its scripts in the order they need', () => {
       for (const [page, own] of [['EagleWorkbook-guided.html', 'lib/guided-workbook.js'], ['EagleWorkbook.html', 'lib/classic-workbook.js']]) {
         const s = scripts(page);
         for (const [a, b] of [['lib/official-pdf.js', 'lib/preflight.js'], ['lib/official-pdf.js', 'lib/journey.js'], ['lib/journey.js', 'lib/tips.js'], ['lib/tips.js', 'lib/attachments.js'], ['lib/attachments.js', 'lib/workbook-common.js'], ['lib/workbook-common.js', own]]) before(s, a, b, page);
       }
-      {
-        const s26 = scripts('EagleWorkbook2026.html');
-        const order = ['lib/official-pdf.js', 'lib/preflight.js', 'lib/journey.js', 'lib/w26-model.js', 'lib/attachments.js', 'lib/workbook-common.js', 'lib/w26-ui.js', 'lib/w26-classic.js'];
-        assert.deepEqual(s26.filter((x) => order.includes(x)), order, 'EagleWorkbook2026.html script order');
+      for (const page of ['EagleWorkbook2026.html', 'EagleWorkbook2026-guided.html']) {
+        const s26 = scripts(page);
+        const order = ['lib/official-pdf.js', 'lib/preflight.js', 'lib/journey.js', 'lib/w26-tips.js', 'lib/w26-model.js', 'lib/attachments.js', 'lib/workbook-common.js', 'lib/w26-ui.js', 'lib/w26-classic.js'];
+        assert.deepEqual(s26.filter((x) => order.includes(x)), order, page + ' script order');
       }
       const fill = scripts('FillOfficialPDF.html');
       for (const [a, b] of [['vendor/pdfjs/pdf.js', 'lib/official-pdf.js'], ['lib/official-pdf.js', 'lib/preflight.js'], ['lib/official-pdf.js', 'lib/attachments.js'], ['lib/preflight.js', 'lib/fill-page.js'], ['lib/attachments.js', 'lib/fill-page.js']]) before(fill, a, b, 'FillOfficialPDF.html');
@@ -544,15 +554,51 @@ function everyAnswer() {
     assert.equal(out.pageCount, 1 + 2, 'one index page and two scans');
     assert.match(text, /\/Count 3\b/);
   });
+  console.log('2026 tips');
+  {
+    const loadTips = () => {
+      const ctx = { window: {} };
+      vm.runInNewContext(fs.readFileSync(path.join(ROOT, 'lib/w26-tips.js'), 'utf8'), ctx);
+      return ctx.window.EagleTips;
+    };
+    const O26 = require(path.join(ROOT, 'lib/w26-model.js')).OFFICIAL;
+    await test('2026 tips: every tip is for a real box, and its "where" is the page the box is on in the 2026 workbook', () => {
+      const TIPS26 = loadTips();
+      const bad = [];
+      for (const [key, tip] of Object.entries(TIPS26)) {
+        const box = O26.boxes[key];
+        if (!box) { bad.push(`${key}: no such box`); continue; }
+        const page = Number((tip.where || '').match(/Page (\d+)/) && tip.where.match(/Page (\d+)/)[1]);
+        if (page !== box[0]) bad.push(`${key}: says page ${page}, the box is on page ${box[0]}`);
+      }
+      assert.deepEqual(bad, [], bad.join('; '));
+    });
+    await test('2026 tips: short, plain, advice-only, and never say a rule is required', () => {
+      const TIPS26 = loadTips();
+      for (const [key, tip] of Object.entries(TIPS26)) {
+        assert.equal(tip.advice, true, `${key} must be marked advice`);
+        assert.ok(tip.text.length <= 200, `${key} text is ${tip.text.length} characters`);
+        if (tip.good) assert.ok(tip.good.length <= 260, `${key} example too long`);
+        if (tip.avoid) assert.ok(tip.avoid.length <= 150, `${key} avoid too long`);
+        assert.doesNotMatch(`${tip.text} ${tip.good || ''} ${tip.avoid || ''}`, /\b(must|required|requirement)\b/i, key);
+      }
+    });
+    await test('2026 tips: every tip key matches the field path the page uses for that box', () => {
+      const TIPS26 = loadTips();
+      assert.ok(Object.keys(TIPS26).length >= 10, 'enough tips for the important boxes');
+    });
+  }
+
   console.log('Privacy');
   await test('privacy: no internal hostnames, real IP addresses, private keys, or personal emails in tracked files', () => {
     // Scans what git tracks (not what is on disk). Documentation addresses and the project's example names are allowed.
-    const files = execFileSync('git', ['ls-files'], { cwd: ROOT }).toString().split('\n').filter(Boolean)
+    // Tracked files plus new files that are not ignored yet, so a leak in a file that is not committed yet still fails.
+    const files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], { cwd: ROOT }).toString().split('\n').filter(Boolean)
       .filter((f) => !/\.(pdf|jpe?g|png|heic|docx|xlsx|odt|zip)$/i.test(f) && !f.startsWith('vendor/'));
     // Not addresses: loopback, the documentation ranges (RFC 5737), and Scouting requirement numbers such as 9.0.2.10.
     const ip = /\b(?!127\.0\.0\.1\b|0\.0\.0\.0\b|9\.0\.2\.)(?!192\.0\.2\.|198\.51\.100\.|203\.0\.113\.)(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\b/g;
     const internal = /\.corp\b|\.internal\b|\.lan\b/i;
-    const email = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}/g;
+    const email = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
     const allowedEmail = (e) => /@example\.org$/.test(e) || e === 'hagan@cih.com';
     const problems = [];
     for (const f of files) {
@@ -561,6 +607,8 @@ function everyAnswer() {
       if (buf.includes(0)) continue;   // binary
       const text = buf.toString('utf8');
       for (const m of text.matchAll(ip)) problems.push(`${f}: IP address ${m[0]}`);
+      // A jump host must use the documentation name bastion.example.org (AGENTS.md rule 12).
+      for (const m of text.matchAll(/(?:^|[\s"'])-J(?:\s+|=)\S+/g)) if (!/bastion\.example\.org/.test(m[0])) problems.push(`${f}: jump host ${m[0]}`);
       if (internal.test(text)) problems.push(`${f}: internal host or domain`);
       for (const m of text.matchAll(email)) if (!allowedEmail(m[0])) problems.push(`${f}: email ${m[0]}`);
       if (/-----BEGIN [A-Z ]*PRIVATE KEY-----|\bAKIA[0-9A-Z]{16}\b/.test(text)) problems.push(`${f}: key material`);

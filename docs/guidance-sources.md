@@ -58,3 +58,7 @@ Each tip below is common advice, not a rule, and each is backed by at least two 
 ## Adding or changing a tip
 
 See "Add or change a tip" in [AGENTS.md](../AGENTS.md). Add any new source to this page.
+
+## 2026 workbook tips (lib/w26-tips.js)
+
+Each 2026 tip is written from the official 2026 workbook text on the page named in its `where` field, in plainer words, and is marked `advice: true`. Two tips quote the workbook’s own questions: page 4 (talk with your Scoutmaster before you start) and page 19 (what went well, and how you determined it was successful). Lines that go beyond the workbook text are the project’s own examples and advice. Before release, check any that cite a council, coach, or blog (see `todo/2026-open-items.md`).

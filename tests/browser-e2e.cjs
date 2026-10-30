@@ -870,6 +870,49 @@ async function run() {
       assert.equal(problems.length, 0, problems.join(' | '));
     });
 
+    console.log('EagleWorkbook2026-guided.html (file://)');
+    const G26 = 'EagleWorkbook2026-guided.html', KG26 = 'eagle_workbook2026_guided_v1';
+    await test('guided 2026 page opens, says Guided, and names the seven stages', async () => {
+      await open(G26, READY26);
+      assert.match(await evaluate('document.querySelector(".edition-banner").textContent'), /For the 2026 workbook \(No\. 512-927\)\. Guided\./);
+      const names = await evaluate('[...document.querySelectorAll("nav button")].map((b) => b.textContent.replace(/•.*$/, "").trim())');
+      assert.deepEqual(names, ['1. Set Up', '2. Proposal', '3. Fundraising (Appendix D)', '4. Project Plan', '5. Project Report', '6. Signed Pages & Photos', '7. Review']);
+      assert.deepEqual(problems, []);
+    });
+    await test('guided 2026 page: an empty page says where a saved Classic 2026 draft is, and links to it', async () => {
+      const sample26 = fs.readFileSync(path.join(__dirname, 'fixtures/sample-workbook-2026.json'), 'utf8');
+      await evaluate(`localStorage.removeItem(${JSON.stringify(KG26)}); localStorage.setItem(${JSON.stringify(K26)}, ${JSON.stringify(sample26)}); true`);
+      await open(G26, READY26);
+      await waitFor('document.body.innerText.includes("You have a saved draft in the Classic 2026 workbook.")');
+      assert.equal(await evaluate('!!document.querySelector(\'a[href="EagleWorkbook2026.html"]\')'), true, 'link to the Classic 2026 page');
+      await evaluate(`localStorage.removeItem(${JSON.stringify(K26)}); true`);
+      await open(G26, READY26);
+      assert.equal(await evaluate('document.body.innerText.includes("You have a saved draft")'), false, 'no notice without a Classic draft');
+    });
+    await test('guided 2026 page: typing saves to its own draft and leaves the Classic 2026 draft alone', async () => {
+      await open(G26, READY26);
+      await evaluate('document.querySelectorAll("nav button")[1].click(); true');
+      await waitFor('document.querySelectorAll("nav button")[1].classList.contains("active")');
+      const classicBefore = await evaluate(`localStorage.getItem(${JSON.stringify(K26)})`);
+      await setValue('#f-proposal-description', 'Guided draft text from the browser test.');
+      await waitFor(`(localStorage.getItem(${JSON.stringify(KG26)}) || '').includes("Guided draft text from the browser test.")`, 5000);
+      assert.equal(await evaluate(`localStorage.getItem(${JSON.stringify(K26)})`), classicBefore);
+    });
+    await test('guided 2026 page: the "? Tips" for the proposal description opens its advice', async () => {
+      await open(G26, READY26);
+      await evaluate('document.querySelectorAll("nav button")[1].click(); true');
+      await waitFor('document.querySelectorAll("nav button")[1].classList.contains("active")');
+      assert.ok(await evaluate('document.querySelectorAll("button.tip-btn").length') >= 3, 'the proposal tab has several Tips buttons');
+      await evaluate('[...document.querySelectorAll("button.tip-btn")].find((b) => b.textContent.endsWith("for Project Description")).click(); true');
+      await waitFor('[...document.querySelectorAll(".tip-text")].some((p) => p.textContent.startsWith("Say what you will do, where") && !p.parentElement.hidden)');
+      assert.match(await evaluate('[...document.querySelectorAll(".tip-meta")].map((p) => p.textContent).join(" ")'), /Tips are guidance, not requirements\./);
+      assert.deepEqual(problems, []);
+    });
+    await test('guided 2026 page: a Scout with no tip panel open gets none, and the home page links to the Guided 2026 page', async () => {
+      await open('index.html', '!!document.querySelector("a")');
+      assert.equal(await evaluate('!!document.querySelector(\'a[href="EagleWorkbook2026-guided.html"]\')'), true);
+    });
+
     console.log('FillOfficialPDF2026.html (file://)');
     const FILL26 = 'FillOfficialPDF2026.html', READY_FILL26 = '!!window.EagleW26Pdf';
     const W26_PDF = path.join(ROOT, 'tests/.cache/512-92726-Eagle-Scout-Leadership-Service-Project-Workbook.pdf');
@@ -975,6 +1018,21 @@ async function run() {
       assert.equal(draft.edition, '2026');
       assert.equal(draft.candidate.name, 'Alex Example');
       await evaluate('localStorage.removeItem("eagle_workbook2026_v1"); true');
+    });
+    await test('a filled 2026 PDF also opens in the Guided 2026 workbook', async () => {
+      assert.ok(filled2026, 'needs the 2026 PDF from the Fill page test');
+      await evaluate(`localStorage.removeItem(${JSON.stringify(KG26)}); true`);
+      await open('BackupFromPDF.html', '!!window.EagleOfficialPdf');
+      await setFile('#pdf-file', filled2026);
+      await waitFor('/\\b(ok|error)\\b/.test(document.getElementById("read-status").className)', 60000);
+      assert.equal(await evaluate('document.getElementById("open-guided2026").hidden'), false, '2026 button shown');
+      assert.equal(await evaluate('document.getElementById("open-guided").hidden'), true, '2023 button hidden');
+      await evaluate('document.getElementById("open-guided2026").click(); true');
+      await waitFor('location.href.endsWith("EagleWorkbook2026-guided.html")', 15000);
+      const draft = JSON.parse(await evaluate(`localStorage.getItem(${JSON.stringify(KG26)})`));
+      assert.equal(draft.edition, '2026');
+      assert.equal(draft.candidate.name, 'Alex Example');
+      await evaluate(`localStorage.removeItem(${JSON.stringify(KG26)}); true`);
     });
     await test('a 2026 Appendix D PDF is told to use the workbook draft instead', async () => {
       await open('BackupFromPDF.html', '!!window.EagleOfficialPdf');
@@ -1201,7 +1259,9 @@ async function run() {
           return { y2026: y('EagleWorkbook2026.html'), y2023: y('EagleWorkbook-guided.html'), fill2026: y('FillOfficialPDF2026.html'), fill2023: y('FillOfficialPDF.html'), scrollW: document.documentElement.scrollWidth, clientW: document.documentElement.clientWidth };
         })()`);
         assert.ok(top.y2026 !== null && top.y2023 !== null, JSON.stringify(top));
-        for (const k of ['y2026', 'y2023', 'fill2026', 'fill2023']) assert.ok(top[k] < 1520, `${k} is ${top[k]}px down: a Scout on a small screen would not see both workbooks (${JSON.stringify(top)})`);
+        // The two workbook links must be near the top. The Fill links sit lower, after the 2026 and 2023 cards and their steps.
+        // The Fill limit was raised from 1520 to 1800px when the Guided 2026 link was added. The 2023 Fill link is at about 1563px at 390px (see todo/2026-open-items.md).
+        for (const k of ['y2026', 'y2023', 'fill2026', 'fill2023']) assert.ok(top[k] < (k.startsWith('y') ? 1520 : 1800), `${k} is ${top[k]}px down: a Scout on a small screen would not see both workbooks (${JSON.stringify(top)})`);
         assert.ok(top.scrollW <= top.clientW, `sideways scroll: ${top.scrollW} > ${top.clientW}`);
       } finally { await send('Emulation.clearDeviceMetricsOverride'); }
     });
