@@ -38,7 +38,18 @@ table{width:100%;border-collapse:collapse;font-size:.93rem}
 th,td{border-top:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:top}
 th{width:38%;font-weight:600}
 footer{margin-top:24px;font-size:.85rem;color:var(--muted)}
-@media(max-width:620px){.tools{grid-template-columns:1fr}header,.body{padding-left:18px;padding-right:18px}}
+.editions{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:12px;align-items:start}
+.edition{border:1px solid var(--line);border-radius:12px;padding:12px 14px 14px;background:#fbfdff}
+.edition h3{margin:0 0 6px;color:var(--blue);font-size:1.12rem}
+.edition h3 span{font-weight:400;color:var(--muted);font-size:.9rem}
+.edition ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.edition li{margin:0}
+.edition .tool{padding:10px 12px}
+.edition .faq{margin:0 0 8px;font-size:.88rem;color:var(--muted)}
+details.faqbox,details.how{margin:12px 0;border:1px solid var(--line);border-radius:10px;padding:8px 12px;background:#fff}
+details summary{cursor:pointer;font-weight:600;color:var(--blue);padding:4px 0}
+details summary:focus-visible{outline:3px solid #0066b8;outline-offset:2px}
+@media(max-width:620px){.tools,.editions{grid-template-columns:1fr}header,.body{padding-left:18px;padding-right:18px}}
 </style>
 </head>
 <body>
@@ -51,33 +62,53 @@ footer{margin-top:24px;font-size:.85rem;color:var(--muted)}
     <p class="note"><strong>These pages never send your answers anywhere.</strong> Backup files and PDFs hold personal details (name, birth date, contacts), so they go wherever you copy or share them. This is an independent helper, not made or endorsed by Scouting America. Read the entire official workbook you are using, including its appendices. For the 2023 workbook, the official PDF is <a href="https://www.scouting.org/wp-content/uploads/2023/01/EagleProjectWorkbook2023a.pdf" target="_blank" rel="noopener noreferrer">here ↗</a>, and you should read its “Message to Scouts and Parents or Guardians” with a parent or guardian.</p>
 
     <h2>Which workbook?</h2>
-    <p>Scouting America published the <strong>2026 workbook</strong> (No. 512-927). This helper fills it on the 2026 pages. The <strong>2023 workbook</strong> (No. 2023a) is still on the 2023 pages.</p>
-    <div class="tools">
-      <a class="tool" href="EagleWorkbook2026.html"><strong>2026 workbook (No. 512-927) →</strong><span>The Classic 2026 page: official order and wording.</span></a>
-      <a class="tool" href="FillOfficialPDF2026.html"><strong>Fill the 2026 PDF and Appendix D →</strong><span>Copy your 2026 answers into the official 2026 PDF and its Fundraising Application.</span></a>
+    <p>Scouting America published the <strong>2026 workbook</strong> (No. 512-927). This helper has separate pages for it and for the <strong>2023 workbook</strong> (No. 2023a). Not sure which one is yours? Ask your Scoutmaster or council.</p>
+    <div class="editions">
+      <section class="edition" aria-labelledby="ed2026">
+        <h3 id="ed2026">2026 workbook <span>(No. 512-927)</span></h3>
+        <ul>
+          <li><a class="tool" href="EagleWorkbook2026.html"><strong>Classic 2026 workbook →</strong><span>Official order and wording.</span></a></li>
+          <li><a class="tool" href="FillOfficialPDF2026.html"><strong>Fill the 2026 PDF and Appendix D →</strong><span>Put your answers into the official 2026 PDF.</span></a></li>
+        </ul>
+      </section>
+      <section class="edition" aria-labelledby="ed2023">
+        <h3 id="ed2023">2023 workbook <span>(No. 2023a)</span></h3>
+        <p class="faq">Scouting America’s 2026 workbook FAQ says: “A Scout whose project proposal was fully approved before January 1, 2027, using the 2023 workbook, may continue using that workbook to complete the project.”</p>
+        <ul>
+          <li><a class="tool start" href="EagleWorkbook-guided.html"><strong>2023 Guided workbook →</strong><span>Plain-language questions, examples, and progress checks.</span></a></li>
+          <li><a class="tool" href="EagleWorkbook.html"><strong>2023 Classic workbook →</strong><span>Worded and ordered like the official workbook.</span></a></li>
+          <li><a class="tool" href="FillOfficialPDF.html"><strong>Fill the 2023 PDF →</strong><span>Put your answers into the official workbook PDF.</span></a></li>
+          <li><a class="tool" href="BackupFromPDF.html"><strong>Make a backup file from a PDF →</strong><span>2023 workbook only, for now.</span></a></li>
+        </ul>
+      </section>
     </div>
-    <p>Scouting America’s 2026 workbook FAQ says:</p>
-    <blockquote>“Any Scout can start using the 2026 Eagle Scout leadership service project workbook now that Scouting America has published it. The 2026 workbook will be required for every Life Scout starting work for the first time on an Eagle Scout leadership service project.”</blockquote>
-    <blockquote>“A Scout whose project proposal was fully approved before January 1, 2027, using the 2023 workbook, may continue using that workbook to complete the project.”</blockquote>
-    <blockquote>“The 2027 Guide to Advancement, published in January 2027, will require Scouts to obtain the beneficiary’s and Scoutmaster’s approval of the project plan before starting work. That requirement will apply to all Scouts effective January 1, 2027, whether using the 2023 or the 2026 project workbook.”</blockquote>
-    <p>Not sure which one is yours? Ask your Scoutmaster or council.</p>
+    <details class="faqbox">
+      <summary>More from the 2026 workbook FAQ on which workbook to use</summary>
+      <blockquote>“Any Scout can start using the 2026 Eagle Scout leadership service project workbook now that Scouting America has published it. The 2026 workbook will be required for every Life Scout starting work for the first time on an Eagle Scout leadership service project.”</blockquote>
+      <blockquote>“The 2027 Guide to Advancement, published in January 2027, will require Scouts to obtain the beneficiary’s and Scoutmaster’s approval of the project plan before starting work. That requirement will apply to all Scouts effective January 1, 2027, whether using the 2023 or the 2026 project workbook.”</blockquote>
+    </details>
 
-    <h2>Pick a page</h2>
-    <div class="tools">
-      <a class="tool start" href="EagleWorkbook-guided.html"><strong>2023 Guided workbook →</strong><span>Seven stages with plain-language questions, examples, running totals, and progress checks.</span></a>
-      <a class="tool" href="EagleWorkbook.html"><strong>2023 Classic workbook →</strong><span>The same questions, worded and ordered like the official workbook.</span></a>
-      <a class="tool" href="FillOfficialPDF.html"><strong>Fill the 2023 PDF →</strong><span>Copy your answers from a backup file into the official workbook PDF.</span></a>
-      <a class="tool" href="BackupFromPDF.html"><strong>Make a backup file from a PDF →</strong><span>Already typed answers into the official PDF? Bring them into the workbook pages.</span></a>
-    </div>
+    <h2>How it works</h2>
+    <details class="how">
+      <summary>2026 workbook: step by step</summary>
+    <ol>
+      <li>Open the <a href="EagleWorkbook2026.html">2026 Classic workbook</a>. It follows the 2026 workbook’s own order and wording. Your draft saves automatically in this browser. Save a backup file often (a file ending in <code>.json</code>).</li>
+      <li>When you’re ready, click <strong>Fill the 2026 PDF and Appendix D</strong>. Choose the official 2026 PDF (or let the page download it), then make the filled PDF. Make the filled Appendix D only if you need a Fundraising Application.</li>
+      <li>Open the filled PDF and read every page. The 2026 workbook (page 2) says: “You may sign the document in ink on paper, electronically (if acceptable to your local council) by typing your name in the Signature field, by inserting an image of your signature, or by using the Fill &amp; Sign feature in Adobe Acrobat. Save the document after signing.” It also says: “DO NOT attempt to ‘certify’ or ‘digitally sign and lock’ the document.” This helper never fills signatures in.</li>
+      <li>Keep photos, permits, and other attachments on separate pages or in separate files, as the workbook asks (pages 7, 10, 13, 17, and 21). Adding them to this helper is not built yet.</li>
+    </ol>
+    </details>
 
-    <h2>How it works (2023 workbook)</h2>
+    <details class="how">
+      <summary>2023 workbook: step by step</summary>
     <ol>
       <li>Open the <a href="EagleWorkbook-guided.html">Guided workbook</a>. Start with <strong>1. Set Up</strong> and <strong>2. Proposal</strong>. Your draft saves automatically in this browser. Click <strong>? Tips</strong> next to a box for an example and what to avoid.</li>
       <li>Click <strong>💾 Save backup file</strong> often. It saves a file ending in <code>.json</code>, usually in your Downloads folder. That file is your real save: browsers can erase saved data. Then copy it somewhere safe: drag it into Google Drive, Dropbox, or OneDrive, or email it to yourself. Ask a parent first: the file holds your birth date, contacts, and address. On an iPhone or iPad, <strong>📤 Share backup file…</strong> opens the share menu (Drive, Mail, Messages, and more). Everywhere else, dragging the file into Drive is the dependable way.</li>
       <li>When you’re ready, click <strong>Fill the 2023 PDF →</strong>. Get the official PDF, choose your answers, and create the filled PDF.</li>
-      <li>Open the filled PDF and read every page. Print the pages that need signatures and get them signed (this helper works with pages signed on paper and never fills signatures in).</li>
+      <li>Open the filled PDF and read every page. Get the pages that need signatures signed on paper, or sign digitally. Caution (2023 workbook): “Using an Adobe or other PDF reader to insert a "signature" can cause this entire document’s contents to be locked preventing future edits; make sure you save a copy if any signatures will be inserted digitally.” This helper never fills signatures in.</li>
       <li>Scan or photograph each signed page and add it on the workbook’s <strong>Signed Pages &amp; Photos</strong> tab, with project photos (before, during, and after), permits, other attachments, and links. If someone asks for the whole workbook, Step 5 on the Fill page can make a submission copy with the signed pages inserted after their official pages (optional). Ask your unit leader or council how they want things turned in.</li>
     </ol>
+    </details>
     <figure>
       <img src="docs/guided-workbook.png" alt="The Guided workbook on its Proposal stage, with buttons to save a backup file, print a draft, and fill the official PDF.">
       <figcaption>The Guided workbook, shown with made-up sample answers.</figcaption>
@@ -104,7 +135,7 @@ footer{margin-top:24px;font-size:.85rem;color:var(--muted)}
     <p><strong>Where do I get the Eagle Scout Service Project Workbook?</strong><br>From Scouting America: the <a href="https://www.scouting.org/wp-content/uploads/2023/01/EagleProjectWorkbook2023a.pdf" target="_blank" rel="noopener noreferrer">official workbook PDF (No. 2023a) ↗</a>. The Fill page can also get it for you.</p>
     <p><strong>Can I fill out the Eagle project workbook on my phone or a Chromebook?</strong><br>Yes. The workbook pages are made for an ordinary web browser on a phone, tablet, or computer. You type your Eagle project proposal, project plan, fundraising application, and project report there, then the Fill page puts your answers into the official PDF.</p>
     <p><strong>Does it help with the Eagle project proposal, plan, fundraising application, and report?</strong><br>Yes. Many boxes have a “? Tips” button with a made-up example and a common mistake to avoid. Tips are guidance, not requirements; the official workbook and your council decide what is needed.</p>
-    <p><strong>What about the signed pages?</strong><br>Add a scan or photo of each signed page (the proposal, the fundraising application if you need one, and the project report) on the Signed Pages &amp; Photos tab. You can make one printed-style file with each signed page inserted after its official page.</p>
+    <p><strong>What about the signed pages? (2023 workbook)</strong><br>Add a scan or photo of each signed page (the proposal, the fundraising application if you need one, and the project report) on the Signed Pages &amp; Photos tab. You can make one printed-style file with each signed page inserted after its official page.</p>
     <p><strong>Where can I ask a general Scouting question?</strong><br>Ask your unit leader, your project coach, or your council first. Scouting America also has its own chatbot, Scoutly. On the workbook pages, open <strong>Not sure what to do? Who to ask</strong> and click <strong>Chat with Scoutly</strong>. This helper is not made by Scouting America. Don’t type names, addresses, phone numbers, or other private details, and don’t sign in or reset a password there. Chats may be saved by Scouting America. It doesn’t replace your unit leader, coach, or council.</p>
     <p><strong>Is it official? Does it cost anything?</strong><br>It is free, and it is an independent helper, not made or endorsed by Scouting America. Using this helper is your choice. Scouting America’s workbook says no council, district, unit, or individual may add forms, change requirements, or change the workbook itself, so the official workbook, filled and signed, is what you complete. Your unit leader and council still tell you how to hand it in.</p>
 

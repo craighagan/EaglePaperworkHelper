@@ -17,6 +17,10 @@ Free, offline helpers for the **Eagle Scout Service Project Workbook**. Type you
 
 ![The Guided workbook, showing the Proposal stage with fictional sample answers](docs/guided-workbook.png)
 
+## 2026 workbook
+
+Scouting America's 2026 workbook (No. 512-927) has its own pages: `EagleWorkbook2026.html` (typing your answers) and `FillOfficialPDF2026.html` (filling the official 2026 PDF and Appendix D). Work from the 2026 pages for a new project. Signing: The 2026 workbook (page 2) says: “You may sign the document in ink on paper, electronically (if acceptable to your local council) by typing your name in the Signature field, by inserting an image of your signature, or by using the Fill & Sign feature in Adobe Acrobat. Save the document after signing.” It also says: “DO NOT attempt to ‘certify’ or ‘digitally sign and lock’ the document.” Keep photos, permits, and other attachments on separate pages or in separate files, as the workbook asks (pages 7, 10, 13, 17, and 21). Adding attachments to this helper for 2026 is not built yet.
+
 ## Quick start
 
 1. **Download this project.** On GitHub, click the green **Code** button, then **Download ZIP**.
@@ -28,8 +32,8 @@ Free, offline helpers for the **Eagle Scout Service Project Workbook**. Type you
 3. **Open `index.html`.** Double-click it. It opens in your web browser and links to every page. (Windows may hide the `.html` ending, so look for **index**.) Click **Guided workbook (2023)**. Bookmark it, and always use the same browser.
 4. **Type your answers.** Start with **1. Set Up** and **2. Proposal**. Your draft saves automatically in this browser. Click **? Tips** next to a box for an example and what to avoid.
 5. **Save a backup file often.** Click **💾 Save backup file**. It saves a file such as `Eagle-workbook-backup-2026-10-16-1930.json` (date and time), usually in your Downloads folder. This file is your real save: browsers can erase saved data. Then copy it somewhere safe, such as Google Drive, Dropbox, or OneDrive, or email it to yourself. On an iPhone or iPad you will also see **📤 Share backup file…**, which opens the share menu (Drive, Mail, Messages, and more). Chrome and Edge don’t allow sharing this kind of file, so there, and on Android, the button is hidden: dragging the file into Drive is the dependable way. The page must be on `https://` for the share menu to be available. The page “How to keep your work safe” (at the bottom of each workbook page) has the steps.
-6. **Fill the official PDF.** Click **Fill the official PDF →** and follow the steps on that page.
-7. **Add signed pages and photos.** Print the pages that need signatures from your filled PDF and get them signed (this helper works with pages signed on paper). Scan them or take a clear photo, and add them on the **Signed Pages & Photos** tab, with any project photos (before, during, and after), permits, other attachments, and links. Save a backup file. If someone asks for the whole workbook, Step 5 on the Fill page can make a submission copy (optional; see below).
+6. **Fill the official PDF.** Click **Fill the official PDF →** and follow the steps on that page. (This quick start is for the 2023 workbook; for the 2026 workbook see **2026 workbook** below.)
+7. **Add signed pages and photos.** Get the pages that need signatures signed on paper, or sign digitally. Caution (2023 workbook): “Using an Adobe or other PDF reader to insert a "signature" can cause this entire document’s contents to be locked preventing future edits; make sure you save a copy if any signatures will be inserted digitally.” This helper never fills signatures in. Scan them or take a clear photo, and add them on the **Signed Pages & Photos** tab, with any project photos (before, during, and after), permits, other attachments, and links. Save a backup file. If someone asks for the whole workbook, Step 5 on the Fill page can make a submission copy (optional; see below).
 
 Open the filled PDF, read every page, and share it with the people reviewing your project.
 
@@ -75,7 +79,7 @@ Photos and extra pages go in separate attachments, as the official workbook says
 | **Submission copy** | The filled workbook with your scanned signed pages inserted, plus a list page. A printed copy. | Only when someone asks for the whole workbook with its signatures in one file. It can’t be edited or turned back into a backup file. |
 | **Printed draft** | A simple printout marked DRAFT. | To talk plans over. Don’t hand it in. |
 
-## Signed pages and the submission copy
+## Signed pages and the submission copy (2023 workbook)
 
 Three pages of workbook No. 2023a need signatures: **Proposal Page H**, **Fundraising Application Page A** (only if you need a fundraising application), and **Project Report Page C**. On the workbook’s **Signed Pages & Photos** tab you can add a scan or photo of each one (JPEG, PNG, or PDF), plus project photos (before, during, and after), permits, permission letters, council forms, receipts, and links such as a budget spreadsheet.
 

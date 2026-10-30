@@ -1136,6 +1136,19 @@ async function run() {
       assert.ok(await evaluate('document.querySelector("figure img").naturalWidth') > 0, 'screenshot loads');
       assert.deepEqual(problems, []);
     });
+    await test('home page on a 390px phone: both workbooks are on the first screen or two, and nothing scrolls sideways', async () => {
+      await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 760, deviceScaleFactor: 2, mobile: true });
+      try {
+        await open('index.html');
+        const top = await evaluate(`(() => {
+          const y = (href) => { const a = document.querySelector('a[href="' + href + '"]'); return a ? Math.round(a.getBoundingClientRect().top + window.scrollY) : null; };
+          return { y2026: y('EagleWorkbook2026.html'), y2023: y('EagleWorkbook-guided.html'), fill2026: y('FillOfficialPDF2026.html'), fill2023: y('FillOfficialPDF.html'), scrollW: document.documentElement.scrollWidth, clientW: document.documentElement.clientWidth };
+        })()`);
+        assert.ok(top.y2026 !== null && top.y2023 !== null, JSON.stringify(top));
+        for (const k of ['y2026', 'y2023', 'fill2026', 'fill2023']) assert.ok(top[k] < 1520, `${k} is ${top[k]}px down: a Scout on a small screen would not see both workbooks (${JSON.stringify(top)})`);
+        assert.ok(top.scrollW <= top.clientW, `sideways scroll: ${top.scrollW} > ${top.clientW}`);
+      } finally { await send('Emulation.clearDeviceMetricsOverride'); }
+    });
     await test('every page links back home', async () => {
       for (const file of ['EagleWorkbook-guided.html', 'EagleWorkbook.html', 'FillOfficialPDF.html', 'BackupFromPDF.html']) {
         await open(file);
