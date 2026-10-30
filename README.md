@@ -49,7 +49,7 @@ Open the filled PDF, read every page, and share it with the people reviewing you
 | `lib/`, `vendor/`, `docs/` | Files the pages need (`docs/` has pictures and the list of sources for the tips). Don’t move or delete them. |
 | `tests/`, `tools/`, `todo/`, `AGENTS.md` | For developers. Scouts can ignore these. |
 
-Both workbooks use the same backup file. A backup file saved in one opens in the other with **📂 Open backup file**.
+The Guided and Classic pages of one workbook use the same backup file: a file saved in one opens in the other with **📂 Open backup file**. A 2023 backup file does not open in the 2026 pages, and a 2026 file does not open in the 2023 pages; the page says so and changes nothing.
 
 ## Filling the official PDF
 

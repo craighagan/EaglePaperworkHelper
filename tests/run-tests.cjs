@@ -36,7 +36,52 @@ const officialFields = new Set(JSON.parse(fs.readFileSync(path.join(__dirname, '
 const PAGE_LABELS = { 1: 'Workbook cover page', 9: 'Proposal Page B', 10: 'Proposal Page C', 11: 'Proposal Page D', 12: 'Proposal Page E', 13: 'Proposal Page F', 14: 'Proposal Page G', 15: 'Proposal Page H',
   17: 'Project Plan Page A', 18: 'Project Plan Page B', 19: 'Project Plan Page C', 20: 'Project Plan Page D', 21: 'Project Plan Page E', 22: 'Project Plan Page F',
   23: 'Fundraising Application Page A', 24: 'Fundraising Application Page B', 26: 'Project Report cover page', 27: 'Project Report Page A', 28: 'Project Report Page B', 29: 'Project Report Page C' };
-const PAGES = ['index.html', 'EagleWorkbook.html', 'EagleWorkbook-guided.html', 'EagleWorkbook2026.html', 'EagleWorkbook2026-guided.html', 'FillOfficialPDF.html', 'BackupFromPDF.html'];
+/**
+ * privacyProblems(name, text) -> list of strings. AGENTS.md rule 12: no real addresses, hosts, jump hosts, tokens, local paths, or personal emails.
+ * Allowed: loopback, the documentation ranges (RFC 5737), requirement numbers such as 9.0.2.10, example.org, the maintainer's name and
+ * personal email, and the public troop page.
+ */
+function privacyProblems(name, text) {
+  const out = [];
+  const ip = /\b(?!127\.0\.0\.1\b|0\.0\.0\.0\b|9\.0\.2\.)(?!192\.0\.2\.|198\.51\.100\.|203\.0\.113\.)(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\b/g;
+  for (const m of text.matchAll(ip)) out.push(`${name}: IP address ${m[0]}`);
+  // Any host on the maintainer's own domain except the public troop page; the personal email is checked separately.
+  for (const m of text.matchAll(/(?<![@\w.-])((?:[a-z0-9-]+\.)*cih\.com)(\/[^\s)"'`<>]*)?/gi)) if (!(m[1].toLowerCase() === 'www.cih' + '.com' && /^\/troop6\/eagle\/?/.test(m[2] || ''))) out.push(`${name}: host on the maintainer's own domain ${m[0]}`);
+  // A jump host must be the documentation name bastion.example.org (rule 12), with or without a space after the flag. Template placeholders are skipped.
+  for (const m of text.matchAll(/(?:^|[\s"'])-J\s*[^\s"',]+(?:,[^\s"']+)?/g)) if (!/bastion\.example\.org/.test(m[0]) && !m[0].includes('${')) out.push(`${name}: jump host ${m[0].trim()}`);
+  for (const m of text.matchAll(/\bssh:\/\/\S+|\bProxyJump\b\s*[= ]\s*\S+/g)) if (!/bastion\.example\.org|example\.org/.test(m[0])) out.push(`${name}: ssh target ${m[0]}`);
+  // Built from pieces so this source file does not contain text its own pattern matches.
+  const internalHost = new RegExp(['\\.co' + 'rp\\b', '\\.inte' + 'rnal\\b', '\\.l' + 'an\\b'].join('|'), 'i');
+  if (internalHost.test(text)) out.push(`${name}: internal host or domain`);
+  for (const m of text.matchAll(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g)) if (!/@(?:[a-z0-9-]+\.)*example\.org$/i.test(m[0]) && m[0] !== 'hagan@cih.com') out.push(`${name}: email ${m[0]}`);
+  
+  // Key material and tokens: private keys, public ssh keys, cloud and code-host keys, chat and payment tokens, JWTs, webhook URLs.
+  const tokenPattern = new RegExp([
+    '-----BEGIN [A-Z ]*PRIVATE KEY-----', '\\bssh-(?:rsa|ed25519|dss) AAAA', '\\becdsa-sha2-\\S+ AAAA',
+    '\\bAKIA[0-9A-Z]{16}\\b', '\\bgh[pousr]_[A-Za-z0-9]{30,}', '\\bgithub_pat_[A-Za-z0-9_]{20,}',
+    '\\bxox[abprs]-[A-Za-z0-9-]{10,}', '\\b[sr]k_(?:live|test)_[A-Za-z0-9]{16,}', '\\bAIza[0-9A-Za-z_-]{30,}', '\\bnpm_[A-Za-z0-9]{30,}',
+    '\\beyJ[A-Za-z0-9_-]{10,}\\.eyJ[A-Za-z0-9_-]{10,}\\.', 'hooks\\.slack\\.com/services/', '(?:aws_)?secret_?(?:access_)?key\\s*[=:]\\s*[A-Za-z0-9/+=]{30,}'
+  ].join('|'), 'i');
+  if (tokenPattern.test(text)) out.push(`${name}: key or token`);
+  // Local paths: macOS, Linux, and Windows home folders, with or without a trailing slash.
+  for (const m of text.matchAll(/\b[A-Za-z]:\\Users\\[A-Za-z][\w.-]*/g)) out.push(`${name}: local path ${m[0]}`);
+  for (const m of text.matchAll(/(?<![\w.])\/(?:Users|home)\/[A-Za-z][\w.-]*(?![\w.-])/g)) if (!/^\/(?:Users|home)\/(?:web_user|runner|user|you|username|name|me)$/.test(m[0])) out.push(`${name}: local path ${m[0]}`);
+  // Hosts that exist only on a private network.
+  // Built from pieces so this source does not contain text its own pattern matches.
+  const privateHost = new RegExp('\\b[a-z][a-z0-9-]*\\.(?:' + ['lo' + 'cal', 'lo' + 'caldomain', 'home\\.ar' + 'pa', 'intra' + 'net', 'co' + 'rp', 'l' + 'an'].join('|') + ')\\b', 'gi');
+  for (const m of text.matchAll(privateHost)) out.push(`${name}: private-network host ${m[0]}`);
+  for (const m of text.matchAll(/\b(?:ssh|scp|sftp)\s+(?:-\S+\s+)*[\w.-]+@(?:10|172|192)-\d+-\d+-\d+\b|ProxyCommand\b\s*[= ]\s*\S+|\b[\w.-]+@localhost\b/g)) out.push(`${name}: ssh target ${m[0]}`);
+  // IPv6 addresses: take every run of hex digits and colons that could be one, and keep only what Node accepts as a real address.
+  // (A regex alone flags "a::before" in CSS and times like 12:34:56; net.isIPv6 does not.) Loopback and the 2001:db8:: documentation range are allowed.
+  for (const m of text.matchAll(/(?<![\w:.])[0-9a-f:]{6,45}(?![\w:.])/gi)) {
+    const cand = m[0].replace(/^:(?!:)|(?<!:):$/g, '');
+    if (cand.includes(':') && require('net').isIPv6(cand) && !/^(?:::1?|2001:0*db8:)/i.test(cand) && /:.*:.*:/.test(cand)) out.push(`${name}: IPv6 address ${cand}`);
+  }
+  for (const m of text.matchAll(/(?<![\w:])(?:[0-9a-f]{1,4}:){4,7}[0-9a-f]{1,4}(?![\w:])|(?<![\w:])(?:[0-9a-f]{1,4}:){1,6}:(?:[0-9a-f]{1,4}:){0,5}[0-9a-f]{3,4}(?![\w:])/gi)) if (/[a-f]/i.test(m[0]) || m[0].includes('::')) out.push(`${name}: IPv6 address ${m[0]}`);
+  if (/\barn:aws[a-z-]*:[a-z0-9-]*:[a-z0-9-]*:\d{12}:/.test(text) || /\b\d{12}\b(?=.{0,20}\b(?:account|AWS)\b)/i.test(text)) out.push(`${name}: cloud account id`);
+  return out;
+}
+const PAGES = ['index.html', 'EagleWorkbook.html', 'EagleWorkbook-guided.html', 'EagleWorkbook2026.html', 'EagleWorkbook2026-guided.html', 'FillOfficialPDF.html', 'FillOfficialPDF2026.html', 'BackupFromPDF.html'];
 
 let passed = 0;
 let skipped = 0;
@@ -526,7 +571,7 @@ function everyAnswer() {
       assert.equal(W.editionMismatch(d2026, page2026), null);
       assert.equal(W.editionMismatch(d2026, W.defaults), 'This backup file is for the 2026 workbook. Open it in the 2026 workbook from the home page.');
       assert.equal(W.editionMismatch(d2023, page2026), 'This backup file is for the 2023 workbook (No. 2023a). Open it in the 2023 workbook from the home page. Answers don’t move to the 2026 workbook by themselves, because its questions are different.');
-      for (const d of [{}, null, { edition: 'x' }, { edition: '2026' }, d2023]) assert.equal(W.editionOfData(d), J.editionOf(d), JSON.stringify(d));
+      for (const d of [{}, null, { edition: 'x' }, { edition: '2026' }, { edition: 2026 }, { edition: ' 2026 ' }, { appendixD: {} }, d2023]) { assert.equal(W.editionOfData(d), J.editionOf(d), JSON.stringify(d)); assert.equal(lib.editionOf(d), J.editionOf(d), 'official-pdf: ' + JSON.stringify(d)); }
       assert.ok(fs.readFileSync(path.join(ROOT, 'lib/fill-page.js'), 'utf8').includes(W.editionMismatch(d2026, W.defaults)), 'lib/fill-page.js must say the same thing');
     });
     await test('copies: the roadmap step ids in workbook-common.js match the ones in journey.js', () => {
@@ -564,6 +609,49 @@ function everyAnswer() {
     assert.equal(out.pageCount, 1 + 2, 'one index page and two scans');
     assert.match(text, /\/Count 3\b/);
   });
+  await test('editions: a number, a spaced string, or a missing key with an Appendix D section is still read as the 2026 workbook; anything else is 2023a', () => {
+    const J = require(path.join(ROOT, 'lib/journey.js'));
+    const W = workbookCommon();
+    const cases = [[{ edition: '2026' }, '2026'], [{ edition: 2026 }, '2026'], [{ edition: ' 2026 ' }, '2026'], [{ appendixD: {} }, '2026'], [{ appendixD: [] }, '2023a'], [{ appendixD: {}, edition: '2023a' }, '2023a'],
+      [{}, '2023a'], [null, '2023a'], [{ edition: 'x' }, '2023a'], [{ edition: 2023 }, '2023a'], [[], '2023a'], ['2026', '2023a']];
+    for (const [d, want] of cases) { assert.equal(J.editionOf(d), want, JSON.stringify(d)); assert.equal(W.editionOfData(d), want, 'workbook-common: ' + JSON.stringify(d)); }
+  });
+  await test('2026 review: the short-answer hint uses the 2026 boxes, not the 2023a list', () => {
+    const J = require(path.join(ROOT, 'lib/journey.js'));
+    const M = require(path.join(ROOT, 'lib/w26-model.js'));
+    const d = M.defaults(); d.proposal.description = 'Build a bench'; d.plan.presentCondition = 'Bare lot'; d.proposal.motivation = 'I like to help out the community every single week';
+    const short = J.shortAnswers(d).map((b) => b.path);
+    assert.deepEqual(short, ['proposal.description', 'plan.presentCondition']);
+    assert.ok(J.SHORT_ANSWER_BOXES['2026'].every((b) => b.path.split('.').reduce((o, k) => (o ? o[k] : undefined), M.defaults()) !== undefined), 'every 2026 short-answer path exists in the 2026 draft');
+  });
+  await test('backup files: inherited method names and very deep unknown keys are handled, not allowed to break the page', () => {
+    const W = workbookCommon();
+    const hostile = JSON.parse('{"candidate":{"name":"A","toString":"x","hasOwnProperty":"y","__proto__":{"bad":1}},"proposal":{},"extra":{"__proto__":{"polluted":1}}}');
+    const m = W.mergeWithDefaults(W.defaults(), hostile);
+    assert.doesNotThrow(() => String(m.candidate), 'toString on the candidate still works');
+    assert.equal(typeof m.candidate.hasOwnProperty, 'function');
+    assert.equal(({}).polluted, undefined);
+    assert.equal(m.candidate.name, 'A');
+    let deep = 'end'; for (let i = 0; i < 6000; i++) deep = { a: deep };
+    const merged = W.mergeWithDefaults(W.defaults(), { candidate: { name: 'B' }, proposal: {}, extra: deep });
+    assert.doesNotThrow(() => JSON.stringify(merged), 'the merged draft can be saved');
+    assert.doesNotThrow(() => W.boxHashes(merged), 'and compared with the last backup');
+    assert.equal(merged.candidate.name, 'B');
+  });
+  await test('privacy scanner: it reports each kind of leak that matters, and lets the documentation placeholders through', () => {
+    // Each sample has a "~" inside it, removed here, so this file holds no leak of its own for the scanner to find.
+    const X = (s) => s.replace(/~/g, '');
+    const planted = [
+      ['10.0.~0.5', 'IP'], ['eagle.ci~h.com', 'own domain'], ['http://www.ci~h.com/', 'own domain, not the troop page'], ['ssh -~J me@bastion', 'jump host'], ['ssh -~J bastion', 'jump host'], ['ss~h://me@pr~od', 'ssh url'], ['Proxy~Jump=me@bast~ion.example.com', 'ssh option'],
+      ['/Us~ers/jsmith/Documents/work', 'local path'], ['/ho~me/ubuntu/work', 'local path'], ['gh~p_' + 'a'.repeat(36), 'token'], ['github~_pat_' + 'A'.repeat(30), 'token'],
+      ['ar~n:aws:iam::12345~6789012:role/x', 'cloud arn'], ['bob@gm~ail.com', 'email'], ['build.co~rp.example.net', 'internal'], ['AK~IA' + 'A'.repeat(16), 'key'], ['-----BEGIN RSA PRI~VATE KEY-----', 'key'],
+      ['jumpbox.lo~cal', 'private host'], ['build01.int~ranet', 'private host'], ['ssh me@10-0-~0-5', 'ssh target'], ['Proxy~Command ssh -W %h:%p x', 'ssh option'], ['tom@local~host', 'localhost'],
+      ['C:\\Us~ers\\jsmith\\Desktop', 'windows path'], ['/Us~ers/jsmith', 'path without slash'], ['ss~h-rsa AAAAB3NzaC1yc2E', 'public key'], ['xo~xb-1234567890-abcdef', 'slack token'],
+      ['sk_li~ve_' + 'a'.repeat(24), 'payment key'], ['ey~J' + 'a'.repeat(12) + '.ey~J' + 'b'.repeat(12) + '.sig', 'jwt'], ['hooks.sl~ack.com/services/T000/B000/xyz', 'webhook'], ['fd12:3456:789a:1:~:1', 'ipv6'], ['2001~:0db9:85a3:0:0:8a2e:370:7334', 'ipv6']
+    ];
+    for (const [text, kind] of planted) assert.ok(privacyProblems('planted.md', `before ${X(text)} after`).length > 0, `not caught (${kind}): ${X(text)}`);
+    for (const ok of ['192.0.2.10', 'ssh -J bastion.example.org,ubuntu@192.0.2.10', 'me@bastion.example.org', 'jane@example.org', 'hagan@cih.com', 'https://www.cih.com/troop6/eagle/', 'http://www.cih.com/troop6/eagle/', '9.0.2.10', '127.0.0.1', 'https://scoutly.scouting.org', 'ProxyJump bastion.example.org', 'a::before { content: "" }', 'time 12:34:56', 'open /home/web_user', 'see /Users/' + 'you/work', 'http://localhost:8000/', 'version 1.2.3']) assert.deepEqual(privacyProblems('ok.md', `before ${ok} after`), [], `wrongly flagged: ${ok}`);
+  });
   console.log('2026 tips');
   {
     const loadTips = () => {
@@ -600,28 +688,15 @@ function everyAnswer() {
   }
 
   console.log('Privacy');
-  await test('privacy: no internal hostnames, real IP addresses, private keys, or personal emails in tracked files', () => {
-    // Scans what git tracks (not what is on disk). Documentation addresses and the project's example names are allowed.
-    // Tracked files plus new files that are not ignored yet, so a leak in a file that is not committed yet still fails.
+  await test('privacy: no internal hostnames, real IP addresses, private keys, tokens, local paths, or personal emails in any text file, this one included', () => {
+    // Scans what git tracks plus new files that are not ignored yet, so a leak in an uncommitted file still fails.
     const files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], { cwd: ROOT }).toString().split('\n').filter(Boolean)
       .filter((f) => !/\.(pdf|jpe?g|png|heic|docx|xlsx|odt|zip)$/i.test(f) && !f.startsWith('vendor/'));
-    // Not addresses: loopback, the documentation ranges (RFC 5737), and Scouting requirement numbers such as 9.0.2.10.
-    const ip = /\b(?!127\.0\.0\.1\b|0\.0\.0\.0\b|9\.0\.2\.)(?!192\.0\.2\.|198\.51\.100\.|203\.0\.113\.)(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\b/g;
-    const internal = /\.corp\b|\.internal\b|\.lan\b/i;
-    const email = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
-    const allowedEmail = (e) => /@example\.org$/.test(e) || e === 'hagan@cih.com';
     const problems = [];
     for (const f of files) {
-      if (f === 'tests/run-tests.cjs') continue;   // this file holds the patterns themselves, and the bad-URL examples
       const buf = fs.readFileSync(path.join(ROOT, f));
       if (buf.includes(0)) continue;   // binary
-      const text = buf.toString('utf8');
-      for (const m of text.matchAll(ip)) problems.push(`${f}: IP address ${m[0]}`);
-      // A jump host must use the documentation name bastion.example.org (AGENTS.md rule 12).
-      for (const m of text.matchAll(/(?:^|[\s"'])-J(?:\s+|=)\S+/g)) if (!/bastion\.example\.org/.test(m[0])) problems.push(`${f}: jump host ${m[0]}`);
-      if (internal.test(text)) problems.push(`${f}: internal host or domain`);
-      for (const m of text.matchAll(email)) if (!allowedEmail(m[0])) problems.push(`${f}: email ${m[0]}`);
-      if (/-----BEGIN [A-Z ]*PRIVATE KEY-----|\bAKIA[0-9A-Z]{16}\b/.test(text)) problems.push(`${f}: key material`);
+      problems.push(...privacyProblems(f, buf.toString('utf8')));
     }
     assert.deepEqual(problems, [], problems.slice(0, 10).join('; '));
   });
@@ -1281,7 +1356,10 @@ function everyAnswer() {
       assert.match(csp[1], /default-src 'none'/);
       assert.doesNotMatch(csp[1], /script-src[^;]*'unsafe-(inline|eval)'/); // 'wasm-unsafe-eval' (JPEG 2000 decoder) is allowed on pages that draw PDFs
       const connect = (/connect-src ([^;]+);/.exec(csp[1]) || [null, "'none'"])[1]; // default-src 'none' covers a missing connect-src
-      assert.ok(connect === "'none'" || connect === lib.OFFICIAL_PDF_URL, `connect-src ${connect}`);
+      // Exactly the pinned official URLs, per page: removing one silently breaks "Get the official PDF for me".
+      const M26u = require(path.join(ROOT, 'lib/w26-model.js'));
+      const expectedConnect = file === 'FillOfficialPDF.html' ? lib.OFFICIAL_PDF_URL : file === 'FillOfficialPDF2026.html' ? `${M26u.OFFICIAL_URL} ${M26u.APPENDIX_D_URL}` : "'none'";
+      assert.equal(connect, expectedConnect, `connect-src on ${file}`);
       const frame = (/frame-src ([^;]+);/.exec(csp[1]) || [null, "'none'"])[1]; // default-src 'none' covers a missing frame-src
       const mayFrame = ['EagleWorkbook-guided.html', 'EagleWorkbook.html', 'EagleWorkbook2026.html', 'EagleWorkbook2026-guided.html'].includes(file);
       assert.equal(frame, mayFrame ? 'https://scoutly.scouting.org' : "'none'", `frame-src ${frame}`);
@@ -1807,6 +1885,47 @@ function everyAnswer() {
       assert.equal(val('Estimated Cost of Materials')[0], '1200.00');
       assert.equal(val('Birth Date')[0], '1/2/2010');
     });
+    await test('2026 PDF: the pinned boxes hold the right literal values (dates, hours, the shared description on page 22)', async () => {
+      if (!filled26) return;
+      const ws = await allWidgets(filled26.bytes);
+      const text = (name) => ws.filter((w) => w.name === name).map((w) => String(Array.isArray(w.value) ? w.value[0] : w.value));
+      // Literal expectations worked out by hand from tests/fixtures/sample-workbook-2026.json, not read back through the mapping.
+      assert.deepEqual(text('Complete Your Plan Date'), ['03/15/2027']);
+      assert.deepEqual(text('Planned Begin Project Date'), ['04/01/2027']);
+      assert.deepEqual(text('Planned Completion Date'), ['05/01/2027'], 'begin and completion are not swapped');
+      assert.deepEqual(text('Date Expected'), ['4/20/27'], 'this box takes m/d/yy, not mm/dd/yyyy');
+      assert.equal(text('Total Proposal Development Hours')[0], '17.00', '0 + 8 + 3 + 4 + 2');
+      assert.equal(text('Total_Hours')[0], '95.00', 'row totals 0, 68, 9, 13 and 5');
+      assert.equal(text('Eagle Scout Candidate Total Hours')[0], '0.00');
+      assert.equal(text('Project Execution Total Number of Hours')[0], '62.00', '0 + 2 + 4 + 6 + 50, every one of the five rows');
+      assert.equal(text('Other_Adults_Total_Hours')[0], '5.00');
+      const desc = ws.filter((w) => w.name === 'Project Description');
+      assert.equal(desc.length, 3, 'one field on pages 7, 11 and 22');
+      assert.equal(new Set(desc.map((w) => w.value)).size, 1, 'the same text in all three');
+      assert.ok(String(desc[0].value).length > 20, 'and it is not empty');
+      assert.deepEqual(desc.map((w) => w.page).sort((a, c) => a - c), [7, 11, 22], 'on pages 7, 11, 22');
+    });
+    await test('2026 PDF: a character the workbook\u2019s font cannot show is warned about once, and the answer is still written', async () => {
+      const d = JSON.parse(JSON.stringify(SAMPLE26));
+      d.proposal.motivation = 'I like helping \u4f60\u597d and \u0645\u0631\u062d\u0628\u0627 neighbors';
+      const out = await PDF26.fillWorkbook({ pdfjsLib, pdfBytes: w26.slice(), data: d });
+      const hits = out.report.warnings.filter((x) => /outside what the workbook\u2019s font can show/.test(x));
+      assert.equal(hits.length, 1, 'one warning: ' + out.report.warnings.join(' | ').slice(0, 300));
+      assert.match(hits[0], /^PDF page 7, Motivation/);
+      assert.ok(out.report.filled > 150, 'the rest of the answers were still written');
+    });
+    await test('2026 PDF: the Acrobat heads-up appears only when row 1 of the materials table has a cost', async () => {
+      const d = JSON.parse(JSON.stringify(SAMPLE26));
+      assert.ok(!PDF26.buildFieldValues(d).notes.some((n) => /may show a different total/.test(n)), 'no cost in row 1: no heads-up');
+      d.plan.items[0].qty = '2'; d.plan.items[0].unitCost = '10.50'; d.plan.items[0].totalCost = '';
+      const v = PDF26.buildFieldValues(d);
+      assert.equal(v.text['Total CostRow1'], '21.00');
+      const note = v.notes.find((n) => /Total Proposal Development Hours/.test(n));
+      assert.ok(note, 'heads-up present');
+      assert.match(note, /pages 9 and 20/);
+      assert.match(note, /may show a different total/);
+      assert.match(note, /This helper wrote the correct hours total\./);
+    });
     await test('2026 PDF: signature fields stay empty and unsigned after filling', async () => {
       if (!filled26) return;
       const ws = await allWidgets(filled26.bytes);
@@ -2030,6 +2149,59 @@ function everyAnswer() {
         const w = words(line), shared = w.filter((x) => off.has(x)).length / w.length;
         assert.ok(shared >= 0.4, `${k}: only ${Math.round(shared * 100)}% of its words are in the official prompt`);
       }
+    });
+    await test('2026 attachments file: the index uses the page numbers a PDF viewer shows, and says so', async () => {
+      const A = require(path.join(ROOT, 'lib/attachments.js'));
+      const jpg = (name, id) => { const bytes = fs.readFileSync(path.join(__dirname, 'fixtures', name)); const info = A.jpegInfo(new Uint8Array(bytes)); return { id, jpeg: bytes.toString('base64'), width: info.width, height: info.height }; };
+      const d = { edition: '2026', candidate: { name: 'Alex Example' }, proposal: { projectName: 'Bike repair' }, attachments: [
+        { id: 'permit0001', place: 'end', label: 'Permit letter', pages: [jpg('scan-portrait.jpg', 'permitaaa1'), jpg('scan-landscape.jpg', 'permitaaa2')] },
+        { id: 'photoafter1', place: 'photosAfter', label: 'After the project', pages: [jpg('scan-landscape.jpg', 'photoaaaa1')] }
+      ], links: [] };
+      const out = A.buildAttachmentsFile({ data: d, today: '2026-10-29' });
+      const doc = await pdfjsLib.getDocument({ data: out.bytes.slice(), verbosity: 0, isEvalSupported: false }).promise;
+      assert.equal(doc.numPages, 4, 'one index page and three scans');
+      const index = (await (await doc.getPage(1)).getTextContent()).items.map((i) => i.str).join(' ').replace(/\s+/g, ' ');
+      assert.match(index, /Permit letter: pages 2\u20133\./, 'the permit scans are PDF pages 2 and 3');
+      assert.match(index, /After the project: page 4\./, 'the photo is PDF page 4');
+      assert.match(index, /page numbers of this file, as your PDF viewer shows them/);
+      await doc.destroy();
+    });
+    await test('2026 tips: a quoted workbook sentence is word for word on the tip\'s own page, and only a quote carries a rule', async () => {
+      if (!w26) return;
+      const ctx = { window: {} };
+      vm.runInNewContext(fs.readFileSync(path.join(ROOT, 'lib/w26-tips.js'), 'utf8'), ctx);
+      const wb = await pagesText(w26);
+      const quoted = Object.entries(ctx.window.EagleTips).filter(([, t]) => t.quote);
+      assert.ok(quoted.length >= 2, 'the leadership and permits tips quote the workbook');
+      for (const [key, t] of quoted) {
+        const page = Number(/Page (\d+)/.exec(t.where)[1]);
+        assert.ok(wb[page].includes(normText(t.quote).replace(/(\d) (st|nd|rd|th)\b/g, '$1$2')) || wb[page].replace(/(\d) (st|nd|rd|th)\b/g, '$1$2').includes(normText(t.quote)), `${key}: not on page ${page}: ${t.quote}`);
+      }
+      assert.match(ctx.window.EagleTips['proposal.leadership'].quote, /^You must demonstrate leadership of at least two people in addition to yourself\.$/);
+      assert.match(ctx.window.EagleTips['plan.permits'].quote, /^DO NOT START WORK UNTIL YOU HAVE ALL PERMITS AND PERMISSIONS\.$/);
+    });
+    await test('Guided 2026: the example rows, the four approvals, and the beneficiary gloss are on their pages of the PDF', async () => {
+      if (!w26) return;
+      const wb = await pagesText(w26);
+      const ctx = { window: { EagleWorkbook: { h() {} }, EagleJourney: require(path.join(ROOT, 'lib/journey.js')) }, document: {}, console };
+      ctx.window.document = ctx.document;
+      // lib/w26-ui.js needs a browser; read its EXAMPLES table from the source instead.
+      const src = fs.readFileSync(path.join(ROOT, 'lib/w26-ui.js'), 'utf8');
+      const m = /const EXAMPLES = (\{[\s\S]*?\n  \});/.exec(src);
+      assert.ok(m, 'EXAMPLES table found');
+      const EXAMPLES = vm.runInNewContext('(' + m[1] + ')');
+      assert.deepEqual(Object.keys(EXAMPLES).sort(), ['plan.helpers', 'plan.hours', 'plan.steps', 'proposal.hours']);
+      for (const [key, [page, fragments]] of Object.entries(EXAMPLES)) for (const frag of fragments) assert.ok(wb[page].includes(normText(frag)), `${key}: "${frag}" is not on page ${page}`);
+      const g = fs.readFileSync(path.join(ROOT, 'lib/w26-guided.js'), 'utf8');
+      const note = /const APPROVAL_NOTE = '([^']+)'/.exec(g);
+      assert.ok(note, 'APPROVAL_NOTE found');
+      for (const name of ['Beneficiary Approval', 'Council or District Approval', 'Scoutmaster Approval', 'Unit Committee Approval']) assert.ok(wb[11].includes(normText(name)), 'page 11: ' + name);
+      for (const frag of ['Sign here before you seek other approvals', 'make sure that the district or council approval is last']) assert.ok(wb[11].includes(normText(frag)), 'page 11: ' + frag);
+      assert.match(note[1], /beneficiary, the council or district, your Scoutmaster, and the unit committee/);
+      assert.match(note[1], /Candidate’s Promise is your own promise to lead the project; you sign it first/);
+      assert.ok(wb[11].includes(normText('I promise to be the leader of this project')), 'page 11: the promise is to be the leader');
+      assert.ok(wb[11].includes(normText('the religious institution, school, or community I have chosen as a beneficiary')), 'page 11 names the kinds of beneficiary');
+      assert.match(g, /the religious institution, school, or community your project helps \(page 11\)/);
     });
     await test('2026 path: every sentence it quotes is on its stated page of the official PDF', async () => {
       if (!w26) return;

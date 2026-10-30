@@ -41,15 +41,20 @@ a{color:#00509e}
 #warnings li{margin:3px 0}
 footer{margin-top:20px;font-size:.85rem;color:var(--muted)}
 [hidden]{display:none!important}
+.topnav a{display:inline-block;min-height:44px;line-height:44px}
+.row .btn{min-height:44px}
 @media(max-width:560px){header,.content{padding-left:18px;padding-right:18px}.step{padding:14px}}
 </style>
 </head>
 <body>
 <nav class="topnav" aria-label="EaglePaperworkHelper pages">
   <a href="index.html">Home and help</a>
-  <a href="EagleWorkbook-guided.html">Guided workbook</a>
-  <a href="EagleWorkbook.html">Classic workbook</a>
-  <a href="FillOfficialPDF.html">Fill the official PDF</a>
+  <a href="EagleWorkbook2026-guided.html">2026 Guided workbook</a>
+  <a href="EagleWorkbook2026.html">2026 Classic workbook</a>
+  <a href="FillOfficialPDF2026.html">Fill the 2026 PDF</a>
+  <a href="EagleWorkbook-guided.html">2023 Guided workbook</a>
+  <a href="EagleWorkbook.html">2023 Classic workbook</a>
+  <a href="FillOfficialPDF.html">Fill the 2023 PDF</a>
 </nav>
 <main>
   <header>
@@ -61,7 +66,7 @@ footer{margin-top:20px;font-size:.85rem;color:var(--muted)}
 
     <section class="step" aria-labelledby="step1">
       <h2 id="step1">Step 1. Choose your filled workbook PDF</h2>
-      <p>Choose the Eagle Scout Service Project Workbook PDF with your answers typed in: No. 2023a or No. 512-927 (2026). It must still have its fillable boxes (a copy printed to PDF does not).</p>
+      <p>Choose the workbook PDF with your answers typed in: the Eagle Scout Service Project Workbook (No. 2023a) or the Eagle Scout Leadership Service Project Workbook (No. 512-927, 2026). It must still have its fillable boxes (a copy printed to PDF does not).</p>
       <p><strong>Use your backup file when you have one.</strong> It has everything, including signed pages and links. This page is for when all you have is a filled PDF. A submission copy can’t be read here. (“Open backup file” is a button on the workbook pages, not on this page.)</p>
       <span class="btn file">Choose the filled PDF<input id="pdf-file" type="file" accept="application/pdf,.pdf" aria-label="Choose your filled workbook PDF"></span>
       <p class="chosen" id="pdf-chosen">No PDF chosen yet.</p>
@@ -81,7 +86,7 @@ footer{margin-top:20px;font-size:.85rem;color:var(--muted)}
       <p class="status" id="save-status" role="status" aria-live="polite"></p>
       <p><strong>A PDF can’t hold signed pages, attachments, links, or your “Your path” notes.</strong> If you added scans of signed pages, permits, links, or path notes in a workbook page, they are not in the backup file saved here. The “Open in” buttons keep the ones already in that workbook page’s draft (and ask first if the name on the PDF is different). If you open the saved backup file with “Open backup file” instead, the workbook page lists any signed pages or links that are on the page now and not in the file, and removes them only if you say yes.</p>
       <p>The “Open in” buttons work when this page and the workbook pages share saved drafts (Chrome or Edge, or the same website). If the workbook page opens empty, use “Save backup file” and then “Open backup file” there.</p>
-      <p>Keep the backup file somewhere safe, such as Google Drive or Dropbox. Then read through every page of the workbook. Signatures are not part of the PDF’s boxes, so get them on paper or as your council directs.</p>
+      <p>Keep the backup file somewhere safe, such as Google Drive or Dropbox. Then read through every page of the workbook. This helper never fills in signatures, so get them on paper or as your council directs.</p>
     </section>
 
     <footer>Independent helper. Not made or endorsed by Scouting America. The official workbook, your council, and the required signatures are what count. Uses pdf.js (Apache License 2.0).</footer>

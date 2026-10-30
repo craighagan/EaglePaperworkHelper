@@ -39,8 +39,11 @@ input::placeholder,textarea::placeholder{color:#5f6b7a;opacity:1}
 input:focus,textarea:focus{outline:none;border-color:#003f87;background:#fff;box-shadow:0 0 0 2px rgba(0,63,135,.2)}
 textarea{resize:vertical}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
-.table-wrap{overflow-x:auto;margin:8px 0}
-table{width:100%;min-width:600px;border-collapse:collapse;font-size:13px}
+.table-wrap{overflow-x:auto;margin:8px 0;background:linear-gradient(to right,#fff 30%,rgba(255,255,255,0)),linear-gradient(to right,rgba(255,255,255,0),#fff 70%) 100% 0,radial-gradient(farthest-side at 0 50%,rgba(0,0,0,.28),rgba(0,0,0,0)),radial-gradient(farthest-side at 100% 50%,rgba(0,0,0,.28),rgba(0,0,0,0)) 100% 0;background-repeat:no-repeat;background-color:#fff;background-size:40px 100%,40px 100%,14px 100%,14px 100%;background-attachment:local,local,scroll,scroll}
+@media(max-width:620px){td input{min-height:44px}}
+nav button:focus-visible{outline-offset:-4px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{min-width:110px}
 th{background:#003f87;color:#fff;padding:6px 8px;text-align:left;font-weight:600}
 tbody th{background:#eef2f7;color:#1a1a1a;font-weight:600;min-width:180px}
 td{padding:2px 3px}
@@ -116,6 +119,7 @@ select{min-height:44px;font-size:16px}
 .tip{background:#f2f7fc;border-left:4px solid #0066b8;border-radius:6px;padding:8px 12px;margin:4px 0 8px;font-size:14px}
 .tip p{margin:4px 0}
 .tip-avoid strong{color:#7a4a00}
+.tip-quote{margin:6px 0;padding:4px 8px;font-size:13px;color:#4e2a00;background:#fff4e0;border-left:3px solid #c9a227}
 .tip-meta{font-size:12px;color:#46566a}
 .keep-safe,.keep-list{background:#fff;border:1px solid #d3dce6;border-radius:10px;margin:16px 0;padding:0 14px}
 .keep-safe summary,.keep-list summary{cursor:pointer;padding:12px 0;font-weight:700;color:#003f87}

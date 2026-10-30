@@ -31,7 +31,7 @@ From `2026-groundwork.md`, checked with PyMuPDF on the official file:
 ## 3. Text comparison (Q1)
 
 - 2023a text: `tests/.cache/EagleProjectWorkbook2023a.pdf`, 1,237 lines of `pdftotext -layout`.
-- 2026 text: a scratch folder outside the repository, 1,432 lines. Appendix D text: 131 lines. FAQ: 304 lines.
+- 2026 text: the extracted workbook text (in the scratch folder), 1,432 lines. Appendix D text: 131 lines. FAQ: 304 lines.
 - The 2026 workbook has 22 pages; 2023a has 32 pages.
 - The 2026 text has a "Working with this document" page and an "Adults approving a proposal or completed project report" page, plus an "Eagle Scout Leadership Service Project Checklist" page. 2023a has a "Page 2" and a long "Message to Scouts and Parents" section.
 - Section headings: the automatic heading search returned nothing useful because of the layout spacing. A section-by-section comparison (same / reworded / new / removed) is still needed. It is step 3 of the scoping plan.

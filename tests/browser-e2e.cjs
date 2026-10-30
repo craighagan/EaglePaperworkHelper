@@ -1110,6 +1110,116 @@ async function run() {
       assert.equal(hidden, 0, 'no In short lines or stage card in the print view');
       assert.ok(official > 20, 'the official help is there: ' + official);
     });
+    await test('2026 Signed Pages tab describes the 2026 flow (attachments file, page 21 photos, page 2 signing) and the 2023 tab is unchanged', async () => {
+      await open(G26, READY26);
+      await evaluate('document.querySelectorAll("nav button")[5].click(); true');
+      await waitFor('document.querySelectorAll("nav button")[5].classList.contains("active")');
+      await waitFor('!!document.querySelector(".attachments, .attach-status")', 15000);
+      const text = await evaluate('document.getElementById("main").innerText');
+      assert.doesNotMatch(text, /submission copy|Each signed page is inserted|Optional\. If you have them|can lock the file/, '2023a wording is gone from the 2026 tab');
+      assert.match(text, /Make the attachments file/);
+      assert.match(text, /Page 21: “Attach \(or submit separately\) photographs taken before, during, and after the project completion\.”/);
+      assert.equal(await evaluate('!!document.querySelector(\'a[href="FillOfficialPDF2026.html"]\') && !document.querySelector(\'#main a[href="FillOfficialPDF.html"]\')'), true, 'links to the 2026 Fill page, not the 2023 one');
+      await evaluate('[...document.querySelectorAll("summary")].find((x) => /digital signatures/.test(x.textContent)).click(); true');
+      const sig = await evaluate('document.getElementById("main").innerText');
+      assert.match(sig, /Page 2: “DO NOT attempt to “certify” or “digitally sign and lock” the document\. Doing so will prevent the Scout or other approvers from adding information or signatures\.”/);
+      assert.match(sig, /Page 2: “Save the document after signing\.”/);
+      assert.doesNotMatch(await evaluate('document.getElementById("main").innerText'), /Page 17: “Attach copies of any permits to your workbook\.”.*separate pages, not inside/, 'permits are not said to go on separate pages');
+      assert.match(sig, /attach copies of any permits to your workbook \(page 17\)/);
+      await open('EagleWorkbook-guided.html', '!!document.querySelector("nav button")');
+      await evaluate('document.querySelectorAll("nav button")[5].click(); true');
+      await waitFor('document.querySelectorAll("nav button")[5].classList.contains("active")');
+      await waitFor('!!document.querySelector(".attach-status")', 15000);
+      const t23 = await evaluate('document.getElementById("main").innerText');
+      assert.match(t23, /Each signed page is inserted after the official page it belongs to/, 'the 2023 tab keeps its own wording');
+      assert.match(t23, /Optional\. If you have them/);
+    });
+    await test('2026 tips: the leadership and permits tips show the workbook sentence as a quote, not as advice', async () => {
+      await open(G26, READY26);
+      await evaluate('document.querySelectorAll("nav button")[1].click(); true');
+      await waitFor('document.querySelectorAll("nav button")[1].classList.contains("active")');
+      await evaluate('[...document.querySelectorAll("button.tip-btn")].find((b) => b.textContent.endsWith("for Leadership")).click(); true');
+      await waitFor('[...document.querySelectorAll(".tip-quote")].some((p) => !p.parentElement.hidden && /You must demonstrate leadership of at least two people in addition to yourself\./.test(p.textContent))');
+      assert.match(await evaluate('[...document.querySelectorAll(".tip-quote")].map((p) => p.textContent).join(" ")'), /^The workbook says: “You must demonstrate leadership/);
+      await evaluate('document.querySelectorAll("nav button")[3].click(); true');
+      await waitFor('document.querySelectorAll("nav button")[3].classList.contains("active")');
+      await evaluate('[...document.querySelectorAll("button.tip-btn")].find((b) => /Permissions or Permits/.test(b.textContent)).click(); true');
+      await waitFor('[...document.querySelectorAll(".tip-quote")].some((p) => !p.parentElement.hidden && /DO NOT START WORK UNTIL YOU HAVE ALL PERMITS AND PERMISSIONS\./.test(p.textContent))');
+    });
+    await test('guided 2026 page: the Proposal Approval card names the four approvals, and the tables show the workbook\'s example rows', async () => {
+      await open(G26, READY26);
+      await evaluate('document.querySelectorAll("nav button")[1].click(); true');
+      await waitFor('document.querySelectorAll("nav button")[1].classList.contains("active")');
+      assert.match(await evaluate('document.getElementById("main").innerText'), /Four people approve your proposal, on page 11 of the PDF: the beneficiary, the council or district, your Scoutmaster, and the unit committee\. The Candidate’s Promise is your own promise to lead the project; you sign it first, before you ask for the other approvals\./);
+      assert.match(await evaluate('document.getElementById("main").innerText'), /Example from the workbook \(page 9\): Registered Scouting America youth members – helping proposal development · 2 people · 8 hours · \(worked 4 hours\)/);
+      await evaluate('document.querySelectorAll("nav button")[3].click(); true');
+      await waitFor('document.querySelectorAll("nav button")[3].classList.contains("active")');
+      const plan = await evaluate('document.getElementById("main").innerText');
+      assert.match(plan, /Example from the workbook \(page 14\): Assemble birdhouses · Pre-drill and screw · Youth · 7 youth · 3 youth/);
+      assert.match(plan, /Example from the workbook \(page 14\): Paint all parts prior to assembly · 1 day/);
+      assert.match(plan, /Example from the workbook \(page 15\)/);
+      const wraps = await evaluate('[...document.querySelectorAll(".table-wrap")].map((w) => ({ tab: w.tabIndex, role: w.getAttribute("role"), label: w.getAttribute("aria-label") }))');
+      assert.ok(wraps.length >= 3 && wraps.every((w) => w.tab === 0 && w.role === 'region' && /Scroll sideways/.test(w.label)), JSON.stringify(wraps));
+    });
+    await test('guided 2026 page on a phone: a one-column table fits, table inputs are at least 44px, and the tab ring is not clipped', async () => {
+      await open(G26, READY26);
+      await send('Emulation.setDeviceMetricsOverride', { width: 320, height: 640, deviceScaleFactor: 2, mobile: true });
+      try {
+        await evaluate('document.querySelectorAll("nav button")[3].click(); true');
+        await waitFor('document.querySelectorAll("nav button")[3].classList.contains("active")');
+        const m = await evaluate('(() => { const w = [...document.querySelectorAll(".table-wrap")]; const steps = w[0]; const inputs = [...document.querySelectorAll(".table-wrap input")].map((i) => i.getBoundingClientRect().height); return { stepsOverflow: steps.scrollWidth - steps.clientWidth, minInput: Math.min(...inputs), page: document.documentElement.scrollWidth - innerWidth }; })()');
+        assert.ok(m.stepsOverflow <= 1, 'the two-column steps table fits at 320px: ' + JSON.stringify(m));
+        assert.ok(m.minInput >= 43.5, 'table inputs are 44px: ' + JSON.stringify(m));
+        assert.ok(m.page <= 0, 'the page does not scroll sideways: ' + JSON.stringify(m));
+      } finally { await send('Emulation.clearDeviceMetricsOverride'); }
+    });
+    await test('home page: the 2026 Guided card is the highlighted one, with one plain line about which workbook to use', async () => {
+      await open('index.html', '!!document.querySelector("a")');
+      assert.equal(await evaluate('document.querySelector(\'a.tool.start\').getAttribute("href")'), 'EagleWorkbook2026-guided.html');
+      assert.equal(await evaluate('document.querySelectorAll("a.tool.start").length'), 1);
+      assert.match(await evaluate('document.body.innerText'), /Just starting\? Use the 2026 pages\. If your proposal was fully approved before January 1, 2027 using the 2023 workbook, you may keep using the 2023 pages\./);
+      await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
+      try {
+        // The goal is that a Scout sees the first card without scrolling: its title and first line, at least 60px of it.
+        const top = await evaluate('document.querySelector("a.tool.start").getBoundingClientRect().top');
+        assert.ok(top < 844 - 60, 'the highlighted card starts on the first screen of a phone: top at ' + Math.round(top));
+      } finally { await send('Emulation.clearDeviceMetricsOverride'); }
+    });
+    await test('BackupFromPDF: every link at the top names its edition, and is at least 44px tall', async () => {
+      await open('BackupFromPDF.html', '!!window.EagleOfficialPdf');
+      const links = await evaluate('[...document.querySelectorAll(".topnav a")].map((a) => ({ t: a.textContent.trim(), h: a.getBoundingClientRect().height }))');
+      assert.deepEqual(links.map((l) => l.t), ['Home and help', '2026 Guided workbook', '2026 Classic workbook', 'Fill the 2026 PDF', '2023 Guided workbook', '2023 Classic workbook', 'Fill the 2023 PDF']);
+      assert.ok(links.every((l) => l.h >= 43.5), JSON.stringify(links));
+    });
+    await test('Erase on a 2026 page removes its own scans and keeps the 2023 workbook\'s (and the reverse)', async () => {
+      const idb = 'new Promise((r) => { const q = indexedDB.open("eagle_workbook_files"); q.onsuccess = () => { const g = q.result.transaction("pages").objectStore("pages").getAllKeys(); g.onsuccess = () => r(g.result.length); }; q.onerror = () => r(-1); })';
+      const draft23 = JSON.parse(fs.readFileSync(SAMPLE, 'utf8'));
+      await open('EagleWorkbook-guided.html', '!!document.querySelector("nav button")');
+      await evaluate(`localStorage.clear(); indexedDB.deleteDatabase("eagle_workbook_files"); localStorage.setItem("eagle_workbook_guided_v1", ${JSON.stringify(JSON.stringify(draft23))}); true`);
+      await open('EagleWorkbook-guided.html', '!!document.querySelector("nav button")');
+      await evaluate('document.querySelectorAll("nav button")[5].click()');
+      await waitFor('!!document.querySelector(".privacy-warning")');
+      await setFile('.attachments .file-pick input', path.join(__dirname, 'fixtures/scan-portrait.jpg'));
+      await waitFor('(JSON.parse(localStorage.getItem("eagle_workbook_guided_v1")).attachments || []).length === 1');
+      assert.equal(await evaluate(idb), 1, 'one 2023 picture');
+      // Now a 2026 scan on the Guided 2026 page.
+      await open(G26, READY26);
+      await evaluate('document.querySelectorAll("nav button")[5].click(); true');
+      await waitFor('document.querySelectorAll("nav button")[5].classList.contains("active")');
+      await waitFor('!!document.querySelector(".attachments .file-pick input")', 15000);
+      await setFile('.attachments .file-pick input', path.join(__dirname, 'fixtures/scan-landscape.jpg'));
+      await waitFor('(JSON.parse(localStorage.getItem(' + JSON.stringify(KG26) + ') || "{}").attachments || []).length >= 1', 20000);
+      assert.equal(await evaluate(idb), 2, 'a 2023 picture and a 2026 picture');
+      // Erase from the 2026 page.
+      await evaluate('window.confirm = () => true; true');
+      await click('erase this draft from this browser');
+      await waitFor(`localStorage.getItem(${JSON.stringify(KG26)}) === null`, 10000);
+      await waitFor(`(${idb}).then((n) => n === 1)`, 10000).catch(() => {});
+      for (let t = 0; t < 50 && (await evaluate(idb)) !== 1; t++) await sleep(100);
+      assert.equal(await evaluate(idb), 1, 'only the 2026 picture was removed');
+      assert.ok(JSON.parse(await evaluate('localStorage.getItem("eagle_workbook_guided_v1")')).attachments.length === 1, 'and the 2023 draft still lists its scan');
+      await evaluate('localStorage.clear(); indexedDB.deleteDatabase("eagle_workbook_files"); true');
+    });
     await test('guided 2026 page on a 390px phone: the stage card and Your path fit with no sideways scrolling', async () => {
       await open(G26, READY26);
       await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
@@ -1196,6 +1306,40 @@ async function run() {
       filled2026 = path.join(os.tmpdir(), `eph-filled26-${process.pid}.pdf`);
       fs.copyFileSync(file, filled2026);
       assert.deepEqual(problems, []);
+    });
+    await test('2026 Fill page on a phone: after "Make the filled PDF" the report is on screen and has focus', async () => {
+      await open(FILL26, READY_FILL26);
+      await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
+      try {
+        await setFile('#pdf-file', W26_PDF);
+        await waitFor('document.getElementById("pdf-chosen").textContent.startsWith("Using")');
+        await setFile('#json-file', SAMPLE26_FILE);
+        await waitFor('!document.getElementById("create").disabled');
+        clearDownloads();
+        await evaluate('document.getElementById("create").scrollIntoView({ block: "center" }); document.getElementById("create").click(); true');
+        await waitFor('document.getElementById("report").hidden === false', 60000);
+        await waitFor('document.activeElement && document.activeElement.tagName === "H2" && document.activeElement.closest("#report")', 5000);
+        const r = await evaluate('(() => { const b = document.getElementById("report").getBoundingClientRect(); return { top: b.top, vh: innerHeight }; })()');
+        assert.ok(r.top >= -2 && r.top < r.vh, 'the report starts on screen: ' + JSON.stringify(r));
+        const link = await evaluate('(() => { const a = document.querySelector(".banner a"); const c = getComputedStyle(a).color; return c; })()');
+        assert.equal(link, 'rgb(255, 255, 255)', 'the banner link is white on the blue banner');
+      } finally { await send('Emulation.clearDeviceMetricsOverride'); }
+    });
+    await test('both Fill pages judge a hand-edited 2026 file the same way: a numeric or spaced edition is 2026, so the 2023 page refuses it and the 2026 page takes it', async () => {
+      const base = JSON.parse(fs.readFileSync(SAMPLE26_FILE, 'utf8'));
+      const variants = { numeric: { ...base, edition: 2026 }, spaced: { ...base, edition: ' 2026 ' }, missing: (() => { const d = { ...base }; delete d.edition; return d; })() };
+      for (const [kind, data] of Object.entries(variants)) {
+        const file = path.join(downloads, `edition-${kind}.json`);
+        fs.writeFileSync(file, JSON.stringify(data));
+        await open('FillOfficialPDF.html', '!!window.EagleOfficialPdf');
+        await setFile('#json-file', file);
+        await waitFor('document.getElementById("json-chosen").textContent.length > 0');
+        assert.match(await evaluate('document.getElementById("json-chosen").textContent'), /This backup file is for the 2026 workbook/, `2023 Fill page, ${kind}`);
+        await open(FILL26, READY_FILL26);
+        await setFile('#json-file', file);
+        await waitFor('document.getElementById("json-chosen").textContent.length > 0');
+        assert.match(await evaluate('document.getElementById("json-chosen").textContent'), /^Using the backup file/, `2026 Fill page, ${kind}`);
+      }
     });
     await test('2026 Fill page: Appendix D downloads, and a workbook in the Appendix D step is refused', async () => {
       if (!fs.existsSync(W26_APPD)) throw new Error('Appendix D not cached: run tests/run-tests.cjs first');
