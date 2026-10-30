@@ -53,14 +53,17 @@ td input{padding:5px 6px;font-size:13px;border-color:#ccc}
 .plain-help{margin:4px 0 6px}
 .plain-short{font-size:14.5px;color:#1a1a1a}
 .plain-rule{font-size:13px;color:#4e2a00;background:#fff4e0;border-left:3px solid #c9a227;padding:4px 8px;margin-top:4px}
-.plain-full{margin:2px 0 6px;font-size:12.5px;color:#4e5a66}
-.plain-full summary{cursor:pointer;color:#00509e;font-weight:600}
-.plain-full p{margin-top:4px}
+.plain-full{margin:2px 0 6px;font-size:14px;color:#4e5a66}
+.plain-full summary{color:#00509e;font-weight:600}
+.plain-full p{margin:0 0 8px}
+.journey .j-all>summary{color:#00509e;font-weight:600}
+summary.plain-sum,.plain-full summary,.journey .j-all>summary,.ask-help>summary,.more-help>summary{display:list-item;list-style-position:inside;min-height:44px;padding:10px 0;box-sizing:border-box;cursor:pointer}
+select{min-height:44px;font-size:16px}
 .stage-card{background:#eaf2fb;border:1px solid #9bbce1;border-radius:10px;padding:16px;margin-bottom:16px}
 .stage-card h2{font-size:18px;color:#003f87;margin-bottom:4px}
 .next-step{font-weight:700;color:#003f87;font-size:14px}
 .stage-meta{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:12.5px}
-.status-pill{white-space:nowrap;background:#dceef0;color:#155c36;border-radius:999px;padding:3px 9px;font-weight:700}
+.status-pill{background:#dceef0;color:#155c36;border-radius:999px;padding:3px 9px;font-weight:700}
 .progress{flex:1;height:8px;background:#d7e3f2;border-radius:999px;overflow:hidden}
 .progress span{display:block;height:100%;background:#2d6a30}
 @media(max-width:620px){.stage-meta{flex-direction:column;align-items:flex-start}.progress{flex:0 0 8px;width:100%}}
@@ -162,7 +165,7 @@ td input{padding:5px 6px;font-size:13px;border-color:#ccc}
 @media print{input::placeholder,textarea::placeholder{color:transparent}.tip,.tip-btn,.tip-wrap,.keep-safe,.keep-list,.ask-help,.journey,.scoutly-win,.scoutly-pill,.backup-nudge,.empty-boxes,.tab-dot,.key-count,.review{display:none!important}}
 </style>
 </head>
-<body>
+<body data-page="guided">
 <div class="app" id="app"><p class="loading">Loading… If this message stays, this page cannot find its helper files. Keep this file in the same folder as the “lib” folder it came with. If you downloaded a ZIP file, unzip (extract) it first.</p></div>
 <script src="lib/official-pdf.js"></script>
 <script src="lib/preflight.js"></script>

@@ -1,6 +1,6 @@
 # 2026 workbook: open items
 
-Found in the Phase 4 review (review panel p4, rounds 1 and 2). Fixed: the AI disclosure tip, the permit wording, the page 7 description tip (including what page 11 shows), the leadership and safety tips, the Guided stage names, the banner that points to a Classic draft, the repair copy kept before an "Open in" replaces a draft, and the deploy list and INSTALL.md (which now include the 2026 pages).
+Found in the Phase 4 review (review panel p4, rounds 1 and 2) and the Guided 2026 review (panel g, rounds 1 and 2). Fixed in panel g: the rule-sentence filter (now show-by-default with a recorded HIDDEN table); ten "In short" lines that turned an "or" or an "if" into a requirement, dropped a question, or used synonyms for the workbook's words; the Fundraising next-step line (now names the three exempt sources on page 12); the Plan hint that was the project's own advice; Your path going stale while typing; a stray "null" in the path card; the Signed card counting 2023a slots; the Guided page keying off the file name; a blocked-storage regression in "Open in"; the first tab's layout (the first box was 3.2 screens down, now 1.6); disclosure markers and 44px targets; and a deploy test that could not see one missing list.
 
 ## Needs the maintainer
 
@@ -13,10 +13,9 @@ Found in the Phase 4 review (review panel p4, rounds 1 and 2). Fixed: the AI dis
 
 ## Guided 2026 page
 
-- Done in this round: stage cards, "Your path" (from the workbook's page 3 checklist), and "In short" lines for the 13 long prompts.
+- Done: stage cards, "Your path" from the workbook's page 3 checklist, and "In short" lines for the 12 long prompts. A short line sits above the rule sentences, which are copied from the official text.
 - Not done: examples under short boxes, and plain error messages like the 2023 Guided page has.
 - Print titles use the Classic names ("Project Contacts") while the screen uses "1. Set Up". Use one set of names.
-- The Guided page takes its identity from the file name. A renamed copy opens as the Classic page.
 - The page title and home card say "stages"; that is now true (stage cards). Re-read both after the review.
 
 ## Smaller gaps
@@ -32,3 +31,14 @@ Found in the Phase 4 review (review panel p4, rounds 1 and 2). Fixed: the AI dis
 - Option B for 2026 attachments: a whole-workbook drawn copy with scans after pages 11, 18, and 22.
 - "Your path" for 2026 (`journeySteps` for the 2026 edition).
 - Carrying names and contacts from a 2023 draft into a 2026 draft.
+
+## From the Guided 2026 review, not yet done
+
+- **Check every "In short" line against its prompt by eye before release.** The word-overlap test is a smoke alarm only; the review caught five lines that the test passed. Mutation check: a line that softens the permits requirement still passes the tests.
+- **Stage hints and the Review hint are the project's own advice** (for example "Look over what is left, then fill the official PDF"). Mark them as advice or source them.
+- **The Safety box shows six statements under its In short line** (the four policy sentences, the 811 sentence, and the "not a teacher" sentence). That is the cost of showing every statement; trim only by moving a sentence into HIDDEN with a reason a test accepts.
+- **`pillText(99)` throws** on an index that no caller can pass.
+- **The privacy scan's jump-host rule** misses the attached form (`-Jme@host`) and `ProxyJump=`.
+- **An unticked-but-hidden Fundraising tick still counts in `hasNotes`**, so "Open backup file" can warn about notes the Scout cannot see. Same as 2023a.
+- **Intermittent failures in the 2023 Fill page browser tests** ("download is the official PDF plus an update", then "needs the PDF from the previous test") appeared once in one browser run and did not recur in five later runs. Cause not found. If it returns, run that group on its own.
+- **Round 2 minor items not done:** the Name field is still a little over one screen below the stage card at 390px (852px); other old summaries ("Who to ask") are 23px tall; the stage hints for Signed pages and Review are marked "Tip:" but not sourced; one tick on "Get your Project Plan approved" covers the approval, and the Candidate's Promise is only mentioned.

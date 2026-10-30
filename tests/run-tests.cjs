@@ -470,15 +470,24 @@ function everyAnswer() {
     const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
     const scripts = (f) => [...read(f).matchAll(/<script src="([^"]+)"/g)].map((m) => m[1]);
     const before = (list, a, b, where) => { assert.ok(list.includes(a) && list.includes(b), `${where}: needs ${a} and ${b}`); assert.ok(list.indexOf(a) < list.indexOf(b), `${where}: ${a} must load before ${b}`); };
-    await test('deploy: every page that the home page links to is copied by tools/deploy.sh and listed in INSTALL.md', () => {
+    await test('deploy: every page the home page links to is in each of the three lists in tools/deploy.sh, lib/ is copied, and INSTALL.md lists them', () => {
       const deploy = fs.readFileSync(path.join(ROOT, 'tools/deploy.sh'), 'utf8');
       const install = fs.readFileSync(path.join(ROOT, 'INSTALL.md'), 'utf8');
+      const block = (re, what) => { const m = re.exec(deploy); assert.ok(m, 'deploy.sh has no ' + what); return m[1].split(/\s+/).filter(Boolean); };
+      const published = block(/PUBLISHED=\(([^)]*)\)/, 'PUBLISHED list');
+      const files = block(/\nFILES=\(([^)]*)\)/, 'FILES list');
+      const sitemap = block(/for page in ""([^;]*);/, 'sitemap page list');
       const links = [...new Set([...fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8').matchAll(/href="([^"#?:]+\.html)"/g)].map((m) => m[1]))];
-      assert.ok(links.length >= 5, 'the home page links to several pages');
+      assert.ok(links.length >= 6, 'the home page links to several pages: ' + links.length);
       for (const page of links) {
-        assert.ok(deploy.includes(` ${page} `) || deploy.includes(`${page} `) || deploy.includes(` ${page}\n`), `tools/deploy.sh does not copy ${page}`);
+        for (const [name, list] of [['PUBLISHED', published], ['FILES', files], ['the sitemap list', sitemap]]) {
+          if (page === 'index.html' && name === 'the sitemap list') continue;   // the sitemap writes the site root for the home page
+          assert.ok(list.includes(page), `${page} is missing from ${name} in tools/deploy.sh`);
+        }
         assert.ok(install.includes(page), `INSTALL.md does not list ${page}`);
       }
+      for (const dir of ['lib/', 'vendor/', 'docs/']) assert.ok(files.includes(dir), `${dir} is not copied`);
+      assert.ok(published.includes('lib'), 'lib is checked for stray files');
     });
     await test('copies: each page loads its scripts in the order they need', () => {
       for (const [page, own] of [['EagleWorkbook-guided.html', 'lib/guided-workbook.js'], ['EagleWorkbook.html', 'lib/classic-workbook.js']]) {
@@ -1923,6 +1932,27 @@ function everyAnswer() {
       for (const bad of ['innerHTML', 'insertAdjacentHTML', 'document.write']) assert.ok(!src.includes(bad), `${bad} in the 2026 page`);
       for (const f of ['lib/w26-classic.js', 'lib/w26-ui.js', 'lib/w26-model.js', 'lib/w26-pdf.js']) assert.doesNotMatch(read(f), /\binnerHTML\b/, f);
     });
+    await test('2026 pages: each declares what it is on the body tag, and only the Guided page loads the Guided scripts', () => {
+      const body = (f) => (/<body([^>]*)>/.exec(fs.readFileSync(path.join(ROOT, f), 'utf8')) || [])[1] || '';
+      assert.match(body('EagleWorkbook2026-guided.html'), /data-page="guided"/);
+      assert.match(body('EagleWorkbook2026.html'), /data-page="classic"/);
+      const src = fs.readFileSync(path.join(ROOT, 'lib/w26-classic.js'), 'utf8');
+      assert.match(src, /getAttribute\('data-page'\) === 'guided'/, 'the script reads the declared mode first');
+    });
+    await test('2026 path: each step names the tab the page really has, and the tab names come through', () => {
+      const J26 = require(path.join(ROOT, 'lib/journey.js'));
+      const names = { setup: 'S0', proposal: 'P1', fundraising: 'F2', plan: 'L3', report: 'R4', signed: 'G5' };
+      const blank = { edition: '2026', candidate: {}, proposal: { needFundraisingApp: 'yes' } };
+      const steps = J26.journeySteps(blank, null, names).steps;
+      const next = (id) => steps.find((x) => x.id === id).next;
+      assert.equal(next('setup'), 'Fill in the “S0” tab.');
+      assert.equal(next('proposal'), 'Fill in the “P1” tab.');
+      assert.equal(next('fundraising'), 'Fill in the “F2” tab.');
+      assert.equal(next('plan'), 'Fill in the “L3” tab.');
+      assert.equal(next('report'), 'Fill in the “R4” tab.');
+      assert.match(next('fund'), /^If your council requires a Fundraising Application, get it approved before you ask for donations\. Page 12 lists contributions that need no application: from you or your parents, guardians, or relatives; from the beneficiary; and from your unit, its members, unit parents, or the chartered organization\.$/);
+      assert.match(next('planApproved'), /The plan ends with a Candidate’s Promise that says you did this \(page 18\)/);
+    });
     await test('2026 plain lines: every long official prompt has an "In short" line, and no short prompt has one', () => {
       const PL = require(path.join(ROOT, 'lib/w26-plain.js'));
       const all = { ...W26M.OFFICIAL.boxes, ...W26M.OFFICIAL.appendixD };
@@ -1932,22 +1962,55 @@ function everyAnswer() {
       assert.deepEqual(Object.keys(PL.PLAIN).filter((k) => !all[k]), [], 'In short lines for boxes that do not exist');
       assert.deepEqual(Object.keys(PL.PLAIN).filter((k) => !PL.needsPlain(all[k][2])), [], 'In short lines for prompts that are already short');
     });
-    await test('2026 plain lines: every "must", "DO NOT", and exception sentence of the official prompt is shown word for word', () => {
+    await test('2026 plain lines: every statement in a long prompt is shown word for word unless HIDDEN records why it is not', () => {
       const PL = require(path.join(ROOT, 'lib/w26-plain.js'));
       const all = { ...W26M.OFFICIAL.boxes, ...W26M.OFFICIAL.appendixD };
-      let rules = 0;
+      // Written out here on purpose, not read from PL.RULE_WORDS: a test that reuses the code under test cannot catch a filter that is too narrow.
+      const ruleWord = /\bmust\b|\bDO NOT\b|\bdo not need\b|\bmay not\b|\bbe sure\b|\bresponsible for\b|\brequire\b|\brefer to\b|\bis not a\b/i;
+      const split = (t) => t.split(/(?<=[.?!])\s+/).filter(Boolean);
+      let shownCount = 0, hiddenCount = 0;
       for (const k of Object.keys(PL.PLAIN)) {
-        const official = all[k][2];
-        const shown = PL.plainFor(k, official);
-        const expected = official.split(/(?<=[.?!])\s+/).filter((x) => /\bmust\b|\bDO NOT\b|\bdo not need\b|\bmay not\b/i.test(x));
-        assert.deepEqual(shown.musts, expected, k);
-        for (const x of shown.musts) assert.ok(official.includes(x), `${k}: shown sentence is not in the official prompt`);
-        assert.equal(shown.full, official, k + ': the full question is shown unchanged');
-        rules += shown.musts.length;
+        const official = all[k][2], plain = PL.plainFor(k, official), hidden = PL.HIDDEN[k] || [];
+        assert.equal(plain.full, official, k + ': the full question is shown unchanged');
+        // Every HIDDEN entry names one real sentence, gives a known reason, and is not a rule sentence.
+        for (const h of hidden) {
+          const hits = split(official).filter((x) => x.startsWith(h.starts));
+          assert.equal(hits.length, 1, `${k}: "${h.starts}" matches ${hits.length} sentences`);
+          assert.ok(['carried', 'example', 'rationale'].includes(h.why), `${k}: unknown reason ${h.why}`);
+          assert.ok(!ruleWord.test(hits[0]), `${k}: a rule sentence is hidden: ${hits[0]}`);
+          assert.ok(!hits[0].endsWith('?'), `${k}: questions are not listed as hidden statements`);
+          hiddenCount++;
+        }
+        // Every statement is either shown or hidden on purpose. Questions are carried by the In short line and never shown as rules.
+        const statements = split(official).filter((x) => !x.endsWith('?'));
+        const expected = statements.filter((x) => ruleWord.test(x) || !hidden.some((h) => x.startsWith(h.starts)));
+        assert.deepEqual(plain.rules, expected, k);
+        for (const r of plain.rules) { assert.ok(official.includes(r), k + ': shown sentence is not in the official prompt'); assert.ok(!r.endsWith('?'), k + ': a question under "The workbook says"'); }
+        shownCount += plain.rules.length;
+        // A 'carried' statement must really be in the In short line: most of its content words appear there.
+        const stem = (w) => w.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 5);
+        const stop = new Set('the a an and or of to in on for is are be it its you your will can how what who when where that this with as at by from not any may if'.split(' '));
+        const words = (t) => t.split(/\s+/).map(stem).filter((w) => w.length >= 3 && !stop.has(w));
+        const inShort = new Set(words(plain.short));
+        for (const h of hidden.filter((x) => x.why === 'carried')) {
+          const sentence = split(official).find((x) => x.startsWith(h.starts)), w = words(sentence);
+          const share = w.filter((x) => inShort.has(x)).length / w.length;
+          assert.ok(share >= 0.6, `${k}: "${h.starts}" is marked carried but only ${Math.round(share * 100)}% of its words are in the In short line`);
+        }
       }
-      assert.ok(rules >= 8, 'the leadership, safety, permits, and donors rules are all there: ' + rules);
-      assert.ok(PL.plainFor('proposal.leadership', all['proposal.leadership'][2]).musts.includes('You must demonstrate leadership of at least two people in addition to yourself.'));
-      assert.ok(PL.plainFor('plan.permits', all['plan.permits'][2]).musts.includes('DO NOT START WORK UNTIL YOU HAVE ALL PERMITS AND PERMISSIONS.'));
+      assert.ok(shownCount >= 14 && hiddenCount >= 20, `counts: shown ${shownCount}, hidden ${hiddenCount}`);
+      const shown = (k, text) => assert.ok(PL.plainFor(k, all[k][2]).rules.some((x) => x.includes(text)), `${k} must show: ${text}`);
+      shown('proposal.leadership', 'You must demonstrate leadership of at least two people in addition to yourself.');
+      shown('proposal.leadership', 'Helpers may be involved in Scouting, or not, and of any age appropriate for the work.');
+      shown('proposal.leadership', 'This is not a family project');
+      shown('proposal.safety', 'For example, you might need a principal, superintendent, or school board, not a teacher');
+      shown('proposal.safety', 'If you are digging, many states require someone to contact 811');
+      shown('proposal.resources', 'Refer to Scouting America SAFE Project Tool Use.');
+      shown('plan.safetyAdults', 'identify at least two registered adults to be present to monitor safety');
+      shown('plan.permits', 'Be sure that you have permissions from people who are authorized to grant them.');
+      shown('plan.permits', 'DO NOT START WORK UNTIL YOU HAVE ALL PERMITS AND PERMISSIONS.');
+      shown('proposal.beneficiaryImpact', 'Add an attachment if you need more space.');
+      assert.ok(!PL.plainFor('proposal.safety', all['proposal.safety'][2]).rules.some((x) => /^Consider:/.test(x)), 'a question is not shown as a workbook rule');
       assert.equal(PL.plainFor('proposal.motivation', 'anything'), null, 'a box with no entry is shown as printed');
     });
     await test('2026 plain lines: an In short line is short, states no rule, and draws its words from the official prompt', () => {
@@ -1957,9 +2020,11 @@ function everyAnswer() {
       const stop = new Set('the a an and or of to in on for is are be it its you your will can how what who when where that this with as at by from not any may'.split(' '));
       const words = (t) => t.split(/\s+/).map(stem).filter((w) => w.length >= 3 && !stop.has(w));
       for (const [k, line] of Object.entries(PL.PLAIN)) {
-        assert.ok(line.length <= 300, `${k}: ${line.length} characters`);
+        // The Safety prompt is 1,500 characters long with six topics, so its line gets more room than the others.
+        assert.ok(line.length <= (k === 'proposal.safety' ? 330 : 300), `${k}: ${line.length} characters`);
         assert.doesNotMatch(line, /\b(must|required|requirement|mandatory|have to|need to|always|never|only if|in writing)\b/i, `${k}: a rule word in the In short line`);
-        assert.doesNotMatch(line, PL.RULE_WORDS, k);
+        // One phrase is allowed: "the registered adults responsible for safety" is the workbook's own name for those adults (page 10), not a rule.
+        assert.doesNotMatch(line.replace(/registered adults responsible for safety/g, 'registered adults'), PL.RULE_WORDS, k);
         // A smoke alarm, not proof: most content words should come from the official prompt or label. The review panel checks meaning.
         const off = new Set(words(all[k][2] + ' ' + all[k][1]));
         const w = words(line), shared = w.filter((x) => off.has(x)).length / w.length;
@@ -2009,6 +2074,13 @@ function everyAnswer() {
       assert.equal(J26.journeySteps(ticked, null).steps.find((x) => x.id === 'planApproved').state, 'done');
       assert.equal(J26.hasNotes(ticked.journey), true);
       assert.deepEqual(J26.clean({ steps: { planApproved: { done: '1' }, bogus: { done: '1' } } }).steps, { planApproved: { done: '1' } });
+    });
+    await test('2026 path: the note about the short list names the Fundraising question on the tab this page really has', () => {
+      const J26 = require(path.join(ROOT, 'lib/journey.js'));
+      assert.match(J26.pathNote2026('2. Proposal'), /on the “2\. Proposal” tab\./);
+      assert.match(J26.pathNote2026('Project Proposal'), /on the “Project Proposal” tab\./);
+      assert.match(J26.pathNote2026(), /on the “Project Proposal” tab\./, 'a default when the page gives none');
+      assert.match(J26.pathNote2026('x'), /Page 6: “You must provide the Information for Project Beneficiaries \(Appendix B\) document/, 'the Appendix B sentence is quoted, not paraphrased');
     });
     await test('2026 path: nothing it says calls a step required except the workbook\'s own quoted sentences', () => {
       const J26 = require(path.join(ROOT, 'lib/journey.js'));

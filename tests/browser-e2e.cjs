@@ -946,9 +946,9 @@ async function run() {
       await evaluate('document.querySelectorAll("nav button")[1].click(); true');
       await waitFor('document.querySelectorAll("nav button")[1].classList.contains("active")');
       const lead = 'document.getElementById("f-proposal-leadership").closest(".field")';
-      assert.match(await evaluate(`${lead}.querySelector(".plain-short").textContent`), /^In short: Say how you will lead your helpers/);
+      assert.match(await evaluate(`${lead}.querySelector(".plain-short").textContent`), /^In short: Say how you will show leadership/);
       const rules = await evaluate(`[...${lead}.querySelectorAll(".plain-rule")].map((e) => e.textContent)`);
-      assert.deepEqual(rules, ['The workbook says: “You must demonstrate leadership of at least two people in addition to yourself.”', 'The workbook says: “Your family members may assist, but you must recruit the help needed to complete the project.”']);
+      assert.deepEqual(rules, ['The workbook says: “You must demonstrate leadership of at least two people in addition to yourself.”', 'The workbook says: “This is not a family project like the one described in the Family Life merit badge.”', 'The workbook says: “Your family members may assist, but you must recruit the help needed to complete the project.”', 'The workbook says: “Helpers may be involved in Scouting, or not, and of any age appropriate for the work.”']);
       assert.equal(await evaluate(`${lead}.querySelector(".plain-full").open`), false, 'the full question starts closed');
       assert.equal(await evaluate(`${lead}.querySelector(".plain-full summary").textContent`), 'Show the full official question');
       await evaluate(`${lead}.querySelector(".plain-full summary").click(); true`);
@@ -969,11 +969,17 @@ async function run() {
     await test('guided 2026 page: Permits and Safety keep their "must" and "DO NOT" sentences, and Appendix D keeps the donor exception', async () => {
       await evaluate('document.querySelectorAll("nav button")[3].click(); true');
       await waitFor('document.querySelectorAll("nav button")[3].classList.contains("active")');
-      assert.match(await evaluate('document.getElementById("f-plan-permits").closest(".field").querySelector(".plain-rule").textContent'), /“DO NOT START WORK UNTIL YOU HAVE ALL PERMITS AND PERMISSIONS\.”/);
+      const permitRules = await evaluate('[...document.getElementById("f-plan-permits").closest(".field").querySelectorAll(".plain-rule")].map((e) => e.textContent).join(" | ")');
+      assert.match(permitRules, /“Be sure that you have permissions from people who are authorized to grant them\.”/);
+      assert.match(permitRules, /“DO NOT START WORK UNTIL YOU HAVE ALL PERMITS AND PERMISSIONS\.”/);
+      assert.match(await evaluate('document.getElementById("f-plan-safetyAdults").closest(".field").querySelector(".plain-rule").textContent'), /identify at least two registered adults to be present to monitor safety/);
       await evaluate('document.querySelectorAll("nav button")[1].click(); true');
       await waitFor('document.querySelectorAll("nav button")[1].classList.contains("active")');
       const safety = await evaluate('[...document.getElementById("f-proposal-safety").closest(".field").querySelectorAll(".plain-rule")].length');
-      assert.equal(safety, 3);
+      assert.equal(safety, 6, 'the safety prompt shows its six statements (four rule sentences, the 811 digging sentence, and the "not a teacher" sentence) and no question');
+      assert.match(await evaluate('document.getElementById("f-proposal-safety").closest(".field").innerText'), /you might need a principal, superintendent, or school board, not a teacher/);
+      assert.doesNotMatch(await evaluate('[...document.getElementById("f-proposal-safety").closest(".field").querySelectorAll(".plain-rule")].map((e) => e.textContent).join(" ")'), /Consider:|\?/, 'a question is not shown as something the workbook says');
+      assert.match(await evaluate('document.getElementById("f-proposal-safety").closest(".field").innerText'), /If you are digging, many states require someone to contact 811/);
       await evaluate('document.querySelectorAll("nav button")[2].click(); true');
       await waitFor('document.querySelectorAll("nav button")[2].classList.contains("active")');
       assert.match(await evaluate('document.getElementById("f-appendixD-donors").closest(".field").innerText'), /You do not need to list parents, family members/);
@@ -985,10 +991,133 @@ async function run() {
       assert.equal(await evaluate('document.querySelectorAll(".plain-help, .plain-full").length'), 0);
       assert.match(await evaluate('document.getElementById("f-proposal-leadership").closest(".field").querySelector(".help").textContent'), /^How will you show leadership\? You must demonstrate leadership of at least two people in addition to yourself\./);
     });
+    await test('guided 2026 page: Your path shows the next step with the list one tap away, and it updates as the Scout types', async () => {
+      await evaluate(`localStorage.removeItem(${JSON.stringify(KG26)}); true`);
+      await open(G26, READY26);
+      assert.equal(await evaluate('document.querySelector(".journey details.j-all").open'), false, 'the list starts closed');
+      assert.match(await evaluate('document.querySelector(".journey details.j-all summary").textContent'), /^See all 9 steps$/);
+      assert.match(await evaluate('document.querySelector(".journey-next").textContent'), /^Next on your path: Fill in the “1\. Set Up” tab\.$/);
+      const detail = 'document.querySelector(".journey li:first-child .j-detail").textContent';
+      assert.equal(await evaluate(detail), '0 of 6 key boxes filled in.');
+      await setValue('#f-candidate-name', 'Alex Example');
+      await waitFor(`${detail} === "1 of 6 key boxes filled in."`, 5000);
+      assert.equal(await evaluate('document.querySelector(".stage-card .status-pill").textContent'), '1 of 6 key boxes filled in', 'the stage card and the path agree');
+      await evaluate('document.querySelector(".journey details.j-all summary").click(); true');
+      assert.equal(await evaluate('document.querySelector(".journey details.j-all").open'), true);
+      await evaluate('document.getElementById("f-candidate-email").focus(); true');
+      await setValue('#f-candidate-email', 'alex@example.org');
+      await waitFor(`${detail} === "2 of 6 key boxes filled in."`, 5000);
+      assert.equal(await evaluate('document.querySelector(".journey details.j-all").open'), true, 'typing does not close the list');
+      assert.equal(await evaluate('document.activeElement && document.activeElement.id'), 'f-candidate-email', 'typing keeps focus in the box');
+      await evaluate('(() => { const d = document.querySelector(".journey details.j-all"); d.querySelector("summary").click(); return true; })()');
+      assert.equal(await evaluate('(() => { const s = document.querySelector(".journey details.j-all summary").getBoundingClientRect(); return s.height >= 44; })()'), true, 'the summary is at least 44px tall');
+    });
+    await test('guided 2026 page: the Signed Pages stage card counts the pages and links the Scout added, and does not claim they are signed', async () => {
+      await open(G26, READY26);
+      await evaluate('document.querySelectorAll("nav button")[5].click(); true');
+      await waitFor('document.querySelectorAll("nav button")[5].classList.contains("active")');
+      assert.equal(await evaluate('document.querySelector(".stage-card .status-pill").textContent'), 'Nothing added yet');
+      assert.ok(await evaluate('[...document.querySelectorAll("button")].some((b) => /Add a (photo|page|scan)/i.test(b.textContent)) || !!document.querySelector("input[type=file]")'), 'the page has a way to add a file');
+      await evaluate(`(() => { const d = JSON.parse(localStorage.getItem(${JSON.stringify(KG26)}) || "null") || { edition: "2026", candidate: {}, proposal: {} }; d.links = [{ id: "l1", url: "https://example.org/permit", label: "Permit" }]; localStorage.setItem(${JSON.stringify(KG26)}, JSON.stringify(d)); return true; })()`);
+      await open(G26, READY26);
+      await evaluate('document.querySelectorAll("nav button")[5].click(); true');
+      await waitFor('document.querySelectorAll("nav button")[5].classList.contains("active")');
+      assert.equal(await evaluate('document.querySelector(".stage-card .status-pill").textContent'), 'Added so far: 1 link');
+      assert.doesNotMatch(await evaluate('document.querySelector(".stage-card").textContent'), /signed pages added|approved/i);
+      await evaluate(`localStorage.removeItem(${JSON.stringify(KG26)}); true`);
+    });
+    await test('guided 2026 page: the next step on Your path names the tab it is on (Plan, then Report), on the Guided page and on the Review tab', async () => {
+      const M26t = require(path.join(ROOT, 'lib/w26-model.js'));
+      const base = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/sample-workbook-2026.json'), 'utf8'));
+      base.proposal.needFundraisingApp = 'no';
+      const seed = (mutate) => { const d = JSON.parse(JSON.stringify(base)); mutate(d); return d; };
+      const cases = [
+        [seed((d) => { d.plan = M26t.defaults().plan; d.journey = { raising: '', steps: { propSigned: { done: '1' } } }; }), 'Fill in the “4. Project Plan” tab.'],
+        [seed((d) => { d.report = M26t.defaults().report; d.journey = { raising: '', steps: { propSigned: { done: '1' }, planApproved: { done: '1' }, work: { done: '1' } } }; }), 'Fill in the “5. Project Report” tab.']
+      ];
+      for (const [draft, expected] of cases) {
+        await evaluate(`localStorage.setItem(${JSON.stringify(KG26)}, ${JSON.stringify(JSON.stringify(draft))}); localStorage.setItem(${JSON.stringify(KG26 + '_saved')}, String(Date.now())); true`);
+        await open(G26, READY26);
+        assert.equal(await evaluate('document.querySelector(".journey-next").textContent'), 'Next on your path: ' + expected);
+        await evaluate('document.querySelectorAll("nav button")[6].click(); true');
+        await waitFor('document.querySelectorAll("nav button")[6].classList.contains("active")');
+        assert.match(await tabText(), new RegExp('Next on your path\\s+' + expected.replace(/[.“”]/g, '.')));
+      }
+      await evaluate(`localStorage.removeItem(${JSON.stringify(KG26)}); localStorage.removeItem(${JSON.stringify(KG26 + '_saved')}); true`);
+    });
+    await test('2026 pages: Your path has no stray "null" text, and its list note names the real Proposal tab', async () => {
+      for (const [file, tabName] of [[G26, '2. Proposal'], [F26, 'Project Proposal']]) {
+        await evaluate(`localStorage.removeItem(${JSON.stringify(KG26)}); localStorage.removeItem(${JSON.stringify(K26)}); true`);
+        await open(file, READY26);
+        const text = await evaluate('[...document.querySelector(".journey").childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent.trim()).filter(Boolean)');
+        assert.deepEqual(text, [], file + ': loose text inside the path card: ' + JSON.stringify(text));
+        assert.doesNotMatch(await evaluate('document.querySelector(".journey").innerText'), /\bnull\b/, file);
+        await evaluate('document.querySelector(".journey details.j-all summary").click(); true');
+        assert.match(await evaluate('document.querySelector(".journey details.j-all").innerText'), new RegExp('on the “' + tabName.replace('.', '\\.') + '” tab\\.'), file + ': the note names this page\'s tab');
+        assert.match(await evaluate('document.querySelector(".journey details.j-all").innerText'), /Page 6: “You must provide the Information for Project Beneficiaries \(Appendix B\)/);
+      }
+    });
+    await test('2026 pages: the new disclosures show a marker and are at least 44px tall', async () => {
+      await open(G26, READY26);
+      await evaluate('document.querySelectorAll("nav button")[1].click(); true');
+      await waitFor('document.querySelectorAll("nav button")[1].classList.contains("active")');
+      const sums = await evaluate('[...document.querySelectorAll(".plain-full summary")].map((e) => { const c = getComputedStyle(e); return { h: Math.round(e.getBoundingClientRect().height), display: c.display }; })');
+      assert.ok(sums.length >= 6, 'several long prompts on the Proposal tab: ' + sums.length);
+      for (const x of sums) { assert.ok(x.h >= 44, 'summary height ' + x.h); assert.equal(x.display, 'list-item', 'a list-item summary keeps its disclosure triangle'); }
+      await evaluate('document.querySelectorAll("nav button")[0].click(); true');
+      await waitFor('document.querySelectorAll("nav button")[0].classList.contains("active")');
+      const j = await evaluate('(() => { const e = document.querySelector(".journey details.j-all summary"); return { h: Math.round(e.getBoundingClientRect().height), display: getComputedStyle(e).display }; })()');
+      assert.ok(j.h >= 44 && j.display === 'list-item', JSON.stringify(j));
+    });
+    await test('guided 2026 page: a scan added on the Signed tab changes its stage card', async () => {
+      await evaluate(`localStorage.removeItem(${JSON.stringify(KG26)}); true`);
+      await open(G26, READY26);
+      await evaluate('document.querySelectorAll("nav button")[5].click(); true');
+      await waitFor('document.querySelectorAll("nav button")[5].classList.contains("active")');
+      await waitFor('!!document.querySelector(".attachments .file-pick input")', 15000);
+      assert.equal(await evaluate('document.querySelector(".stage-card .status-pill").textContent'), 'Nothing added yet');
+      await setFile('.attachments .file-pick input', path.join(__dirname, 'fixtures/scan-portrait.jpg'));
+      await waitFor('document.querySelector(".stage-card .status-pill").textContent === "Added so far: 1 page"', 20000);
+      await evaluate(`localStorage.removeItem(${JSON.stringify(KG26)}); true`);
+    });
+    await test('guided 2026 page: the stage card progress bar says "N of M" to a screen reader', async () => {
+      await open(G26, READY26);
+      assert.equal(await evaluate('document.querySelector(".stage-card .progress").getAttribute("aria-valuetext")'), '0 of 6 key boxes filled in');
+      await setValue('#f-candidate-name', 'Alex Example');
+      await waitFor('document.querySelector(".stage-card .progress").getAttribute("aria-valuetext") === "1 of 6 key boxes filled in"', 5000);
+    });
+    await test('guided 2026 page: a copy saved under another file name is still the Guided page, with the Guided draft', async () => {
+      const copy = path.join(ROOT, 'EagleWorkbook2026-guided (copy).html');
+      fs.copyFileSync(path.join(ROOT, G26), copy);
+      try {
+        await evaluate(`localStorage.removeItem(${JSON.stringify(KG26)}); localStorage.removeItem(${JSON.stringify(K26)}); true`);
+        await open(path.basename(copy), READY26);
+        assert.match(await evaluate('document.querySelector(".edition-banner").textContent'), /Guided\./);
+        assert.ok(await evaluate('!!document.querySelector(".stage-card")'));
+        await setValue('#f-candidate-name', 'Renamed Copy');
+        await waitFor(`(localStorage.getItem(${JSON.stringify(KG26)}) || '').includes("Renamed Copy")`, 5000);
+        assert.equal(await evaluate(`localStorage.getItem(${JSON.stringify(K26)})`), null, 'the Classic draft is not written');
+      } finally { fs.unlinkSync(copy); await evaluate(`localStorage.removeItem(${JSON.stringify(KG26)}); true`); }
+    });
+    await test('guided 2026 page: the Print view shows the official help and none of the In short lines or stage card', async () => {
+      await open(G26, READY26);
+      await evaluate('document.querySelectorAll("nav button")[1].click(); true');
+      await waitFor('document.querySelectorAll("nav button")[1].classList.contains("active")');
+      await evaluate('(() => { window.__printed = 0; window.print = () => { window.__printed = document.querySelectorAll(".plain-help, .plain-full, .stage-card").length + ":" + document.querySelectorAll(".help").length; }; return true; })()');
+      await click('Print a draft');
+      await waitFor('typeof window.__printed === "string"', 10000);
+      const [hidden, official] = (await evaluate('window.__printed')).split(':').map(Number);
+      assert.equal(hidden, 0, 'no In short lines or stage card in the print view');
+      assert.ok(official > 20, 'the official help is there: ' + official);
+    });
     await test('guided 2026 page on a 390px phone: the stage card and Your path fit with no sideways scrolling', async () => {
       await open(G26, READY26);
       await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
       try {
+        // The first box must not be buried under the cards: the panel measured it 3.2 screens down before the path list was collapsed.
+        // Criterion from the review: the form starts within about one screen of the end of the stage card.
+        const gap = await evaluate('document.getElementById("f-candidate-name").getBoundingClientRect().top - document.querySelector(".stage-card").getBoundingClientRect().bottom');
+        assert.ok(gap < 900, `the first box (Your name) starts ${Math.round(gap)}px below the stage card on a 390px phone (one screen is 844px)`);
         for (const i of [0, 1, 2, 5, 6]) {
           await evaluate(`document.querySelectorAll("nav button")[${i}].click(); true`);
           await waitFor(`document.querySelectorAll("nav button")[${i}].classList.contains("active")`);
@@ -1150,6 +1279,29 @@ async function run() {
       assert.equal(draft.edition, '2026');
       assert.equal(draft.candidate.name, 'Alex Example');
       await evaluate(`localStorage.removeItem(${JSON.stringify(KG26)}); true`);
+    });
+    await test('Open in the Guided 2026 workbook over an unreadable draft keeps a repair copy of it', async () => {
+      assert.ok(filled2026, 'needs the 2026 PDF from the Fill page test');
+      await evaluate(`localStorage.setItem(${JSON.stringify(KG26)}, "{broken draft text"); localStorage.removeItem(${JSON.stringify(KG26 + '_corrupt')}); true`);
+      await open('BackupFromPDF.html', '!!window.EagleOfficialPdf');
+      await setFile('#pdf-file', filled2026);
+      await waitFor('/\\b(ok|error)\\b/.test(document.getElementById("read-status").className)', 60000);
+      await evaluate('document.getElementById("open-guided2026").click(); true');
+      await waitFor('location.href.endsWith("EagleWorkbook2026-guided.html")', 15000);
+      assert.equal(await evaluate(`localStorage.getItem(${JSON.stringify(KG26 + '_corrupt')})`), '{broken draft text', 'the unreadable text is kept');
+      assert.equal(JSON.parse(await evaluate(`localStorage.getItem(${JSON.stringify(KG26)})`)).edition, '2026', 'and the draft is the PDF answers');
+      await evaluate(`localStorage.removeItem(${JSON.stringify(KG26)}); localStorage.removeItem(${JSON.stringify(KG26 + '_corrupt')}); true`);
+    });
+    await test('Open in the 2026 workbook with blocked browser storage says so in plain words instead of doing nothing', async () => {
+      assert.ok(filled2026, 'needs the 2026 PDF from the Fill page test');
+      await open('BackupFromPDF.html', '!!window.EagleOfficialPdf');
+      await setFile('#pdf-file', filled2026);
+      await waitFor('/\\b(ok|error)\\b/.test(document.getElementById("read-status").className)', 60000);
+      await evaluate('(() => { Storage.prototype.getItem = function () { throw new DOMException("blocked", "SecurityError"); }; Storage.prototype.setItem = function () { throw new DOMException("blocked", "SecurityError"); }; return true; })()');
+      await evaluate('document.getElementById("open-classic2026").click(); true');
+      await waitFor('document.getElementById("save-status").textContent.length > 0', 5000);
+      assert.match(await evaluate('document.getElementById("save-status").textContent'), /This browser would not save the draft/);
+      assert.ok(await evaluate('location.href.endsWith("BackupFromPDF.html")'), 'it stays on this page');
     });
     await test('a 2026 Appendix D PDF is told to use the workbook draft instead', async () => {
       await open('BackupFromPDF.html', '!!window.EagleOfficialPdf');
