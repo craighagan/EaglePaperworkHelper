@@ -1149,6 +1149,19 @@ async function run() {
         assert.ok(top.scrollW <= top.clientW, `sideways scroll: ${top.scrollW} > ${top.clientW}`);
       } finally { await send('Emulation.clearDeviceMetricsOverride'); }
     });
+    await test('workbook pages above phone width: the tab bar shows every tab, with no sideways scrolling', async () => {
+      try {
+        for (const width of [1440, 1024, 800, 640]) {
+          await send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+          for (const file of ['EagleWorkbook.html', 'EagleWorkbook-guided.html', 'EagleWorkbook2026.html']) {
+            await open(file, '!!document.querySelector("nav button")');
+            const m = await evaluate(`(() => { const n = document.querySelector('nav'); const b = [...n.querySelectorAll('button')]; return { scrollW: n.scrollWidth, clientW: n.clientWidth, tabs: b.length, lastRight: Math.round(b[b.length - 1].getBoundingClientRect().right), viewW: document.documentElement.clientWidth }; })()`);
+            assert.ok(m.scrollW <= m.clientW + 1, `${file} at ${width}px: the tab bar scrolls sideways (${m.scrollW} > ${m.clientW})`);
+            assert.ok(m.lastRight <= m.viewW, `${file} at ${width}px: the last tab is off screen`);
+          }
+        }
+      } finally { await send('Emulation.clearDeviceMetricsOverride'); }
+    });
     await test('every page links back home', async () => {
       for (const file of ['EagleWorkbook-guided.html', 'EagleWorkbook.html', 'FillOfficialPDF.html', 'BackupFromPDF.html']) {
         await open(file);
