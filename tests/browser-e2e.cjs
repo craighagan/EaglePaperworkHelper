@@ -852,10 +852,10 @@ async function run() {
       assert.match(text, /photographs taken before, during, and after the project \(page 21\)/);
       assert.doesNotMatch(text, /Signed Proposal Page H|Signed Project Report Page C/);
     });
-    await test('2026 page: Review has no "Next on your path" and Erase leaves the 2023a drafts alone', async () => {
+    await test('2026 page: Review shows "Next on your path" and Erase leaves the 2023a drafts alone', async () => {
       await evaluate('document.querySelectorAll("nav button")[6].click(); true');
       await waitFor('document.querySelectorAll("nav button")[6].classList.contains("active")');
-      assert.doesNotMatch(await tabText(), /Next on your path/);
+      assert.match(await tabText(), /Next on your path/);
       await evaluate(`localStorage.setItem("eagle_workbook_v1", JSON.stringify({ candidate: { name: "Keep" }, proposal: {} })); true`);
       dialogs = [];
       await click('erase this draft from this browser');
@@ -888,6 +888,78 @@ async function run() {
       await evaluate(`localStorage.removeItem(${JSON.stringify(K26)}); true`);
       await open(G26, READY26);
       assert.equal(await evaluate('document.body.innerText.includes("You have a saved draft")'), false, 'no notice without a Classic draft');
+    });
+    await test('guided 2026 page: every tab has a stage card, and its count moves as the Scout types', async () => {
+      await evaluate(`localStorage.removeItem(${JSON.stringify(KG26)}); localStorage.removeItem(${JSON.stringify(K26)}); true`);
+      await open(G26, READY26);
+      const card = 'document.querySelector(".stage-card")';
+      assert.match(await evaluate(`${card}.textContent`), /Set up your project/);
+      assert.match(await evaluate(`${card}.querySelector(".status-pill").textContent`), /^0 of 6 key boxes filled in$/);
+      await setValue('#f-candidate-name', 'Alex Example');
+      await waitFor(`${card}.querySelector(".status-pill").textContent === "1 of 6 key boxes filled in"`, 5000);
+      assert.equal(await evaluate(`${card}.querySelector(".progress").getAttribute("aria-valuenow")`), '1');
+      assert.match(await evaluate('document.querySelector(".key-count").textContent'), /Key boxes filled in: 1 of 32\./, 'the stage card and the overall count read the same table');
+      const titles = [];
+      for (let i = 0; i < 7; i++) {
+        await evaluate(`document.querySelectorAll("nav button")[${i}].click(); true`);
+        await waitFor(`document.querySelectorAll("nav button")[${i}].classList.contains("active")`);
+        titles.push(await evaluate(`${card}.querySelector("h2").textContent`));
+      }
+      assert.deepEqual(titles, ['Set up your project', 'Draft your proposal', 'Fundraising, if needed', 'Build the project plan', 'Finish the project report', 'Add signed pages, photos, and attachments', 'Review']);
+      assert.deepEqual(problems, []);
+    });
+    await test('guided 2026 page: Fundraising says "only if you need it" until the Scout answers Yes on the Proposal tab', async () => {
+      await open(G26, READY26);
+      await evaluate('document.querySelectorAll("nav button")[2].click(); true');
+      await waitFor('document.querySelectorAll("nav button")[2].classList.contains("active")');
+      assert.equal(await evaluate('document.querySelector(".stage-card .status-pill").textContent'), 'Only if you need a Fundraising Application');
+      assert.equal(await evaluate('!!document.querySelector(".stage-card .progress")'), false, 'no bar when it is not counted');
+      await evaluate('document.querySelectorAll("nav button")[1].click(); true');
+      await waitFor('document.querySelectorAll("nav button")[1].classList.contains("active")');
+      await evaluate('(() => { const el = document.getElementById("f-proposal-needFundraisingApp"); el.value = "yes"; el.dispatchEvent(new Event("change", { bubbles: true })); return true; })()');
+      await waitFor(`JSON.parse(localStorage.getItem(${JSON.stringify(KG26)}) || "{}").proposal.needFundraisingApp === "yes"`, 5000);
+      await evaluate('document.querySelectorAll("nav button")[2].click(); true');
+      await waitFor('document.querySelectorAll("nav button")[2].classList.contains("active")');
+      assert.match(await evaluate('document.querySelector(".stage-card .status-pill").textContent'), /^0 of 4 key boxes filled in$/);
+    });
+    await test('guided 2026 page: Your path follows the workbook checklist, ticks save to the Guided draft only, and Fundraising steps appear on Yes', async () => {
+      await evaluate(`(() => { const d = JSON.parse(localStorage.getItem(${JSON.stringify(KG26)}) || "null") || { edition: "2026", candidate: {}, proposal: {} }; d.proposal = d.proposal || {}; d.proposal.needFundraisingApp = "yes"; localStorage.setItem(${JSON.stringify(KG26)}, JSON.stringify(d)); return true; })()`);
+      await open(G26, READY26);
+      const items = 'document.querySelectorAll(".journey ol > li")';
+      const titles = await evaluate(`[...${items}].map((li) => li.querySelector("strong").textContent)`);
+      assert.deepEqual(titles.slice(0, 3), ['Fill in your Project Contacts', 'Fill in your Project Proposal', 'Get your four Proposal Approval signatures']);
+      assert.ok(titles.includes('Fill in your Fundraising Application (Appendix D)') && titles.includes('Get your Fundraising Application approved'), 'a Yes on the Proposal tab adds the fundraising steps');
+      assert.ok(titles.indexOf('Write your Project Plan') < titles.indexOf('Get your Project Plan approved') && titles.indexOf('Get your Project Plan approved') < titles.indexOf('Do your project'));
+      assert.match(await evaluate('document.querySelector(".j-reminder").textContent'), /“Do NOT begin work until your project proposal is approved by all the signatories\.”/);
+      assert.equal(await evaluate('!!document.getElementById("journey-raising")'), false, 'the 2023a question is not on the 2026 page');
+      assert.match(await evaluate('document.querySelector(".journey-next").textContent'), /^Next on your path: Fill in the “1\. Set Up” tab\.$/);
+      const before = await evaluate(`localStorage.getItem(${JSON.stringify(K26)})`);
+      await evaluate('document.getElementById("j-tick-planApproved").click(); true');
+      await waitFor(`JSON.parse(localStorage.getItem(${JSON.stringify(KG26)}) || "{}").journey.steps.planApproved.done === "1"`, 5000);
+      assert.equal(await evaluate(`localStorage.getItem(${JSON.stringify(K26)})`), before, 'the Classic 2026 draft is untouched');
+      assert.match(await evaluate('document.querySelector("#j-tick-planApproved").closest("li").className'), /j-done/);
+      await evaluate(`localStorage.removeItem(${JSON.stringify(KG26)}); true`);
+    });
+    await test('guided 2026 page on a 390px phone: the stage card and Your path fit with no sideways scrolling', async () => {
+      await open(G26, READY26);
+      await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
+      try {
+        for (const i of [0, 1, 2, 5, 6]) {
+          await evaluate(`document.querySelectorAll("nav button")[${i}].click(); true`);
+          await waitFor(`document.querySelectorAll("nav button")[${i}].classList.contains("active")`);
+          const wide = await evaluate('(() => { const over = [...document.querySelectorAll("main *")].filter((e) => e.getBoundingClientRect().right > innerWidth + 1 && !e.closest(".table-wrap")).slice(0, 3).map((e) => e.tagName + "." + e.className); return { sw: document.documentElement.scrollWidth, iw: innerWidth, over }; })()');
+          assert.ok(wide.sw <= wide.iw, `tab ${i}: sideways scroll ${JSON.stringify(wide)}`);
+        }
+      } finally { await send('Emulation.clearDeviceMetricsOverride'); }
+    });
+    await test('guided 2026 page: Review shows the next step on the path, and the Classic 2026 page has the same path card', async () => {
+      await open(G26, READY26);
+      await evaluate('document.querySelectorAll("nav button")[6].click(); true');
+      await waitFor('document.querySelectorAll("nav button")[6].classList.contains("active")');
+      assert.match(await tabText(), /Next on your path\s+Fill in the “1\. Set Up” tab\./);
+      await open(F26, READY26);
+      assert.match(await evaluate('document.querySelector(".journey-next").textContent'), /^Next on your path: Fill in the “Project Contacts” tab\.$/);
+      assert.equal(await evaluate('!!document.querySelector(".stage-card")'), false, 'the Classic page has no stage cards');
     });
     await test('guided 2026 page: typing saves to its own draft and leaves the Classic 2026 draft alone', async () => {
       await open(G26, READY26);

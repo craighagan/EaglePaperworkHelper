@@ -49,7 +49,7 @@ If personal or infrastructure data gets into a commit:
 | `lib/w26-pdf.js` | Fill the 2026 workbook and Appendix D, check a chosen PDF, read a filled 2026 PDF back. Uses `lib/official-pdf.js` and `lib/w26-model.js`. |
 | `lib/tips.js` | The text behind each "? Tips" button on the 2023a pages, keyed by backup-file path. Limits on length and the official page of each box are checked by tests. |
 | `lib/w26-tips.js` | The same for the 2026 pages (Classic and Guided 2026), keyed by 2026 draft path. Each tip's page is checked against the official 2026 PDF. |
-| `EagleWorkbook2026-guided.html` + `lib/w26-classic.js` | Guided 2026 page: the same workbook as the Classic 2026 page, with stage names ("1. Set Up" to "7. Review") and its own saved draft. Chosen by file name. |
+| `EagleWorkbook2026-guided.html` + `lib/w26-classic.js` + `lib/w26-guided.js` | Guided 2026 page: the Classic 2026 workbook plus stage names ("1. Set Up" to "7. Review"), a stage card on every tab (counts read `EagleJourney.keyBoxes`), and its own saved draft. Chosen by file name. `lib/w26-guided.js` loads only on this page. "Your path" for 2026 is `journeySteps2026` in `lib/journey.js` (both 2026 pages show it); every workbook sentence it quotes is in `QUOTES_2026` and a test checks each against its page of the PDF. |
 | `FillOfficialPDF.html` + `lib/fill-page.js` | Fill the official PDF from a backup file or a saved draft. |
 | `BackupFromPDF.html` + `lib/backup-from-pdf-page.js` | Read a filled (fillable) workbook PDF back into a backup file. Flattened PDFs are intentionally unsupported. |
 | `docs/`, `todo/`, `INSTALL.md`, `.nojekyll`, `LICENSE` | Screenshots and the sources behind the tips; open work; hosting guide; GitHub Pages marker; MIT license. |

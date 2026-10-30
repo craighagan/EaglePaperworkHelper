@@ -485,10 +485,10 @@ function everyAnswer() {
         const s = scripts(page);
         for (const [a, b] of [['lib/official-pdf.js', 'lib/preflight.js'], ['lib/official-pdf.js', 'lib/journey.js'], ['lib/journey.js', 'lib/tips.js'], ['lib/tips.js', 'lib/attachments.js'], ['lib/attachments.js', 'lib/workbook-common.js'], ['lib/workbook-common.js', own]]) before(s, a, b, page);
       }
-      for (const page of ['EagleWorkbook2026.html', 'EagleWorkbook2026-guided.html']) {
+      for (const [page, extra] of [['EagleWorkbook2026.html', []], ['EagleWorkbook2026-guided.html', ['lib/w26-guided.js']]]) {
         const s26 = scripts(page);
-        const order = ['lib/official-pdf.js', 'lib/preflight.js', 'lib/journey.js', 'lib/w26-tips.js', 'lib/w26-model.js', 'lib/attachments.js', 'lib/workbook-common.js', 'lib/w26-ui.js', 'lib/w26-classic.js'];
-        assert.deepEqual(s26.filter((x) => order.includes(x)), order, page + ' script order');
+        const order = ['lib/official-pdf.js', 'lib/preflight.js', 'lib/journey.js', 'lib/w26-tips.js', 'lib/w26-model.js', 'lib/attachments.js', 'lib/workbook-common.js', 'lib/w26-ui.js', ...extra, 'lib/w26-classic.js'];
+        assert.deepEqual(s26.filter((x) => order.includes(x) || x === 'lib/w26-guided.js'), order, page + ' script order');
       }
       const fill = scripts('FillOfficialPDF.html');
       for (const [a, b] of [['vendor/pdfjs/pdf.js', 'lib/official-pdf.js'], ['lib/official-pdf.js', 'lib/preflight.js'], ['lib/official-pdf.js', 'lib/attachments.js'], ['lib/preflight.js', 'lib/fill-page.js'], ['lib/attachments.js', 'lib/fill-page.js']]) before(fill, a, b, 'FillOfficialPDF.html');
@@ -1921,6 +1921,63 @@ function everyAnswer() {
       const src = ['lib/w26-classic.js', 'lib/w26-ui.js'].map((f) => read(f)).join('\n');
       for (const bad of ['innerHTML', 'insertAdjacentHTML', 'document.write']) assert.ok(!src.includes(bad), `${bad} in the 2026 page`);
       for (const f of ['lib/w26-classic.js', 'lib/w26-ui.js', 'lib/w26-model.js', 'lib/w26-pdf.js']) assert.doesNotMatch(read(f), /\binnerHTML\b/, f);
+    });
+    await test('2026 path: every sentence it quotes is on its stated page of the official PDF', async () => {
+      if (!w26) return;
+      const J26 = require(path.join(ROOT, 'lib/journey.js'));
+      const wb = await pagesText(w26);
+      const misses = [];
+      // The PDF sets "18th" with a raised "th", which the text extractor reports as "18 th". Join it on both sides.
+      const ord = (t) => t.replace(/(\d) (st|nd|rd|th)\b/g, "$1$2");
+      for (const [key, [page, sentence]] of Object.entries(J26.QUOTES_2026)) if (!ord(wb[page]).includes(ord(normText(sentence)))) misses.push(`${key} (page ${page})`);
+      assert.deepEqual(misses, [], 'not found on the page: ' + misses.join('; '));
+      assert.ok(Object.keys(J26.QUOTES_2026).length >= 8, 'the quotes table is not empty');
+    });
+    await test('2026 path: steps follow the workbook checklist, and the fundraising steps appear only when the Scout says yes', () => {
+      const J26 = require(path.join(ROOT, 'lib/journey.js'));
+      const ids = (d) => J26.journeySteps(d, null).steps.map((x) => x.id);
+      const base = { edition: '2026', candidate: {}, proposal: { needFundraisingApp: '' } };
+      assert.deepEqual(ids(base), ['setup', 'proposal', 'propSigned', 'plan', 'planApproved', 'work', 'report', 'repSigned', 'rest']);
+      assert.deepEqual(ids({ ...base, proposal: { needFundraisingApp: 'no' } }), ids(base));
+      assert.deepEqual(ids({ ...base, proposal: { needFundraisingApp: 'yes' } }), ['setup', 'proposal', 'propSigned', 'fundraising', 'fund', 'plan', 'planApproved', 'work', 'report', 'repSigned', 'rest']);
+      // The plan is approved before the work, as the checklist (items 11 to 14) orders it.
+      const order = ids(base);
+      assert.ok(order.indexOf('plan') < order.indexOf('planApproved') && order.indexOf('planApproved') < order.indexOf('work'));
+      // The 2023a path is unchanged.
+      assert.deepEqual(J26.journeySteps({}, null).steps.map((x) => x.id), ['proposal', 'propSigned', 'plan', 'work', 'report', 'repSigned', 'rest']);
+    });
+    await test('2026 path: counts agree with the key boxes, ticks are the Scout\'s own notes, and a draft with no ticks is not marked done', () => {
+      const J26 = require(path.join(ROOT, 'lib/journey.js'));
+      const M26 = require(path.join(ROOT, 'lib/w26-model.js'));
+      const empty = M26.defaults();
+      const e = J26.journeySteps(empty, null);
+      assert.equal(e.next.id, 'setup');
+      assert.ok(e.steps.every((x) => x.state === 'todo'), 'a blank draft has nothing started');
+      const sample = JSON.parse(fs.readFileSync(path.join(ROOT, 'tests/fixtures/sample-workbook-2026.json'), 'utf8'));
+      const r = J26.journeySteps(sample, null);
+      for (const name of ['setup', 'proposal', 'plan', 'report']) {
+        const step = r.steps.find((x) => x.id === name);
+        const total = J26.keyBoxes(sample)[name].length, left = J26.emptyKeyBoxes(sample)[name].length;
+        assert.equal(step.detail, `${total - left} of ${total} key boxes filled in.`, name);
+      }
+      assert.equal(r.steps.find((x) => x.id === 'propSigned').state, 'todo', 'a filled-in draft does not tick a signature');
+      const ticked = JSON.parse(JSON.stringify(sample)); ticked.journey = { raising: '', steps: { planApproved: { done: '1' } } };
+      assert.equal(J26.journeySteps(ticked, null).steps.find((x) => x.id === 'planApproved').state, 'done');
+      assert.equal(J26.hasNotes(ticked.journey), true);
+      assert.deepEqual(J26.clean({ steps: { planApproved: { done: '1' }, bogus: { done: '1' } } }).steps, { planApproved: { done: '1' } });
+    });
+    await test('2026 path: nothing it says calls a step required except the workbook\'s own quoted sentences', () => {
+      const J26 = require(path.join(ROOT, 'lib/journey.js'));
+      const sample = JSON.parse(fs.readFileSync(path.join(ROOT, 'tests/fixtures/sample-workbook-2026.json'), 'utf8'));
+      sample.proposal.needFundraisingApp = 'yes';
+      const quoted = Object.values(J26.QUOTES_2026).map(([, t]) => t);
+      for (const st of J26.journeySteps(sample, null).steps) {
+        let text = [st.title, st.detail, st.next].join(' ');
+        for (const q of quoted) text = text.split(q).join('');
+        assert.doesNotMatch(text, /\b(must|required|mandatory|have to|need to)\b/i, `${st.id}: ${text}`);
+      }
+      let rem = J26.REMINDER_2026; for (const q of quoted) rem = rem.split(q).join('');
+      assert.doesNotMatch(rem, /\b(must|required|mandatory)\b/i);
     });
     await test('Classic 2026: the sentences a Scout sees are the ones the design approved', () => {
       const code = ['lib/w26-classic.js', 'lib/w26-pdf.js', 'lib/w26-ui.js', 'lib/workbook-common.js', 'lib/fill-page.js', 'lib/official-pdf.js'].map((f) => read(f)).join('\n');
