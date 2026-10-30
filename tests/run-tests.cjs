@@ -525,6 +525,25 @@ function everyAnswer() {
     });
   }
 
+  console.log('2026 attachments');
+  await test('2026 attachments file: index, then each scan with its caption; photos last; the official file is not touched', () => {
+    const A = require(path.join(ROOT, 'lib/attachments.js'));
+    const jpg = (name) => {
+      const bytes = fs.readFileSync(path.join(__dirname, 'fixtures', name));
+      const info = A.jpegInfo(new Uint8Array(bytes));
+      return { id: name.replace(/[^a-z0-9]/gi, '').padEnd(8, 'x'), jpeg: bytes.toString('base64'), width: info.width, height: info.height };
+    };
+    const d = { edition: '2026', candidate: { name: 'Alex Example' }, proposal: { projectName: 'Bike repair' }, attachments: [
+      { id: 'photoafter1', place: 'photosAfter', label: 'After the project', pages: [jpg('scan-landscape.jpg')] },
+      { id: 'permit0001', place: 'end', label: 'Permit', pages: [jpg('scan-portrait.jpg')] }
+    ], links: [] };
+    const out = A.buildAttachmentsFile({ data: d, today: '2026-10-29' });
+    const text = Buffer.from(out.bytes).toString('latin1');
+    assert.ok(text.startsWith('%PDF'), 'a PDF');
+    assert.equal(out.attachmentCount, 2);
+    assert.equal(out.pageCount, 1 + 2, 'one index page and two scans');
+    assert.match(text, /\/Count 3\b/);
+  });
   console.log('Privacy');
   await test('privacy: no internal hostnames, real IP addresses, private keys, or personal emails in tracked files', () => {
     // Scans what git tracks (not what is on disk). Documentation addresses and the project's example names are allowed.

@@ -785,7 +785,7 @@ async function run() {
       assert.deepEqual(problems, []);
     });
     await test('2026 page: every tab renders, with the official prompts on the right tabs', async () => {
-      for (let i = 0; i < 6; i++) {
+      for (let i = 0; i < 7; i++) {
         await evaluate(`document.querySelectorAll("nav button")[${i}].click(); true`);
         await waitFor(`document.querySelectorAll("nav button")[${i}].classList.contains("active")`);
       }
@@ -844,9 +844,17 @@ async function run() {
       for (let t = 0; t < 50 && !dialogs.length; t++) await sleep(100);
       assert.match(dialogs.join(' '), /This backup file is for the 2023 workbook \(No\. 2023a\)\./, dialogs.join(' '));
     });
-    await test('2026 page: Review has no "Next on your path" and Erase leaves the 2023a drafts alone', async () => {
+    await test('2026 page: the Signed Pages tab has the 2026 wording and none of the 2023 signature slots', async () => {
       await evaluate('document.querySelectorAll("nav button")[5].click(); true');
       await waitFor('document.querySelectorAll("nav button")[5].classList.contains("active")');
+      const text = await tabText();
+      assert.match(await evaluate('document.querySelectorAll("nav button")[5].textContent'), /Signed Pages & Photos/);
+      assert.match(text, /photographs taken before, during, and after the project \(page 21\)/);
+      assert.doesNotMatch(text, /Signed Proposal Page H|Signed Project Report Page C/);
+    });
+    await test('2026 page: Review has no "Next on your path" and Erase leaves the 2023a drafts alone', async () => {
+      await evaluate('document.querySelectorAll("nav button")[6].click(); true');
+      await waitFor('document.querySelectorAll("nav button")[6].classList.contains("active")');
       assert.doesNotMatch(await tabText(), /Next on your path/);
       await evaluate(`localStorage.setItem("eagle_workbook_v1", JSON.stringify({ candidate: { name: "Keep" }, proposal: {} })); true`);
       dialogs = [];
@@ -858,7 +866,7 @@ async function run() {
     });
     await test('2026 page: a Scout can go from the first tab to the last and the Next button ends at the home page', async () => {
       await open(F26, READY26);
-      assert.equal(await evaluate('[...document.querySelectorAll("nav button")].length'), 6);
+      assert.equal(await evaluate('[...document.querySelectorAll("nav button")].length'), 7);
       assert.equal(problems.length, 0, problems.join(' | '));
     });
 
@@ -914,6 +922,26 @@ async function run() {
       const file = await waitForDownload('.pdf');
       assert.equal(path.basename(file), 'Community-Bike-Repair-Station-2026-Appendix-D-filled.pdf');
       await waitFor('document.getElementById("report").textContent.includes("Name of Organization")', 30000);
+    });
+    await test('2026 Fill page: the attachments file holds an index and each scan, and the official PDF is not in it', async () => {
+      const A = require(path.join(ROOT, 'lib/attachments.js'));
+      const bytes = fs.readFileSync(path.join(ROOT, 'tests/fixtures/scan-portrait.jpg'));
+      const info = A.jpegInfo(new Uint8Array(bytes));
+      const backup = path.join(os.tmpdir(), `eph-attach26-${process.pid}.json`);
+      fs.writeFileSync(backup, JSON.stringify({ edition: '2026', candidate: { name: 'Alex Example' }, proposal: { projectName: 'Bike repair' }, attachments: [
+        { id: 'permit0001', place: 'end', label: 'Permit', pages: [{ id: 'page00001', width: info.width, height: info.height, jpeg: bytes.toString('base64') }] }
+      ], links: [] }));
+      await open(FILL26, READY_FILL26);
+      await setFile('#json-file', backup);
+      await waitFor('!document.getElementById("create-attach").disabled', 15000);
+      clearDownloads();
+      await evaluate('document.getElementById("create-attach").click(); true');
+      const file = await waitForDownload('.pdf');
+      assert.equal(path.basename(file), 'Bike-repair-2026-Attachments.pdf');
+      const text = fs.readFileSync(file).toString('latin1');
+      assert.ok(text.startsWith('%PDF'));
+      assert.match(text, /\/Count 2\b/, 'one index page and one permit page');
+      assert.equal(text.includes('/Count 22'), false);
     });
     await test('2026 Fill page: a 2026 draft in this browser is offered, and a 2023a backup is refused', async () => {
       await open(FILL26, READY_FILL26);
