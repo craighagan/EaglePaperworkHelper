@@ -126,6 +126,7 @@ async function run() {
 
   let passed = 0;
   let filledPdf = null;
+  let filled2026 = null;
   const failures = [];
   const test = async (name, fn) => {
     try { const r = await fn(); if (r === 'skip') { console.log(`  skip ${name}`); return; } passed++; console.log(`  ok   ${name}`); }
@@ -895,6 +896,8 @@ async function run() {
       const bytes = fs.readFileSync(file);
       assert.ok(bytes.subarray(0, fs.statSync(W26_PDF).size).equals(fs.readFileSync(W26_PDF)), 'the official file is kept, with an update appended');
       assert.match(await evaluate('document.getElementById("report").textContent'), /Filled \d+ answers\./);
+      filled2026 = path.join(os.tmpdir(), `eph-filled26-${process.pid}.pdf`);
+      fs.copyFileSync(file, filled2026);
       assert.deepEqual(problems, []);
     });
     await test('2026 Fill page: Appendix D downloads, and a workbook in the Appendix D step is refused', async () => {
@@ -926,6 +929,31 @@ async function run() {
     });
 
     console.log('BackupFromPDF.html (file://)');
+    await test('a filled 2026 PDF reads into a 2026 backup and opens in the Classic 2026 workbook', async () => {
+      assert.ok(filled2026, 'needs the 2026 PDF from the Fill page test');
+      await open('BackupFromPDF.html', '!!window.EagleOfficialPdf');
+      await setFile('#pdf-file', filled2026);
+      await waitFor('/\\b(ok|error)\\b/.test(document.getElementById("read-status").className)', 60000);
+      assert.match(await evaluate('document.getElementById("read-status").textContent'), /Found \d+ answers?\./);
+      assert.equal(await evaluate('document.getElementById("open-guided").hidden'), true, '2023 buttons are hidden for a 2026 PDF');
+      clearDownloads();
+      await click('Save backup file');
+      const saved = JSON.parse(fs.readFileSync(await waitForDownload('.json'), 'utf8'));
+      assert.equal(saved.edition, '2026');
+      assert.equal(saved.candidate.name, 'Alex Example');
+      await evaluate('document.getElementById("open-classic2026").click(); true');
+      await waitFor('location.href.endsWith("EagleWorkbook2026.html")', 15000);
+      const draft = JSON.parse(await evaluate('localStorage.getItem("eagle_workbook2026_v1")'));
+      assert.equal(draft.edition, '2026');
+      assert.equal(draft.candidate.name, 'Alex Example');
+      await evaluate('localStorage.removeItem("eagle_workbook2026_v1"); true');
+    });
+    await test('a 2026 Appendix D PDF is told to use the workbook draft instead', async () => {
+      await open('BackupFromPDF.html', '!!window.EagleOfficialPdf');
+      await setFile('#pdf-file', W26_APPD);
+      await waitFor('/\\b(ok|error)\\b/.test(document.getElementById("read-status").className)', 60000);
+      assert.match(await evaluate('document.getElementById("read-status").textContent'), /This is Appendix D/);
+    });
     await test('reads a filled PDF into a backup file and opens it in the Guided workbook', async () => {
       assert.ok(filledPdf, 'needs the PDF from the fill test');
       await open('BackupFromPDF.html', '!!window.EagleOfficialPdf');
