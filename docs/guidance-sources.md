@@ -25,6 +25,10 @@ The official workbook (No. 2023a) is the authority. Where a source disagreed wit
 - Crossroads of America Council, fundraising policy (council-specific rules, not national): <https://www.joinscoutsin.org/wp-content/uploads/2024/03/CAC-Policy-for-Eagle-Project-Fundraising.pdf>
 - Scouting magazine, fundraising tips from a Scout: <https://onscouting.org/2021/11/02/eagle-project-fundraising-tips-from-a-scout-whose-project-cost-nearly-40000/>
 
+**Vendor help for signing on a computer (not Scouting America; not requirements)**
+- Apple, Preview User Guide, "How to fill out and sign PDF forms": <https://support.apple.com/guide/preview/welcome/mac>
+- Adobe, Acrobat "Fill and sign PDF forms" (Fill & Sign): <https://helpx.adobe.com/acrobat/using/fill-and-sign.html>
+
 **Scout-written and unofficial (common advice)**
 - ScoutSmarts guides on budgets, leadership, the project report, and the board of review: <https://scoutsmarts.com/eagle-scout-project-budget-costs-and-examples/>, <https://scoutsmarts.com/eagle-scout-project-leadership/>, <https://scoutsmarts.com/how-to-write-eagle-scout-project-report-with-examples/>, <https://scoutsmarts.com/how-to-prepare-for-an-eagle-board-of-review/>
 - eaglescout.org report guide: <https://www.eaglescout.org/path/guide/report.html>

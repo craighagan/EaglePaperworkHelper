@@ -58,3 +58,10 @@ A final four-lens review (fidelity, teen and accessibility, security and history
 - **core-js (MIT)** is vendored with a copyright string and a URL, not the licence text. The fix is in `tools/vendor-pdfjs.cjs`, which generates `vendor/pdfjs/` (do not hand-edit the folder).
 - **The `_corrupt` repair copy is write-once**: a second unreadable draft is replaced without a copy. Erase clears it.
 - **`cleanUrl` drops `host:port` links** (it fails closed).
+
+## From the signing-links review (2026 Fill page), not done
+
+- The signing notes and the "Filled N answers" report are not checked on a 390px phone in a real browser, and not with a screen reader. The live region on `#report` may double-announce.
+- The "DO NOT" quotes sit in plain paragraphs. A lead-in label would help. Wording is the maintainer's call.
+- The browser test checks the links' hrefs, target, and rel, but not their labels or the order of the warnings relative to the notes. A mutation that moves the notes ahead of the warnings still passes.
+- The Apple link goes to the Preview User Guide start page, not the topic "How to fill out and sign PDF forms". Find a direct link if one is stable.

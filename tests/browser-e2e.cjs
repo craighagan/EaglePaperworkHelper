@@ -1303,6 +1303,18 @@ async function run() {
       const bytes = fs.readFileSync(file);
       assert.ok(bytes.subarray(0, fs.statSync(W26_PDF).size).equals(fs.readFileSync(W26_PDF)), 'the official file is kept, with an update appended');
       assert.match(await evaluate('document.getElementById("report").textContent'), /Filled \d+ answers\./);
+      {
+        const report = await evaluate('document.getElementById("report").textContent');
+        const links = JSON.parse(await evaluate('JSON.stringify([...document.querySelectorAll("#report a")].map((a) => [a.getAttribute("href"), a.getAttribute("target"), a.getAttribute("rel")]))'));
+        assert.deepEqual(links, [
+          ['https://support.apple.com/guide/preview/welcome/mac', '_blank', 'noopener noreferrer'],
+          ['https://helpx.adobe.com/acrobat/using/fill-and-sign.html', '_blank', 'noopener noreferrer'],
+        ], 'the two signing guides open in a new tab, without a referrer');
+        assert.match(report, /If your council accepts electronic signatures, these guides from Apple \(Mac only\) and Adobe, not Scouting America, show how to sign a PDF:/);
+        assert.match(report, /DO NOT attempt to “certify” or “digitally sign and lock” the document\. Doing so will prevent the Scout or other approvers from adding information or signatures\./);
+        assert.match(report, /Unless you are completely done editing the document, including any signatures to be added electronically, DO NOT “flatten” the document by using “print to PDF” or “export as PDF” functions\./);
+        assert.ok(report.indexOf('Next:') < report.indexOf('The workbook says, on page 2:') && report.indexOf('The workbook says, on page 2:') < report.indexOf('If your council accepts'), 'the signing notes come after the Next line, in order');
+      }
       filled2026 = path.join(os.tmpdir(), `eph-filled26-${process.pid}.pdf`);
       fs.copyFileSync(file, filled2026);
       assert.deepEqual(problems, []);

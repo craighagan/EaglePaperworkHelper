@@ -2214,6 +2214,11 @@ function everyAnswer() {
       assert.deepEqual(misses, [], 'not found on the page: ' + misses.join('; '));
       assert.ok(Object.keys(J26.QUOTES_2026).length >= 8, 'the quotes table is not empty');
     });
+    await test('2026 Fill page: its official sentences are the checked wording from lib/journey.js', () => {
+      const J26 = require(path.join(ROOT, 'lib/journey.js'));
+      const src = fs.readFileSync(path.join(ROOT, 'lib/w26-fill-page.js'), 'utf8');
+      for (const key of ['noFlatten', 'noCertify', 'instead']) assert.ok(src.includes(J26.QUOTES_2026[key][1]), `lib/w26-fill-page.js does not contain the checked text of ${key}`);
+    });
     await test('2026 path: steps follow the workbook checklist, and the fundraising steps appear only when the Scout says yes', () => {
       const J26 = require(path.join(ROOT, 'lib/journey.js'));
       const ids = (d) => J26.journeySteps(d, null).steps.map((x) => x.id);
