@@ -542,7 +542,7 @@ function everyAnswer() {
       // The Guided 2026 page also loads w26-plain.js (before w26-ui.js) and w26-guided.js (after it). The Classic page loads neither.
       for (const [page, before, after] of [['EagleWorkbook2026.html', [], []], ['EagleWorkbook2026-guided.html', ['lib/w26-plain.js'], ['lib/w26-guided.js']]]) {
         const s26 = scripts(page);
-        const order = ['lib/official-pdf.js', 'lib/preflight.js', 'lib/journey.js', 'lib/w26-tips.js', 'lib/w26-model.js', 'lib/attachments.js', 'lib/workbook-common.js', ...before, 'lib/w26-ui.js', ...after, 'lib/w26-classic.js'];
+        const order = ['lib/official-pdf.js', 'lib/preflight.js', 'lib/journey.js', 'lib/w26-tips.js', 'lib/w26-model.js', 'lib/w26-convert.js', 'lib/attachments.js', 'lib/workbook-common.js', ...before, 'lib/w26-ui.js', ...after, 'lib/w26-classic.js'];
         assert.deepEqual(s26.filter((x) => order.includes(x) || /w26-(plain|guided)\.js$/.test(x)), order, page + ' script order');
       }
       const fill = scripts('FillOfficialPDF.html');
@@ -1697,7 +1697,7 @@ function everyAnswer() {
     const missing = paths.filter((p) => !pathExists(d, p));
     assert.deepEqual(missing, [], 'paths missing from defaults()');
     const used = new Set(paths);
-    const unused = leaves(d).filter((p) => !used.has(p) && !/^(edition|attachments|links|journey)(\.|$)/.test(p) && !/\.hours\.0\.w$/.test(p) && !/^(contacts\.(leader|committee|beneficiaryRep|approvalRep|coach)\.(address|city|state))/.test(p));
+    const unused = leaves(d).filter((p) => !used.has(p) && !/^(edition|attachments|links|journey|checkThis)(\.|$)/.test(p) && !/\.hours\.0\.w$/.test(p) && !/^(contacts\.(leader|committee|beneficiaryRep|approvalRep|coach)\.(address|city|state))/.test(p));
     assert.deepEqual(unused, [], 'draft answers no field uses');
   });
   await test('2026 model: the fixed-size boxes equal the PDF\'s 12 pt text boxes', async () => {
@@ -2313,6 +2313,624 @@ function everyAnswer() {
       assert.ok(code.includes('This backup file is for the 2026 workbook. Open it in the 2026 workbook from the home page.'), 'S1a');
       assert.ok(code.includes('is for the 2023 workbook (No. 2023a)'), 'S1b');
       assert.ok(code.includes('In the 2026 workbook this is the Fundraising box on page 10.'), 'S22');
+    });
+    await test('Classic 2026: the one-tab warning is one sentence, used beside Make and at the start of the Replace prompt', () => {
+      const page = read('lib/w26-classic.js');
+      const WARN = 'Keep only one tab open while you use this. Keep the other tab closed until the new draft is made.';
+      assert.equal(page.split(WARN).length - 1, 1, 'the sentence is written out once, in the constant');
+      assert.ok(page.includes(`const ONE_TAB_WARNING = '${WARN}';`), 'the constant holds the sentence');
+      assert.match(page, /h\('p', \{ className: 'help', id: 'convert-warn' \}, ONE_TAB_WARNING\)/, 'shown as a paragraph beside the Make row');
+      assert.ok(page.includes('window.confirm(`${ONE_TAB_WARNING}\\n\\nReplace everything on this page'), 'the Replace prompt starts with the sentence');
+      assert.doesNotMatch(WARN, /\b(must|required|mandatory)\b/i, 'no must or required');
+    });
+  }
+
+  console.log('Convert: names and contacts from a 2023 backup file into a 2026 draft');
+  const CV = require(path.join(ROOT, 'lib/w26-convert.js'));
+  const MV = require(path.join(ROOT, 'lib/w26-model.js'));
+  const OV = MV.OFFICIAL;
+  const sample23 = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/sample-workbook.json'), 'utf8'));
+  await test('convert: every copied path exists in the 2023 and the 2026 defaults, and no 2026 box is copied twice', () => {
+    const d23 = workbookCommon().defaults();
+    const d26 = MV.defaults();
+    for (const r of CV.CARRY) {
+      assert.ok(pathExists(d23, r.from), `2023 has no ${r.from}`);
+      assert.ok(pathExists(d26, r.to), `2026 has no ${r.to}`);
+    }
+    const tos = CV.CARRY.map((r) => r.to);
+    assert.equal(new Set(tos).size, tos.length, 'a 2026 box is copied from two places');
+  });
+  await test('convert: every name and contact box in the 2023 file is either copied or listed as not copied, with a reason', () => {
+    const d23 = workbookCommon().defaults();
+    const carried = new Set(CV.CARRY.map((r) => r.from));
+    const deferred = new Set(CV.DEFERRED.map((x) => x.path));
+    assert.deepEqual([...carried].filter((p) => deferred.has(p)), [], 'a box is both copied and not copied');
+    const unaccounted = leaves(d23).filter((p) => /^(candidate|unit|contacts)\./.test(p) && !carried.has(p) && !deferred.has(p));
+    assert.deepEqual(unaccounted, [], 'name and contact boxes with no decision');
+    for (const p of deferred) assert.ok(pathExists(d23, p), `listed as not copied, but 2023 has no ${p}`);
+    for (const x of CV.DEFERRED) assert.ok(x.why && !/\b(must|required)\b/i.test(x.why), x.path);
+  });
+  await test('convert: every 2026 section and label is printed on page 5 of the official 2026 workbook', () => {
+    for (const r of CV.CARRY) {
+      assert.equal(OV.sections[r.section][0], 5, `${r.section} is not on page 5`);
+      const printed = OV.tables['contacts.labels'][1].includes(r.label) || (OV.boxes[r.to] && OV.boxes[r.to][1] === r.label);
+      assert.ok(printed, `"${r.label}" is not printed on page 5 for ${r.to}`);
+    }
+  });
+  await test('convert: the 2023 Unit Committee Chair is copied to the 2026 Unit Committee Representative', () => {
+    const chair = CV.plan(sample23).rows.find((r) => r.to === 'contacts.committee.email');
+    assert.equal(chair.from, 'contacts.chair.email');
+    assert.equal(chair.value, 'chair@example.org');
+    assert.equal(chair.fromSection, 'Unit Committee Chair');
+    assert.equal(OV.sections[chair.section][1], 'Unit Committee Representative');
+  });
+  await test('convert: a 2026 file, an Appendix D file, and something that is not a workbook are each refused with the exact message', () => {
+    assert.equal(CV.plan({ ...sample23, edition: '2026' }).error, CV.NOT_2023);
+    assert.equal(CV.plan({ appendixD: {}, candidate: {}, proposal: {} }).error, CV.NOT_2023, 'an Appendix D section with no edition key is 2026');
+    assert.equal(CV.plan({ edition: 2026, candidate: {}, proposal: {} }).error, CV.NOT_2023, 'a numeric 2026 edition is 2026');
+    assert.equal(CV.plan({ other: 1 }).error, CV.NOT_WORKBOOK);
+    assert.equal(CV.plan([]).error, CV.NOT_WORKBOOK);
+    assert.equal(CV.plan(null).error, CV.NOT_WORKBOOK);
+    assert.equal(CV.plan({ candidate: {} }).error, CV.NOT_WORKBOOK, 'no proposal section');
+    assert.throws(() => CV.build({ ...sample23, edition: '2026' }, []), /not from the 2023 workbook \(No\. 2023a\)/, 'build refuses a 2026 file too');
+    assert.equal(CV.NOT_2023, 'This backup file is not from the 2023 workbook (No. 2023a). Choose a backup file saved from the 2023 workbook.');
+  });
+  await test('convert: the 2023 sample gives one row per copied box, with the 2026 path, the value, and a reason for each empty row', () => {
+    const r = CV.plan(sample23);
+    assert.ok(!r.error);
+    assert.equal(r.rows.length, CV.CARRY.length);
+    const byTo = Object.fromEntries(r.rows.map((x) => [x.to, x]));
+    assert.equal(byTo['candidate.name'].value, 'Alex Q. Sample');
+    assert.equal(byTo['candidate.name'].available, true);
+    assert.equal(byTo['unit.council'].value, 'Example Council');
+    assert.equal(byTo['unit.type'].value, 'Troop');
+    const noCoach = JSON.parse(JSON.stringify(sample23));
+    noCoach.contacts.coach.name = '';
+    const empty = CV.plan(noCoach).rows.find((x) => x.to === 'contacts.coach.name');
+    assert.equal(empty.available, false, 'an empty 2023 value cannot be copied');
+    assert.match(empty.note, /Empty in your 2023 file/);
+  });
+  await test('convert: a row starts ticked only when its 2023 value is not empty', () => {
+    const rows = CV.plan(sample23).rows;
+    const picks = new Set(CV.defaultPicks(rows));
+    for (const r of rows) assert.equal(picks.has(r.to), r.available, r.to);
+  });
+  await test('convert: a 2023 unit type that is not Troop, Crew, or Ship cannot be copied, and says so', () => {
+    const d = JSON.parse(JSON.stringify(sample23));
+    d.unit.type = 'Scout Post';
+    const row = CV.plan(d).rows.find((x) => x.to === 'unit.type');
+    assert.equal(row.available, false);
+    assert.match(row.note, /does not name one clear unit type/);
+    d.unit.type = ' crew ';
+    assert.equal(CV.plan(d).rows.find((x) => x.to === 'unit.type').value, 'Crew');
+    assert.equal(CV.canonicalUnit('Ship 12'), 'Ship');
+  });
+  await test('convert: a unit type that names Troop, Crew, or Ship anywhere is copied as that word, and is flagged like any copied value', () => {
+    const unit = (text) => { const d = JSON.parse(JSON.stringify(sample23)); d.unit.type = text; return d; };
+    assert.equal(CV.canonicalUnit('Boy Scout Troop 42'), 'Troop');
+    assert.equal(CV.canonicalUnit('Sea Scout Ship 12'), 'Ship');
+    assert.equal(CV.canonicalUnit('Venturing Crew 9'), 'Crew');
+    assert.equal(CV.canonicalUnit('Relationship Group'), '', 'a unit word inside another word is not a match');
+    for (const [text, want] of [['Boy Scout Troop 42', 'Troop'], ['Sea Scout Ship 12', 'Ship'], ['Venturing Crew 9', 'Crew']]) {
+      const d = unit(text);
+      const row = CV.plan(d).rows.find((x) => x.to === 'unit.type');
+      assert.equal(row.available, true, text);
+      assert.equal(row.value, want, text);
+      const draft = CV.build(d, CV.defaultPicks(CV.plan(d).rows));
+      assert.equal(draft.unit.type, want, text);
+      assert.deepEqual(draft.checkThis.filter((x) => x.path === 'unit.type'), [{ path: 'unit.type', copied: want }], text);
+    }
+  });
+  await test('convert: a unit type that names no Troop, Crew, or Ship is not copied, the box keeps Troop, and the box is flagged for a choice', () => {
+    const unit = (text) => { const d = JSON.parse(JSON.stringify(sample23)); d.unit.type = text; return d; };
+    const pack = unit('Pack 5');
+    const row = CV.plan(pack).rows.find((x) => x.to === 'unit.type');
+    assert.equal(row.available, false);
+    assert.equal(row.note, 'Your 2023 file does not name one clear unit type (Troop, Crew, or Ship). The Unit Type box is set to Troop by default. Choose the unit type on this page.');
+    const draft = CV.build(pack, CV.defaultPicks(CV.plan(pack).rows));
+    assert.equal(draft.unit.type, 'Troop', 'the 2026 default is kept');
+    assert.deepEqual(draft.checkThis.filter((x) => x.path === 'unit.type'), [{ path: 'unit.type', prompt: true }], 'flagged with the prompt marker, even though nothing was copied');
+    const blank = unit('');
+    assert.equal(CV.plan(blank).rows.find((x) => x.to === 'unit.type').note, 'Empty in your 2023 file.');
+    assert.deepEqual(CV.build(blank, []).checkThis, [{ path: 'unit.type', prompt: true }], 'a blank unit type is flagged too');
+    assert.equal(CV.UNIT_NOTE, 'Check this: your 2023 backup file does not name one clear unit type (Troop, Crew, or Ship), so this box shows Troop. Choose the unit type, then press Checked.');
+  });
+  await test('convert: an unticked unit row that names Troop gives no flag and no prompt; a named Crew or Ship gives the flag and the note that names it', () => {
+    const unit = (text) => { const d = JSON.parse(JSON.stringify(sample23)); d.unit.type = text; return d; };
+    const troop = CV.build(unit('Boy Scout Troop 42'), []);
+    assert.deepEqual(troop.checkThis, [], 'no flag');
+    assert.equal(MV.unitPromptPending(troop), false, 'no prompt');
+    assert.equal(troop.unit.type, 'Troop', 'the box shows Troop, as the 2023 file says');
+    const ship = CV.build(unit('Sea Scout Ship 12'), []);
+    assert.deepEqual(ship.checkThis, [{ path: 'unit.type', prompt: true, named: 'Ship' }], 'flagged with the unit the file named');
+    assert.equal(ship.unit.type, 'Troop', 'the box keeps its 2026 default');
+    assert.equal(CV.untickedUnitNote(MV.unitPromptNamed(ship)), 'Check this: your 2023 backup file names a Ship, but you did not tick Unit Type there. Check the Unit Type box, then press Checked.', 'the note from the flag, with no box value');
+    const crew = CV.build(unit('Venturing Crew 9'), []);
+    assert.deepEqual(crew.checkThis, [{ path: 'unit.type', prompt: true, named: 'Crew' }], 'a named Crew is flagged too');
+    const blankName = CV.build(unit(''), []);
+    assert.deepEqual(blankName.checkThis, [{ path: 'unit.type', prompt: true }], 'a blank unit type is still prompted, with no name');
+  });
+  await test('convert: a copied Crew or Ship gets the copied-value note that names the unit the box shows; the prompt notes stay as they were', () => {
+    const unit = (text) => { const d = JSON.parse(JSON.stringify(sample23)); d.unit.type = text; return d; };
+    const copied = (text) => { const d = unit(text); return CV.build(d, CV.defaultPicks(CV.plan(d).rows)); };
+    const crew = copied('Venturing Crew 9');
+    assert.deepEqual(crew.checkThis.filter((x) => x.path === 'unit.type'), [{ path: 'unit.type', copied: 'Crew' }], 'a copied Crew has no prompt marker and keeps the word the 2023 file gave');
+    assert.equal(crew.unit.type, 'Crew');
+    assert.equal(CV.unitFlagNote(crew.checkThis.find((x) => x.path === 'unit.type'), crew.unit.type), 'Check this: your 2023 backup file names a Crew, and this value was copied. Read it, then press Checked.', 'a copied Crew');
+    const ship = copied('Sea Scout Ship 12');
+    assert.deepEqual(ship.checkThis.filter((x) => x.path === 'unit.type'), [{ path: 'unit.type', copied: 'Ship' }], 'a copied Ship has no prompt marker and keeps the word the 2023 file gave');
+    assert.equal(CV.unitFlagNote(ship.checkThis.find((x) => x.path === 'unit.type'), ship.unit.type), 'Check this: your 2023 backup file names a Ship, and this value was copied. Read it, then press Checked.', 'a copied Ship');
+    assert.equal(CV.unitFlagNote({ path: 'unit.type' }, 'Troop'), 'Check this: your 2023 backup file names a Troop, and this value was copied. Read it, then press Checked.', 'the value the box shows, not the one the file named');
+    assert.equal(CV.unitFlagNote({ path: 'unit.type', prompt: true }, 'Troop'), CV.UNIT_NOTE, 'a blank or ambiguous prompt keeps the prompt note');
+    assert.equal(CV.unitFlagNote({ path: 'unit.type', prompt: true, named: 'Crew' }, 'Troop'), 'Check this: your 2023 backup file names a Crew, but you did not tick Unit Type there. Check the Unit Type box, then press Checked.', 'a prompt that names a Crew keeps its note');
+    assert.equal(CV.unitFlagNote({ path: 'unit.type', prompt: true, named: 'Crew' }, 'Ship'), CV.unitFlagNote({ path: 'unit.type', prompt: true, named: 'Crew' }, 'Troop'), 'the prompt note does not change with the box value');
+  });
+  await test('convert: a copied unit type keeps the word the 2023 file gave when the Scout changes the box', () => {
+    const unit = (text) => { const d = JSON.parse(JSON.stringify(sample23)); d.unit.type = text; return d; };
+    const d = unit('Venturing Crew 9');
+    const draft = CV.build(d, CV.defaultPicks(CV.plan(d).rows));
+    assert.deepEqual(draft.checkThis.find((x) => x.path === 'unit.type'), { path: 'unit.type', copied: 'Crew' }, 'the copied word is saved with the flag');
+    draft.unit.type = 'Ship';
+    const entry = MV.cleanChecks(draft.checkThis).find((x) => x.path === 'unit.type');
+    assert.equal(CV.unitFlagNote(entry, draft.unit.type), 'Check this: your 2023 backup file names a Crew, and this value was copied. Read it, then press Checked.', 'a copied Crew whose box is changed to Ship still says "names a Crew"');
+    const old = CV.unitFlagNote({ path: 'unit.type' }, 'Ship');
+    assert.equal(old, 'Check this: your 2023 backup file names a Ship, and this value was copied. Read it, then press Checked.', 'an older copied entry with no stored word falls back to the box value');
+  });
+  await test('cleanChecks: a copied unit type keeps only a valid word; junk values, other paths, and prompt entries lose it', () => {
+    assert.deepEqual(MV.cleanChecks([{ path: 'unit.type', copied: 'Crew' }]), [{ path: 'unit.type', copied: 'Crew' }]);
+    assert.deepEqual(MV.cleanChecks([{ path: 'unit.type', copied: 'Troop' }]), [{ path: 'unit.type', copied: 'Troop' }]);
+    assert.deepEqual(MV.cleanChecks([{ path: 'unit.type', copied: 'Ship' }]), [{ path: 'unit.type', copied: 'Ship' }]);
+    for (const junk of ['troop', 'CREW', 'Crew ', 'Bogus', '', null, 5, true, ['Crew'], { word: 'Crew' }, 'Ship; drop table'])
+      assert.deepEqual(MV.cleanChecks([{ path: 'unit.type', copied: junk }]), [{ path: 'unit.type' }], 'junk copied value ' + JSON.stringify(junk) + ' is dropped');
+    assert.deepEqual(MV.cleanChecks([{ path: 'candidate.name', copied: 'Crew' }]), [{ path: 'candidate.name' }], 'copied is dropped on any other path');
+    assert.deepEqual(MV.cleanChecks([{ path: 'unit.number', copied: 'Troop' }]), [{ path: 'unit.number' }], 'copied is dropped on the unit number');
+    assert.deepEqual(MV.cleanChecks([{ path: 'unit.type', prompt: true, copied: 'Crew' }]), [{ path: 'unit.type', prompt: true }], 'a prompt entry never keeps copied');
+    assert.deepEqual(MV.cleanChecks([{ path: 'unit.type', prompt: true, named: 'Crew' }]), [{ path: 'unit.type', prompt: true, named: 'Crew' }], 'a prompt keeps its named unit as before');
+  });
+  await test('convert: a copied unit type stores its word; the box value is only the fallback for an older entry', () => {
+    const unit = (text) => { const d = JSON.parse(JSON.stringify(sample23)); d.unit.type = text; return d; };
+    const flagged = CV.build(unit('Boy Scout Troop 42'), ['unit.type']).checkThis.find((x) => x.path === 'unit.type');
+    assert.deepEqual(flagged, { path: 'unit.type', copied: 'Troop' });
+    assert.equal(CV.unitFlagNote(flagged, 'Ship'), 'Check this: your 2023 backup file names a Troop, and this value was copied. Read it, then press Checked.');
+  });
+  await test('convert: two different unit words in the 2023 unit type are not copied, and the same word twice is copied', () => {
+    const unit = (text) => { const d = JSON.parse(JSON.stringify(sample23)); d.unit.type = text; return d; };
+    assert.equal(CV.canonicalUnit('Crew 9 Troop 4'), '');
+    assert.equal(CV.canonicalUnit('Troop 3 Crew 9'), '');
+    assert.equal(CV.canonicalUnit('Ship-builders Troop 4'), '');
+    assert.equal(CV.canonicalUnit('Troop 3 Troop 4'), 'Troop', 'a repeated word is one word');
+    const two = unit('Crew 9 Troop 4');
+    const row = CV.plan(two).rows.find((x) => x.to === 'unit.type');
+    assert.equal(row.available, false, 'not copied');
+    assert.equal(row.note, CV.UNIT_ROW_NOTE, 'flagged the same way as a name with no unit word');
+    assert.deepEqual(CV.build(two, CV.defaultPicks(CV.plan(two).rows)).checkThis.filter((x) => x.path === 'unit.type'), [{ path: 'unit.type', prompt: true }]);
+    assert.equal(CV.plan(unit('Troop 3 Troop 4')).rows.find((x) => x.to === 'unit.type').value, 'Troop');
+  });
+  await test('convert: build refuses something that is not a workbook, the same way plan does', () => {
+    assert.throws(() => CV.build({ other: 1 }, []), (e) => e.message === CV.NOT_WORKBOOK);
+    assert.throws(() => CV.build(null, []), (e) => e.message === CV.NOT_WORKBOOK);
+    assert.throws(() => CV.build([], []), (e) => e.message === CV.NOT_WORKBOOK);
+    assert.throws(() => CV.build({ candidate: {} }, []), (e) => e.message === CV.NOT_WORKBOOK, 'no proposal section');
+    assert.throws(() => CV.build({ edition: '2026', candidate: {}, proposal: {} }, []), (e) => e.message === CV.NOT_2023);
+  });
+  await test('convert: the not-copied line names every category that DEFERRED lists, and every deferred box has one', () => {
+    const groups = [...new Set(CV.DEFERRED.map((x) => x.group))].sort();
+    assert.deepEqual(groups, ['ZIP codes', 'dates and BSA IDs', 'street addresses for the adults', 'cities and states for the adults', 'the advancement coordinator'].sort());
+    for (const g of groups) assert.ok(CV.NOT_COPIED.includes(g), `the not-copied line does not name "${g}"`);
+    assert.ok(CV.DEFERRED.every((x) => x.group && x.why), 'every deferred box has a category and a reason');
+    const cityState = CV.DEFERRED.filter((x) => x.group === 'cities and states for the adults');
+    assert.deepEqual(cityState.map((x) => x.path).sort(), ['leader', 'chair', 'beneficiaryRep', 'approvalRep', 'coach'].flatMap((c) => [`contacts.${c}.city`, `contacts.${c}.state`]).sort(), 'city and state of the five adults');
+    assert.ok(cityState.every((x) => x.why === 'The 2026 workbook has no city or state box for this person.'), 'each one says why');
+    assert.match(CV.NOT_COPIED, /^Not copied: /);
+  });
+  await test('convert: every row ticked gives a 2026 draft with the names and contacts, no ZIP code, no advancement contact, and a flag per copied value', () => {
+    const picks = CV.defaultPicks(CV.plan(sample23).rows);
+    const d = CV.build(sample23, picks);
+    assert.equal(d.edition, '2026');
+    assert.equal(d.candidate.name, 'Alex Q. Sample');
+    assert.equal(d.contacts.committee.name, 'Casey Chair');
+    assert.equal(d.contacts.committee.email, 'chair@example.org');
+    assert.equal(d.unit.number, '42');
+    assert.equal(d.unit.council, 'Example Council');
+    assert.ok(!JSON.stringify(d).includes('01101'), 'the ZIP code was not copied');
+    assert.ok(!('advancement' in d.contacts), 'the 2026 workbook has no advancement contact');
+    assert.deepEqual(d.attachments, []);
+    assert.deepEqual(d.links, []);
+    const copied = CV.CARRY.filter((r) => CV.copyValue(sample23, r) && picks.includes(r.to)).map((r) => r.to);
+    assert.deepEqual(d.checkThis.map((x) => x.path), copied, 'a flag for each copied value, and none for empty values');
+    assert.ok(copied.length >= 15, 'most of the rows are copied');
+  });
+  await test('convert: building the draft does not change the 2023 data it reads', () => {
+    const before = JSON.stringify(sample23);
+    CV.build(sample23, CV.defaultPicks(CV.plan(sample23).rows));
+    CV.plan(sample23);
+    assert.equal(JSON.stringify(sample23), before);
+  });
+  await test('convert: unticked rows copy nothing, and an unticked unit row that names Troop raises no flag and no prompt', () => {
+    const none = CV.build(sample23, []);
+    assert.deepEqual(none.checkThis, [], 'nothing is copied, and the unit row names Troop, which the box already shows: nothing is flagged');
+    assert.equal(JSON.stringify(none), JSON.stringify(MV.defaults()), 'nothing is copied: the draft is the empty 2026 draft');
+    const noCoach = JSON.parse(JSON.stringify(sample23));
+    noCoach.contacts.coach.name = '';
+    const one = CV.build(noCoach, ['candidate.email', 'contacts.coach.name']);
+    assert.deepEqual(one.checkThis, [{ path: 'candidate.email' }], 'only the ticked, non-empty row is copied and flagged; the unticked Troop unit row is not flagged');
+    assert.equal(one.candidate.name, '', 'only the ticked row is copied');
+    assert.equal(one.candidate.email, 'alex.sample@example.org');
+    assert.equal(one.contacts.coach.name, '', 'a ticked empty value copies nothing');
+    const blank = JSON.parse(JSON.stringify(sample23));
+    blank.unit.type = '';
+    const blankNone = CV.build(blank, []);
+    assert.deepEqual(blankNone.checkThis, [{ path: 'unit.type', prompt: true }], 'the only flag is the unit prompt');
+    assert.equal(MV.uncheckedCount(blankNone), 0, 'no copied value is counted');
+    assert.equal(MV.unitPromptPending(blankNone), true, 'the prompt is still pending');
+    assert.deepEqual({ ...blankNone, checkThis: [] }, MV.defaults(), 'nothing is copied: the draft is the empty 2026 draft');
+  });
+  await test('convert: with a blank unit type and one name ticked, the copied count is 1 and the unit prompt is separate and not counted', () => {
+    const blank = JSON.parse(JSON.stringify(sample23));
+    blank.unit.type = '';
+    const rows = CV.plan(blank).rows;
+    assert.equal(CV.defaultPicks(rows).includes('unit.type'), false, 'the unit row is not ticked');
+    assert.equal(CV.convertCountText(new Set(['candidate.name']).size), '1 value will be copied and needs checking.', 'the preview counts the ticked name only');
+    const d = CV.build(blank, ['candidate.name']);
+    assert.deepEqual(d.checkThis, [{ path: 'candidate.name' }, { path: 'unit.type', prompt: true }], 'a copied flag, then the prompt');
+    assert.equal(MV.uncheckedCount(d), 1, 'the copied count is 1');
+    assert.equal(CV.copyCountText(MV.uncheckedCount(d)), '1 copied value still to check.', 'the Project Contacts line counts it');
+    assert.equal(MV.unitPromptPending(d), true);
+    assert.equal(MV.unitPromptText(d.unit.type), 'Unit Type is set to Troop. Choose it on the Project Contacts (Guided: 1. Set Up) tab and press Checked.', 'the Fill heads-up line');
+    assert.equal(d.unit.type, 'Troop', 'the 2026 default is kept');
+    assert.equal(MV.markChecked(d, 'candidate.name'), true);
+    assert.equal(MV.uncheckedCount(d), 0, 'checking the copied value leaves no copied value');
+    assert.equal(MV.unitPromptPending(d), true, 'the prompt stays until its own Checked');
+    assert.equal(MV.markChecked(d, 'unit.type'), true);
+    assert.deepEqual(d.checkThis, [], 'then nothing is flagged');
+    assert.deepEqual(MV.cleanChecks([{ path: 'unit.type', prompt: true }, { path: 'a.b', prompt: 'yes' }, { path: 'c.d', prompt: false }]),
+      [{ path: 'unit.type', prompt: true }, { path: 'a.b' }, { path: 'c.d' }], 'only a true prompt marker is kept');
+  });
+  await test('convert: an unticked unit row that names a Ship keeps Troop, and the Unit Type box is flagged with the unit the 2023 file named', () => {
+    const d0 = JSON.parse(JSON.stringify(sample23));
+    d0.unit.type = 'Sea Scout Ship 12';
+    const picks = CV.defaultPicks(CV.plan(d0).rows).filter((p) => p !== 'unit.type');
+    const draft = CV.build(d0, picks);
+    assert.equal(draft.unit.type, 'Troop', 'the box keeps its 2026 default');
+    assert.deepEqual(draft.checkThis.filter((x) => x.path === 'unit.type'), [{ path: 'unit.type', prompt: true, named: 'Ship' }], 'flagged, with the unit the file named');
+    assert.equal(MV.unitPromptPending(draft), true, 'the prompt is pending');
+    assert.equal(MV.unitPromptNamed(draft), 'Ship');
+    assert.equal(MV.uncheckedCount(draft), picks.length, 'the prompt is not counted; the other copied values are');
+    const shipNote = 'Check this: your 2023 backup file names a Ship, but you did not tick Unit Type there. Check the Unit Type box, then press Checked.';
+    assert.equal(CV.untickedUnitNote('Ship'), shipNote);
+    assert.equal(CV.unitFlagNote({ path: 'unit.type', prompt: true, named: 'Ship' }, 'Crew'), shipNote, 'the note does not follow the box: a Crew in the box still names the Ship');
+    assert.doesNotMatch(CV.unitFlagNote({ path: 'unit.type', prompt: true, named: 'Ship' }, 'Crew'), /Crew|Troop/, 'the note never repeats the box value');
+    assert.equal(MV.unitPromptText('Troop', 'Ship'), 'Your 2023 backup file names a Ship, but Unit Type was not copied, so Unit Type is set to Troop. Choose it on the Project Contacts (Guided: 1. Set Up) tab and press Checked.', 'the Fill heads-up sentence');
+    assert.equal(MV.unitPromptText('Troop'), 'Unit Type is set to Troop. Choose it on the Project Contacts (Guided: 1. Set Up) tab and press Checked.', 'no named unit: the same sentence, with the Guided hint');
+    assert.match(MV.checkNote(1), /Project Contacts \(Guided: 1\. Set Up\)/, 'the same qualifier as the copied-value line');
+    assert.equal(MV.markChecked(draft, 'unit.type'), true);
+    assert.equal(MV.unitPromptPending(draft), false, 'Checked clears it');
+  });
+  await test('convert: the unit prompt keeps its named unit only on Unit Type, and only for Troop, Crew, or Ship', () => {
+    assert.deepEqual(MV.cleanChecks([{ path: 'unit.type', prompt: true, named: 'Ship' }, { path: 'a.b', prompt: true, named: 'Ship' }, { path: 'unit.type', prompt: true, named: 'Bus' }]),
+      [{ path: 'unit.type', prompt: true, named: 'Ship' }, { path: 'a.b', prompt: true }], 'a repeated path is kept once; a named unit is kept on Unit Type only');
+    assert.deepEqual(MV.cleanChecks([{ path: 'unit.type', prompt: true, named: 'Bus' }]), [{ path: 'unit.type', prompt: true }], 'an unknown unit word is dropped');
+    assert.equal(MV.unitPromptNamed({ checkThis: [{ path: 'unit.type', prompt: true }] }), '', 'no named unit: empty');
+  });
+  await test('convert: ticking the unit row copies the unit it names and leaves no prompt', () => {
+    const d0 = JSON.parse(JSON.stringify(sample23));
+    d0.unit.type = 'Sea Scout Ship 12';
+    const draft = CV.build(d0, CV.defaultPicks(CV.plan(d0).rows));
+    assert.equal(draft.unit.type, 'Ship');
+    assert.deepEqual(draft.checkThis.filter((x) => x.path === 'unit.type'), [{ path: 'unit.type', copied: 'Ship' }], 'a copied value, not a prompt, with the word the 2023 file gave');
+    assert.equal(MV.unitPromptPending(draft), false);
+  });
+  await test('convert: the built draft is 2026 by both the page check and the file check, and the 2023 file is refused by the 2026 page', () => {
+    const W = workbookCommon();
+    const d = CV.build(sample23, CV.defaultPicks(CV.plan(sample23).rows));
+    assert.equal(W.editionOfData(d), '2026');
+    assert.equal(W.editionMismatch(d, MV.defaults), null, 'the 2026 page takes the new draft');
+    assert.ok(W.editionMismatch(sample23, MV.defaults), 'the 2026 page still refuses the 2023 file');
+  });
+  await test('convert: its copy of the edition and workbook rules agrees with lib/workbook-common.js on the cases that matter', () => {
+    const W = workbookCommon();
+    const cases = ['2026', ' 2026 ', 2026, '', '2023a', undefined, null, 'text', 0, [], [{ edition: '2026' }], { appendixD: {} }, { edition: '2026', candidate: {}, proposal: {} },
+      { edition: 2023 }, { edition: '2026', appendixD: {} }, { appendixD: [] }, sample23];
+    for (const c of cases) {
+      assert.equal(CV.editionOf(c), W.editionOfData(c), `edition of ${JSON.stringify(c)}`);
+      assert.equal(CV.looksLikeWorkbook(c), W.looksLikeWorkbook(c), `workbook shape of ${JSON.stringify(c)}`);
+    }
+  });
+  await test('convert: the 2026 draft has a checkThis list, and the flag helpers keep plain paths and clear one path at a time', () => {
+    assert.deepEqual(MV.defaults().checkThis, []);
+    assert.deepEqual(MV.cleanChecks([{ path: 'candidate.name' }, 'junk', { path: 5 }, { path: 'x y' }, { path: 'candidate.name' }, null, { path: 'unit.type', extra: 1 }]),
+      [{ path: 'candidate.name' }, { path: 'unit.type' }]);
+    const d = { checkThis: [{ path: 'candidate.name' }, { path: 'candidate.email' }] };
+    assert.equal(MV.isFlagged(d, 'candidate.email'), true);
+    assert.equal(MV.markChecked(d, 'candidate.name'), true);
+    assert.deepEqual(d.checkThis, [{ path: 'candidate.email' }], 'only the checked path is removed');
+    assert.equal(MV.markChecked(d, 'candidate.name'), false, 'nothing left to clear');
+    assert.equal(MV.uncheckedCount({ checkThis: [{ path: 'a.b' }, { path: 'c.d' }] }), 2);
+    assert.equal(MV.uncheckedCount({}), 0);
+  });
+  await test('convert: a backup file keeps its checkThis flags through the loader, and a file without them loads with none', () => {
+    const W = workbookCommon();
+    const saved = W.mergeWithDefaults(MV.defaults(), { edition: '2026', candidate: { name: 'A' }, proposal: {}, checkThis: [{ path: 'candidate.name' }, 'junk', { path: 7 }, { path: 'unit.council' }] });
+    assert.deepEqual(MV.cleanChecks(saved.checkThis), [{ path: 'candidate.name' }, { path: 'unit.council' }]);
+    assert.equal(MV.uncheckedCount(saved), 2);
+    const older = W.mergeWithDefaults(MV.defaults(), { edition: '2026', candidate: {}, proposal: {} });
+    assert.deepEqual(older.checkThis, []);
+  });
+  await test('convert: the Fill page heads-up has its exact wording for one value and for many, and nothing when all are checked', () => {
+    assert.equal(MV.checkNote(0), '');
+    assert.equal(MV.checkNote(1), '1 copied value is not checked yet. Go to Project Contacts (Guided: 1. Set Up) and press Checked next to it. The PDF includes it as it is now.');
+    assert.equal(MV.checkNote(3), '3 copied values are not checked yet. Go to Project Contacts (Guided: 1. Set Up) and press Checked next to each one. The PDF includes them as they are now.');
+  });
+  await test('convert: the Check this note and Checked button exist only where the page passes checks, and never when printing', () => {
+    const readSrc = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
+    const common = readSrc('lib/workbook-common.js');
+    assert.match(common, /function createForm\(\{ get, set, print = false, checks = null \}\)/, 'createForm takes checks');
+    assert.match(common, /if \(print \|\| !checks \|\| typeof checks\.flagged !== 'function' \|\| !checks\.flagged\(path\)\) return null;/, 'no flag when printing or without checks');
+    assert.match(common, /'aria-label': `Mark \$\{label\} as checked`/, 'the Checked button has an action name; the section is added by w26-ui named()');
+    assert.match(readSrc('lib/w26-ui.js'), /btn\.setAttribute\('aria-label', `Mark \$\{section\}: \$\{label\} as checked`\)/, 'named() gives the Checked button its section name');
+    assert.match(readSrc('lib/w26-classic.js'), /U\.namedBox\(f, 'contacts\.candidate', 'candidate\.name'\)/, 'the candidate fields are named for their section');    assert.match(common, /h\('p', \{ className: 'check-note', id: noteId \}, typeof checks\.note === 'function' \? checks\.note\(path\) : checks\.note\)/, 'the note text comes from the page, not this file');
+    assert.match(common, /return \{ field, row, section, contactBlock, table, costTable, hoursTable, watch, tipBox, print, get, flagFor \};/, 'flagFor is shared with the select boxes');
+    const ui = readSrc('lib/w26-ui.js');
+    assert.match(ui, /const flag = f\.flagFor \? f\.flagFor\(path, text, id\) : null;/, 'the drop-down (unit type) can carry a flag too');
+    const page = readSrc('lib/w26-classic.js');
+    assert.match(page, /W\.createForm\(\{ get, set, checks \}\)/, 'the Project Contacts tab passes its checks');
+    assert.match(page, /D\.checkThis = M\.cleanChecks\(D\.checkThis\);/, 'a loaded draft keeps only plain flag paths');
+    assert.doesNotMatch(readSrc('lib/w26-convert.js') + page + ui, /innerHTML|insertAdjacentHTML|document\.write/, 'no HTML strings');
+  });
+  await test('convert: the not-approved note has its exact wording, and no converter text says must or required outside the quoted workbook sentence', () => {
+    const J26 = require(path.join(ROOT, 'lib/journey.js'));
+    assert.equal(CV.NOT_APPROVED, 'This new draft is for the 2026 workbook (No. 512-927). The official 2026 workbook says: “You must use the current edition of this official Eagle Scout Leadership Service Project Workbook, No. 512-927, to propose, plan, execute, and summarize your project.” (Page 4.) Scouting America’s FAQ for the 2026 workbook says a Scout whose project proposal was fully approved before January 1, 2027, using the 2023 workbook, may continue using that workbook to complete the project. This new draft is not an approved project. It has only the names, contacts, and unit details you ticked. Ask your council which workbook applies to your project.');
+    // "must" is allowed only inside the workbook's own sentence, quoted word for word. Everything else is advice wording.
+    const outsideQuote = CV.NOT_APPROVED.split(J26.QUOTES_2026.edition[1]).join('');
+    for (const t of [outsideQuote, CV.NOT_2023, CV.NOT_WORKBOOK, CV.CHECK_NOTE, CV.UNIT_NOTE, CV.UNIT_ROW_NOTE, CV.NOT_COPIED, MV.checkNote(1), MV.checkNote(2), MV.unitPromptText('Troop'), CV.convertCountText(2), CV.copyCountText(2)]) assert.doesNotMatch(t, /\b(must|required)\b/i, t);
+  });
+  await test('convert: the not-approved note quotes the workbook sentence from page 4 word for word, and says where the FAQ sentence comes from without quoting it as official', () => {
+    const J26 = require(path.join(ROOT, 'lib/journey.js'));
+    assert.equal(J26.QUOTES_2026.edition[0], 4, 'the sentence is on page 4 (checked against the PDF by the 2026 quote test)');
+    assert.ok(CV.NOT_APPROVED.includes(`“${J26.QUOTES_2026.edition[1]}”`), 'the note quotes the table sentence exactly');
+    assert.match(CV.NOT_APPROVED, /Scouting America’s FAQ for the 2026 workbook says a Scout whose project proposal was fully approved before January 1, 2027, using the 2023 workbook, may continue using that workbook to complete the project\./, 'the FAQ is named as the source of the 2023 rule, and its sentence has no "only" that the FAQ quote lacks');
+    assert.doesNotMatch(CV.NOT_APPROVED, /\bonly for a project\b|may still be used only/, 'the word "only" is not added to the FAQ sentence');
+    assert.ok(!CV.NOT_APPROVED.includes('“A Scout whose'), 'the FAQ sentence is not quoted as official text');
+  });
+  await test('convert: the not-approved note asks the council which workbook applies, and keeps the approval sentence', () => {
+    for (const words of ['names', 'contacts', 'unit details']) assert.match(CV.NOT_APPROVED, new RegExp(`\\b${words}\\b`), words);
+    assert.match(CV.NOT_APPROVED, /This new draft is not an approved project\. It has only the names, contacts, and unit details you ticked\./);
+    assert.match(CV.NOT_APPROVED, /Ask your council which workbook applies to your project\.$/);
+    assert.doesNotMatch(CV.NOT_APPROVED, /only the names and contacts/, 'the old wording is gone');
+  });
+  await test('convert: the not-copied line names the five adult roles behind its "no street address, city, or state box" claim, with the form\u2019s own titles', () => {
+    const roles = ['contacts.leader', 'contacts.committee', 'contacts.beneficiaryRep', 'contacts.approvalRep', 'contacts.coach'].map((id) => OV.sections[id][1]);
+    assert.deepEqual(roles, ['Scoutmaster', 'Unit Committee Representative', 'Project Beneficiary Representative', 'Council or District Proposal Approval Representative', 'Project Coach/Advisor'], 'the titles printed on page 5');
+    const claim = CV.NOT_COPIED.split(/(?<=\.)\s+/).find((s) => /\bno street address\b/.test(s));
+    assert.ok(claim, 'a sentence says the address boxes are missing');
+    for (const role of roles) assert.ok(claim.includes(role), `the claim names ${role}: ${claim}`);
+    assert.doesNotMatch(CV.NOT_COPIED, /adult street addresses|adult cities/, 'no roleless claim about adults');
+    assert.match(CV.NOT_COPIED, /no ZIP code box/, 'the ZIP claim is kept');
+    assert.match(CV.NOT_COPIED, /no advancement coordinator box/, 'the advancement coordinator claim is kept');
+    assert.ok(OV.sections['contacts.parent'][1] === 'Scout Parent/Guardian' && !roles.includes('Scout Parent/Guardian'), 'the parent block has address boxes, so it is not in the claim');
+  });
+  await test('convert: the help text names the unit details that are copied, and says nothing else is copied', () => {
+    const page = fs.readFileSync(path.join(ROOT, 'lib/w26-classic.js'), 'utf8');
+    assert.ok(page.includes('copy its names, contacts, and unit details (unit type, number, district, and council) into a new 2026 draft. Nothing else is copied: no answers, signed pages, photos, or links.'), 'the help text on the Project Contacts tab');
+    for (const f of ['unit.type', 'unit.number', 'unit.district', 'unit.council']) assert.ok(CV.CARRY.some((r) => r.to === f), `${f} is copied`);
+  });
+  await test('convert: the Replace prompt says "section of this page", not "tab", for the workbook\u2019s own sections', () => {
+    const page = fs.readFileSync(path.join(ROOT, 'lib/w26-classic.js'), 'utf8');
+    assert.ok(page.includes('Your answers in every section of this page will be removed.'), 'the new sentence');
+    assert.ok(!page.includes('Your answers on every tab will be removed.'), 'the old sentence is gone');
+  });
+
+  console.log('Save reminder and two-tab warning');
+  {
+    const W = workbookCommon();
+    const MIN = 60 * 1000;
+    const now = 1e12;
+    const remind = (o) => W.reminderDue({ anyChange: true, since: now, now, dismissed: null, ...o });
+    await test('reminder: 4 changed boxes and 4 minutes shows nothing; 5 changed boxes, or 5 minutes, shows it', () => {
+      assert.equal(remind({ changes: 4, since: now - 4 * MIN }), false);
+      assert.equal(remind({ changes: 5, since: now }), true);
+      assert.equal(remind({ changes: 1, since: now - 5 * MIN }), true);
+      assert.equal(remind({ changes: 1, since: now - 4 * MIN }), false, 'four minutes is not enough');
+      assert.equal(remind({ changes: 1, since: 0 }), false, 'no timer yet');
+    });
+    await test('reminder: no changed box shows nothing, however long it has been; an unknown count waits for the timer', () => {
+      assert.equal(remind({ changes: 0, anyChange: false, since: now - 9 * MIN }), false);
+      assert.equal(remind({ changes: null, anyChange: true, since: now - 4 * MIN }), false, 'unknown count, 4 minutes');
+      assert.equal(remind({ changes: null, anyChange: true, since: now - 5 * MIN }), true, 'unknown count, 5 minutes');
+    });
+    await test('reminder: a backup file saved before the count existed stays quiet until it is saved again', () => {
+      assert.equal(remind({ changes: null, backedUp: true, since: now - 9 * MIN }), false, 'a backup with no fingerprints: the changes are unknown, so no nag');
+      assert.equal(remind({ changes: null, backedUp: false, since: now - 5 * MIN }), true, 'no backup file yet: the timer alone');
+      assert.equal(remind({ changes: 5, backedUp: true, since: now }), true, 'a known count after a backup file: five changes show it');
+    });
+    await test('reminder: a backup file just saved resets both the count and the timer', () => {
+      assert.equal(remind({ changes: 7, since: now - 9 * MIN }), true, 'before the backup: due');
+      assert.equal(remind({ changes: 0, anyChange: false, since: now }), false, 'just saved: nothing changed since');
+      assert.equal(remind({ changes: 1, since: now }), false, 'one change right after the backup');
+      assert.equal(remind({ changes: 4, since: now }), false, 'four changes right after the backup');
+    });
+    await test('reminder: "Not now" holds it until 5 more changed boxes, or 5 more minutes, since the dismissal', () => {
+      const dismissed = { at: now, changes: 5 };
+      assert.equal(remind({ changes: 5, since: now, dismissed }), false, 'right after Not now');
+      assert.equal(remind({ changes: 9, since: now, dismissed }), false, 'four more boxes');
+      assert.equal(remind({ changes: 10, since: now, dismissed }), true, 'five more boxes');
+      // With fewer than 5 boxes, only the time can bring the reminder back. The timer here has run out long ago.
+      const timed = { changes: 2, since: now - 9 * MIN };
+      assert.equal(remind({ ...timed, dismissed: { at: now, changes: 2 } }), false, 'right after Not now, 2 boxes');
+      assert.equal(remind({ ...timed, dismissed: { at: now - 4 * MIN, changes: 2 } }), false, 'four minutes after Not now');
+      assert.equal(remind({ ...timed, dismissed: { at: now - 5 * MIN, changes: 2 } }), true, 'five minutes after Not now');
+      assert.equal(remind({ changes: 6, since: now - 9 * MIN, dismissed: { at: now, changes: 2 } }), false, 'four more boxes, not five');
+      assert.equal(remind({ changes: 7, since: now - 9 * MIN, dismissed: { at: now, changes: 2 } }), true, 'five more boxes');
+    });
+    await test('two-tab rule: a marker 89 seconds old is present, 91 seconds old is not; its own marker and other draft keys are ignored', () => {
+      const key = 'eagle_workbook2026_v1';
+      const entry = (draft, age, tab) => [`${draft}_presence.${tab}`, JSON.stringify({ at: now - age })];
+      const others = (entries) => [...W.presenceCheck(entries, key, 'mine', now).others];
+      assert.deepEqual(others([entry(key, 89000, 'other')]), ['other'], '89 seconds: present');
+      assert.deepEqual(others([entry(key, 91000, 'other')]), [], '91 seconds: not present');
+      assert.deepEqual([...W.presenceCheck([entry(key, 91000, 'other')], key, 'mine', now).stale], [`${key}_presence.other`], 'a 91-second marker is stale');
+      assert.deepEqual(others([entry(key, 0, 'mine')]), [], 'its own marker is ignored');
+      assert.deepEqual(others([entry('eagle_workbook2026_guided_v1', 0, 'x')]), [], 'the Guided 2026 draft does not warn this draft');
+      assert.deepEqual(others([entry('eagle_workbook_v1', 0, 'x')]), [], 'a 2023 draft does not warn this draft');
+      assert.deepEqual([...others([entry(key, 0, 'a'), entry(key, 0, 'b')])].sort(), ['a', 'b'], 'two other tabs');
+      assert.deepEqual([...W.presenceCheck([[`${key}_presence.x`, 'not json']], key, 'mine', now).stale], [`${key}_presence.x`], 'an unreadable marker is stale');
+    });
+    await test('banner text: the exact words of the reminder and the two-tab warning, with no "must" or "required"', () => {
+      assert.equal(W.TWO_TABS_TEXT, 'This workbook is also open in another tab. Keep one tab open. A tab that sees the other tab’s save stops saving, and anything typed there is lost on reload unless you save a backup file first.');
+      assert.equal(W.reminderText(5), 'You’ve changed 5 boxes since your last backup file. Save one now: browser storage can be erased, but a backup file cannot. This browser has your newest answers. Save from this browser to keep them.');
+      assert.equal(W.reminderText(1), 'You’ve changed 1 box since your last backup file. Save one now: browser storage can be erased, but a backup file cannot. This browser has your newest answers. Save from this browser to keep them.');
+      assert.equal(W.reminderTextBeforeBackup(5), 'You’ve changed 5 boxes since this page opened. You haven’t saved a backup file yet. Save one now: browser storage can be erased, but a backup file cannot.');
+      assert.equal(W.reminderTextBeforeBackup(1), 'You’ve changed 1 box since this page opened. You haven’t saved a backup file yet. Save one now: browser storage can be erased, but a backup file cannot.');
+      for (const t of [W.TWO_TABS_TEXT, W.reminderText(5), W.reminderText(1), W.reminderTextBeforeBackup(5), W.reminderTextBeforeBackup(1), 'Save backup file', 'Not now']) assert.doesNotMatch(t, /\b(must|required)\b/i, t);
+    });
+    await test('two-tab text: it says what happens to typing (the tab stops saving, and reload loses it), and no longer says which save wins', () => {
+      assert.doesNotMatch(W.TWO_TABS_TEXT, /whichever|saves last|keeps its version/, 'the old claim is gone');
+      assert.match(W.TWO_TABS_TEXT, /Keep one tab open\./);
+      assert.match(W.TWO_TABS_TEXT, /stops saving, and anything typed there is lost on reload unless you save a backup file first\./);
+    });
+    await test('reminder before the first backup file: the count is against the boxes as the page opened; untouched defaults do not count', () => {
+      const start = W.defaults();
+      const opened = W.boxHashes(start);
+      assert.ok('unit.type' in opened, 'the default Troop is a box the old count also counted');
+      assert.equal(W.countChanged(opened, W.boxHashes(W.defaults())), 0, 'a fresh page with defaults shows 0 changes');
+      const d = W.defaults();
+      d.candidate.name = 'Changed A'; d.candidate.address = 'Changed B'; d.candidate.city = 'Changed C'; d.candidate.state = 'Changed D'; d.candidate.email = 'x@example.org';
+      assert.equal(W.countChanged(opened, W.boxHashes(d)), 5, 'five typed boxes: five changes');
+      d.candidate.name = 'Changed A again';
+      assert.equal(W.countChanged(opened, W.boxHashes(d)), 5, 'a second keystroke in one box is still one box');
+      d.candidate.name = '';
+      assert.equal(W.countChanged(opened, W.boxHashes(d)), 4, 'a box cleared back to its start is not counted');
+      assert.equal(W.reminderDue({ changes: 5, anyChange: true, since: 0, now, dismissed: null, backedUp: false }), true, 'five changed boxes, no backup file: the banner shows at once');
+      assert.equal(W.reminderDue({ changes: 4, anyChange: true, since: 0, now, dismissed: null, backedUp: false }), false, 'four changed boxes, no backup file: nothing');
+      assert.equal(W.reminderDue({ changes: 0, anyChange: false, since: 0, now, dismissed: null, backedUp: false }), false, 'untouched: nothing');
+    });
+    await test('reminder before the first backup file: its wording switches to the backup-file wording after a backup file is saved', () => {
+      assert.notEqual(W.reminderTextBeforeBackup(5), W.reminderText(5));
+      assert.match(W.reminderTextBeforeBackup(5), /since this page opened\. You haven’t saved a backup file yet\./);
+      assert.match(W.reminderText(5), /since your last backup file\./);
+      assert.doesNotMatch(W.reminderText(5), /haven’t saved|since this page opened/);
+    });
+    await test('reminder for a page that opened on saved work with no backup file: 3 filled boxes show it at once, with 3; a fresh page shows nothing; after a backup file the rule switches back', () => {
+      const blank = MV.defaults();
+      const restored = MV.defaults();
+      restored.candidate.name = 'Sample A'; restored.candidate.email = 'a@example.org'; restored.candidate.phone = '555-0100';
+      const changed = (draft) => W.countChanged(W.boxHashes(blank), W.boxHashes(draft));
+      assert.equal(changed(restored), 3, 'three filled boxes differ from the defaults');
+      assert.equal(changed(blank), 0, 'a fresh page with the defaults shows nothing');
+      assert.equal(W.reminderDue({ changes: 3, anyChange: true, since: 0, now, dismissed: null, backedUp: false, restored: true }), true, 'restored: due at once, with 3');
+      assert.equal(W.reminderDue({ changes: 0, anyChange: false, since: 0, now, dismissed: null, backedUp: false, restored: false }), false, 'a fresh page: nothing');
+      assert.equal(W.reminderDue({ changes: 0, anyChange: false, since: now, now, dismissed: null, backedUp: true, restored: false }), false, 'after a backup file, nothing changed: nothing');
+      assert.equal(W.reminderDue({ changes: 3, anyChange: true, since: now, now, dismissed: null, backedUp: true, restored: false }), false, 'after a backup file, 3 changes are under 5 and the timer has not run out');
+      assert.equal(W.reminderDue({ changes: 3, anyChange: true, since: now, now, dismissed: { at: now, changes: 0 }, backedUp: false, restored: true }), false, 'after Not now, restored waits for 5 more boxes or 5 minutes');
+      assert.equal(W.reminderDue({ changes: 3, anyChange: true, since: now, now: now + 5 * MIN, dismissed: { at: now, changes: 0 }, backedUp: false, restored: true }), true, 'five minutes after Not now it returns');
+      assert.equal(W.reminderTextRestored(3), 'Your saved answers in this browser have 3 boxes filled in that are not in a backup file yet. Save a backup file now: browser storage can be erased, but a backup file cannot.');
+      assert.equal(W.reminderTextRestored(1), 'Your saved answers in this browser have 1 box filled in that is not in a backup file yet. Save a backup file now: browser storage can be erased, but a backup file cannot.');
+      for (const t of [W.reminderTextRestored(3), W.reminderTextRestored(1)]) assert.doesNotMatch(t, /\b(must|required)\b/i, t);
+    });
+    await test('banners: they sit in the page flow just above #app, nothing is fixed to the bottom, and no scroll-padding room is kept', () => {
+      const common = fs.readFileSync(path.join(ROOT, 'lib/workbook-common.js'), 'utf8');
+      assert.match(common, /app\.parentNode\.insertBefore\(noticeHostEl, app\)/, 'the banner area is put just before #app, not at the end of the page');
+      assert.doesNotMatch(common, /syncNoticePadding|scroll-padding/, 'no room is kept for a banner at the bottom: nothing covers the page');
+      for (const f of ['EagleWorkbook.html', 'EagleWorkbook-guided.html', 'EagleWorkbook2026.html', 'EagleWorkbook2026-guided.html']) {
+        const html = fs.readFileSync(path.join(ROOT, f), 'utf8');
+        const rule = (html.match(/\.page-notices\{([^}]*)\}/) || [])[1] || '';
+        assert.ok(rule, `${f} styles the banner area`);
+        assert.doesNotMatch(rule, /position:\s*(fixed|absolute|sticky)/, `${f}: the banner area is not fixed or absolute`);
+        assert.doesNotMatch(rule, /(^|;)\s*(bottom|top|left|right)\s*:/, `${f}: the banner area has no screen offsets`);
+        assert.match(rule, /display:flex/, `${f}: the banners stack in the page flow`);
+      }
+    });
+    await test('pages: each of the four workbook pages says the two pages are two ways to fill in one workbook, and warns about a second tab', () => {
+      const pages = { 'EagleWorkbook.html': 'Classic and Guided', 'EagleWorkbook-guided.html': 'Guided and Classic', 'EagleWorkbook2026.html': 'Classic and Guided', 'EagleWorkbook2026-guided.html': 'Guided and Classic' };
+      for (const [f, pair] of Object.entries(pages)) {
+        const html = fs.readFileSync(path.join(ROOT, f), 'utf8');
+        const note = (html.match(/<p class="intro" id="page-note">([^<]*)<\/p>/) || [])[1] || '';
+        assert.ok(note, `${f} has the page note`);
+        assert.ok(note.startsWith(`The ${pair} pages are two ways to fill in the same `), `${f}: the first sentence names the two pages`);
+        assert.match(note, /each keeps its own saved draft, so answers typed on one page do not appear on the other/, `${f}: separate drafts`);
+        assert.match(note, /If this page is open in two tabs, saving in one tab makes the other tab stop saving\. Anything typed in the stopped tab can be lost\. Keep one tab open \(the message at the top of the screen explains\)\.$/, `${f}: the second-tab sentences`);
+        assert.doesNotMatch(note, /overwrite/, `${f}: the old overwrite model is gone`);
+        assert.doesNotMatch(note, /\b(must|required)\b/i, `${f}: no must or required`);
+        assert.equal((note.match(/\. /g) || []).length, 3, `${f}: four sentences`);
+      }
+    });
+    await test('print: the 2026 pages hide the converter, its Check this notes, Checked buttons, and count line when printed', () => {
+      for (const f of ['EagleWorkbook2026.html', 'EagleWorkbook2026-guided.html']) {
+        const html = fs.readFileSync(path.join(ROOT, f), 'utf8');
+        const rule = (html.match(/@media print\{\s*header,nav,([^{]*)\{display:none!important\}/) || [])[1] || '';
+        assert.ok(rule, `${f} has the print rule that hides the page chrome`);
+        for (const sel of ['.check-flag', '.check-count', '.convert']) assert.ok(rule.split(',').includes(sel), `${f} hides ${sel} when printed`);
+      }
+    });
+    // Storage fake: the pieces that read or write localStorage (createStore, presence) run against this.
+    const withStorage = () => {
+      const data = new Map();
+      const localStorage = {
+        getItem: (k) => (data.has(k) ? data.get(k) : null),
+        setItem: (k, v) => { data.set(k, String(v)); },
+        removeItem: (k) => { data.delete(k); },
+        key: (i) => (i < data.size ? [...data.keys()][i] : null),
+        get length() { return data.size; }
+      };
+      const window = {};
+      vm.runInNewContext(fs.readFileSync(path.join(ROOT, 'lib/workbook-common.js'), 'utf8'), { window, localStorage, console, setTimeout, clearTimeout, setInterval });
+      return { S: window.EagleWorkbook, data };
+    };
+    await test('presence: a tab removes only its own marker; another tab\u2019s 5-minute-old marker survives beat(), and a presence check ignores it', () => {
+      const { S, data } = withStorage();
+      const key = 'eagle_workbook2026_v1';
+      const other = `${key}_presence.oldtab`;
+      data.set(other, JSON.stringify({ at: Date.now() - 5 * MIN }));
+      const store = S.createStore(key);
+      store.beat();
+      assert.ok(data.has(other), 'the other tab\u2019s marker survives beat()');
+      assert.ok(data.has(`${key}_presence.${store.tabId}`), 'this tab wrote its own marker');
+      assert.equal(store.otherTabOpen(), false, 'a 5-minute-old marker is not an open tab');
+      assert.deepEqual([...S.presenceCheck([...data.entries()], key, store.tabId, Date.now()).others], [], 'a presence check ignores it');
+      store.leavePresence();
+      assert.equal(data.has(`${key}_presence.${store.tabId}`), false, 'leaving removes this tab\u2019s marker');
+      assert.ok(data.has(other), 'and leaves the other tab\u2019s marker alone');
+    });
+    await test('backup file: the presence marker and the tab id are never written into the backup text', () => {
+      const { S, data } = withStorage();
+      const key = 'eagle_workbook2026_v1';
+      const store = S.createStore(key);
+      store.beat();
+      assert.ok([...data.keys()].some((k) => k.startsWith(`${key}_presence.`)), 'the marker is stored in browser storage');
+      const draft = S.defaults();
+      draft.candidate.name = 'Sample Person';
+      const text = S.backupText(draft);
+      assert.doesNotMatch(text, /_presence/, 'no marker key');
+      assert.ok(!text.includes(store.tabId), 'no tab id');
+      assert.doesNotMatch(text, /"at"/, 'no timestamp');
+    });
+    await test('erase and the draft list: erase removes the draft, not the presence marker; the picture sweep lists only the four draft keys', () => {
+      const { S, data } = withStorage();
+      const key = 'eagle_workbook2026_v1';
+      const store = S.createStore(key);
+      data.set(key, '{}');
+      data.set(`${key}_presence.abc`, JSON.stringify({ at: now }));
+      store.erase();
+      assert.equal(data.has(key), false, 'the draft is erased');
+      assert.equal(data.has(`${key}_presence.abc`), true, 'the marker is not part of the draft');
+      const common = fs.readFileSync(path.join(ROOT, 'lib/workbook-common.js'), 'utf8');
+      assert.match(common, /for \(const k of \[key, `\$\{key\}_saved`, `\$\{key\}_backup`, `\$\{key\}_snap`, `\$\{key\}_corrupt`\]\)/, 'erase removes only the listed keys');
+      const att = fs.readFileSync(path.join(ROOT, 'lib/attachments.js'), 'utf8');
+      assert.match(att, /const DRAFT_KEYS = \['eagle_workbook_guided_v1', 'eagle_workbook_v1', 'eagle_workbook2026_guided_v1', 'eagle_workbook2026_v1'\];/, 'the picture sweep reads the four drafts only');
+      assert.doesNotMatch(att, /presence/i, 'the picture sweep never mentions presence');
+    });
+    await test('pages: each draft page starts the reminder and the two-tab warning once, and Make checks for another tab before its prompt', () => {
+      for (const [f, blank] of Object.entries({ 'lib/classic-workbook.js': 'W.defaults', 'lib/guided-workbook.js': 'W.defaults', 'lib/w26-classic.js': 'M.defaults' })) {
+        assert.equal(fs.readFileSync(path.join(ROOT, f), 'utf8').split(`W.watchDraft(store, D, ${blank});`).length - 1, 1, `${f} starts watchDraft once, with the page's starting draft and its blank draft (${blank})`);
+      }
+      const page = fs.readFileSync(path.join(ROOT, 'lib/w26-classic.js'), 'utf8');
+      const check = page.indexOf('store.warnIfOtherTab()');
+      assert.ok(check > 0 && check < page.indexOf('window.confirm(`${ONE_TAB_WARNING}'), 'the other-tab check comes before the Replace prompt');
+      for (const f of ['EagleWorkbook.html', 'EagleWorkbook-guided.html', 'EagleWorkbook2026.html', 'EagleWorkbook2026-guided.html']) {
+        const html = fs.readFileSync(path.join(ROOT, f), 'utf8');
+        assert.match(html, /\.page-notices(,[.\w-]+)*\{display:none!important\}/, `${f} hides the banners when printing`);
+        assert.match(html, /\.page-notice\{pointer-events:auto;/, `${f} styles the banners`);
+      }
     });
   }
 

@@ -11,12 +11,14 @@
  * EAGLE_PDF). Set CHROME_NO_SANDBOX=1 only where Chrome's sandbox cannot start
  * (some containers and CI runners). Set EAGLE_ONLINE=1 to also test
  * "Get the official PDF for me", which downloads from scouting.org.
+ * Set EAGLE_ONLY=text to run only the tests whose names contain text. A test
+ * that later tests need still runs. EAGLE_ONLY=PDFKit runs the Apple PDFKit check.
  */
 'use strict';
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { spawn, execFileSync } = require('child_process');
+const { spawn, spawnSync, execFileSync } = require('child_process');
 const { pathToFileURL } = require('url');
 const assert = require('assert/strict');
 
@@ -36,13 +38,78 @@ const CHROME = process.env.CHROME || [
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Every temp file or folder this run creates is recorded with track() and removed by removeMade(): in the finally block when
+// the run ends, or in the exit handler if the process exits first. Nothing else in the temp folder is touched.
+const made = new Set();
+const track = (p) => { made.add(p); return p; };
+// Chrome processes this run started. The exit handler kills any that are still running.
+const children = new Set();
+function removeMade() {
+  for (const p of made) {
+    try { fs.rmSync(p, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); }
+    catch (error) { console.error(`Could not remove ${p}: ${error.message}`); }
+  }
+  made.clear();
+}
+process.on('exit', () => {
+  for (const child of children) { try { child.kill('SIGKILL'); } catch { /* already gone */ } }
+  removeMade();
+});
+for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => process.exit(130));
+
+// The Apple PDFKit check (macOS). The limits are explicit: a compile may take a while the first time, a check should not.
+const PDFKIT_COMPILE_TIMEOUT_MS = 180000;
+const PDFKIT_CHECK_TIMEOUT_MS = 60000;
+// On a failed PDFKit check, the input PDF and a report go here so the failure can be inspected. Nothing is kept on success.
+const PDFKIT_FAILURE_DIR = path.join(os.tmpdir(), 'eph-pdfkit-failure');
+// Runs a command and keeps what it reported: exit status, signal, timeout, stdout, and stderr.
+function runCaptured(command, args, timeoutMs) {
+  const r = spawnSync(command, args, { encoding: 'utf8', timeout: timeoutMs, maxBuffer: 64 * 1024 * 1024 });
+  return {
+    ok: r.status === 0 && !r.error && r.signal === null,
+    status: r.status, signal: r.signal, timeoutMs,
+    timedOut: Boolean(r.error && r.error.code === 'ETIMEDOUT'),
+    error: r.error ? r.error.message : '',
+    stdout: r.stdout || '', stderr: r.stderr || ''
+  };
+}
+// The error for a failed command. It carries the full result, and its message shows the first 2000 characters of stderr.
+function commandFailure(step, r) {
+  const stderr = r.stderr.slice(0, 2000);
+  const error = new Error(`PDFKit step failed (${step}): exit status ${r.status}, signal ${r.signal || 'none'}, ` +
+    `${r.timedOut ? 'timed out' : 'did not time out'} (limit ${r.timeoutMs} ms)${r.error ? `, error: ${r.error}` : ''}.\n` +
+    `stderr (first 2000 characters):\n${stderr || '(empty)'}`);
+  error.result = r;
+  return error;
+}
+// Copies the input PDF, the probe binary, and a full report into PDFKIT_FAILURE_DIR, then adds the location to the error.
+function keepPdfkitEvidence(step, inputPdf, binary, error) {
+  fs.mkdirSync(PDFKIT_FAILURE_DIR, { recursive: true });
+  const kept = [];
+  const keep = (from, name) => {
+    if (from && fs.existsSync(from)) { fs.copyFileSync(from, path.join(PDFKIT_FAILURE_DIR, name)); kept.push(name); }
+  };
+  keep(inputPdf, 'input.pdf');
+  keep(binary, 'pdfkit-check');
+  const lines = [`step: ${step}`, `message: ${error.message}`];
+  if (error.result) {
+    const r = error.result;
+    lines.push(`exit status: ${r.status}`, `signal: ${r.signal || 'none'}`, `timed out: ${r.timedOut}`, `limit ms: ${r.timeoutMs}`,
+      '--- stdout (full) ---', r.stdout, '--- stderr (full) ---', r.stderr);
+  }
+  fs.writeFileSync(path.join(PDFKIT_FAILURE_DIR, 'report.txt'), lines.join('\n') + '\n');
+  error.message += `\nKept for inspection in ${PDFKIT_FAILURE_DIR}: ${kept.join(', ')}, report.txt`;
+}
+
 async function launch() {
   if (!CHROME) throw new Error('Chrome not found. Set CHROME=/path/to/chrome.');
-  const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'eph-chrome-'));
+  const profile = track(fs.mkdtempSync(path.join(os.tmpdir(), 'eph-chrome-')));
   const args = ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
     `--user-data-dir=${profile}`, '--remote-debugging-port=0', 'about:blank'];
   if (process.env.CHROME_NO_SANDBOX || (process.getuid && process.getuid() === 0)) args.unshift('--no-sandbox');
   const proc = spawn(CHROME, args, { stdio: 'ignore' });
+  children.add(proc);
+  proc.once('exit', () => children.delete(proc));
   const portFile = path.join(profile, 'DevToolsActivePort');
   for (let i = 0; i < 80 && !fs.existsSync(portFile); i++) await sleep(250);
   if (!fs.existsSync(portFile)) { proc.kill(); throw new Error('Chrome did not start. If its sandbox cannot run here, set CHROME_NO_SANDBOX=1.'); }
@@ -73,8 +140,46 @@ async function launch() {
     pending.set(n, { resolve, reject });
     ws.send(JSON.stringify({ id: n, method, params }));
   });
-  const close = () => { closing = true; try { ws.close(); } catch {} proc.kill(); setTimeout(() => fs.rmSync(profile, { recursive: true, force: true }), 500); };
-  return { send, on: (fn) => listeners.push(fn), close };
+  // Resolves once Chrome has exited (killed after 5 seconds if it has not), so the profile folder can be removed safely.
+  const close = () => new Promise((resolve) => {
+    closing = true;
+    try { ws.close(); } catch { /* already closed */ }
+    if (proc.exitCode !== null || proc.signalCode !== null) return resolve();
+    const killTimer = setTimeout(() => proc.kill('SIGKILL'), 5000);
+    proc.once('exit', () => { clearTimeout(killTimer); resolve(); });
+    proc.kill();
+  });
+  return { send, on: (fn) => listeners.push(fn), close, port: Number(port) };
+}
+
+/** A DevTools session on one more page target (a second tab). It speaks the same protocol as the first tab's session in launch(). */
+async function connectPageSession(wsUrl) {
+  const ws = new WebSocket(wsUrl);
+  await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject; });
+  let id = 0;
+  const pending = new Map();
+  const listeners = [];
+  ws.onmessage = (event) => {
+    const msg = JSON.parse(event.data);
+    if (msg.id && pending.has(msg.id)) {
+      const { resolve, reject } = pending.get(msg.id);
+      pending.delete(msg.id);
+      msg.error ? reject(new Error(msg.error.message)) : resolve(msg.result);
+    } else if (msg.method) listeners.forEach((fn) => fn(msg));
+  };
+  const send = (method, params = {}) => new Promise((resolve, reject) => {
+    const n = ++id;
+    pending.set(n, { resolve, reject });
+    ws.send(JSON.stringify({ id: n, method, params }));
+  });
+  const evaluate = async (expression) => {
+    const result = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
+    if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text);
+    return result.result.value;
+  };
+  await send('Runtime.enable');
+  await send('Page.enable');
+  return { send, evaluate, on: (fn) => listeners.push(fn), close: () => { try { ws.close(); } catch { /* already closed */ } } };
 }
 
 async function run() {
@@ -82,15 +187,17 @@ async function run() {
   const { send } = browser;
   const problems = [];
   let dialogs = [];
+  // Set by a test that needs a prompt to stay open while another tab acts. The test then accepts it by hand.
+  let holdDialogs = false;
   browser.on((msg) => {
     if (msg.method === 'Runtime.exceptionThrown') problems.push(msg.params.exceptionDetails.exception?.description || msg.params.exceptionDetails.text);
     if (msg.method === 'Runtime.consoleAPICalled' && msg.params.type === 'error') problems.push(msg.params.args.map((a) => a.value || a.description).join(' '));
     if (msg.method === 'Log.entryAdded' && msg.params.entry.level === 'error') problems.push(msg.params.entry.text);
-    if (msg.method === 'Page.javascriptDialogOpening') { dialogs.push(msg.params.message); send('Page.handleJavaScriptDialog', { accept: true }); }
+    if (msg.method === 'Page.javascriptDialogOpening') { dialogs.push(msg.params.message); if (!holdDialogs) send('Page.handleJavaScriptDialog', { accept: true }); }
   });
-  const downloads = fs.mkdtempSync(path.join(os.tmpdir(), 'eph-downloads-'));
+  const downloads = track(fs.mkdtempSync(path.join(os.tmpdir(), 'eph-downloads-')));
   // A backup file made for the 2026 workbook (fictional). Used to check the 2023a pages refuse it.
-  const OTHER_EDITION = path.join(os.tmpdir(), `eph-2026-backup-${process.pid}.json`);
+  const OTHER_EDITION = track(path.join(os.tmpdir(), `eph-2026-backup-${process.pid}.json`));
   fs.writeFileSync(OTHER_EDITION, JSON.stringify({ edition: '2026', candidate: { name: 'Test' }, proposal: {} }));
   await send('Page.enable');
   await send('Runtime.enable');
@@ -116,19 +223,66 @@ async function run() {
     const { nodeId } = await send('DOM.querySelector', { nodeId: root.nodeId, selector });
     await send('DOM.setFileInputFiles', { nodeId, files: [file] });
   };
-  const downloaded = (suffix) => fs.readdirSync(downloads).filter((f) => f.endsWith(suffix));
-  const waitForDownload = async (suffix) => {
-    for (let t = 0; t < 30000; t += 100) { const done = downloaded(suffix); if (done.length) return path.join(downloads, done[0]); await sleep(100); }
-    throw new Error(`No ${suffix} download`);
+  // Chrome reports each download when it starts and when it finishes. A wait matches a file to the click that made it through
+  // these reports, not by reading the folder alone, so a file left by an earlier click cannot be taken for the new one.
+  const downloadLog = [];   // one entry per download Chrome started, in order: { guid, name, state }
+  browser.on((msg) => {
+    if (msg.method === 'Browser.downloadWillBegin') downloadLog.push({ guid: msg.params.guid, name: msg.params.suggestedFilename, state: 'inProgress' });
+    if (msg.method === 'Browser.downloadProgress') { const d = downloadLog.find((x) => x.guid === msg.params.guid); if (d) d.state = msg.params.state; }
+  });
+  // Empties the downloads folder, then waits until it stays empty, so a download still being written from an earlier click is
+  // removed too. Returns a mark: waitForNewDownload() accepts only downloads that Chrome starts after this mark.
+  const clearDownloads = async () => {
+    for (let t = 0, quiet = 0; t < 10000 && quiet < 3; t += 50) {
+      const files = fs.readdirSync(downloads);
+      files.forEach((f) => fs.rmSync(path.join(downloads, f), { force: true }));
+      quiet = files.length ? 0 : quiet + 1;
+      await sleep(50);
+    }
+    if (fs.readdirSync(downloads).length) throw new Error('The downloads folder did not empty');
+    return { at: downloadLog.length };
   };
-  const clearDownloads = () => fs.readdirSync(downloads).forEach((f) => fs.rmSync(path.join(downloads, f)));
+  // Waits for the file that the click after `mark` made: a download Chrome started after the mark, with this extension, that
+  // Chrome has finished, and whose size is the same on two checks (so a file still being written is never read).
+  const waitForNewDownload = async (suffix, mark, ms = 30000) => {
+    let d = null;
+    for (let t = 0; t < ms && !d; t += 50) { d = downloadLog.slice(mark.at).find((x) => x.name.endsWith(suffix)) || null; if (!d) await sleep(50); }
+    if (!d) throw new Error(`No ${suffix} download started after the click`);
+    for (let t = 0; t < ms && d.state === 'inProgress'; t += 50) await sleep(50);
+    if (d.state !== 'completed') throw new Error(`The download ${d.name} ended as ${d.state}`);
+    const stem = path.parse(d.name).name;
+    const found = fs.readdirSync(downloads).filter((f) => f.endsWith(suffix) && f.startsWith(stem));
+    if (found.length !== 1) throw new Error(`Expected one file for ${d.name}, found: ${found.join(', ') || 'none'}`);
+    const file = path.join(downloads, found[0]);
+    const size = fs.statSync(file).size;
+    await sleep(100);
+    if (!size || fs.statSync(file).size !== size) throw new Error(`${found[0]} is still being written`);
+    return file;
+  };
   const click = (text) => evaluate(`(() => { const b=[...document.querySelectorAll('button,a')].find(e=>e.textContent.includes(${JSON.stringify(text)})); if(!b) throw new Error('no control: ' + ${JSON.stringify(text)}); b.click(); return true; })()`);
+  // A second tab in the same browser profile: its own page, sharing localStorage with the first tab (same file:// origin).
+  // close() shuts the tab. Use waitIn() to wait on it, since waitFor() talks to the first tab only.
+  const openTab = async () => {
+    const info = await (await fetch(`http://127.0.0.1:${browser.port}/json/new?about:blank`, { method: 'PUT' })).json();
+    const tab = await connectPageSession(info.webSocketDebuggerUrl);
+    return { ...tab, close: async () => { tab.close(); await fetch(`http://127.0.0.1:${browser.port}/json/close/${info.id}`).catch(() => {}); } };
+  };
+  const waitIn = async (tab, expression, ms = 30000) => {
+    for (let t = 0; t < ms; t += 100) { try { if (await tab.evaluate(expression)) return; } catch { /* page still loading */ } await sleep(100); }
+    throw new Error(`Timed out waiting in the second tab for: ${expression}`);
+  };
 
   let passed = 0;
   let filledPdf = null;
   let filled2026 = null;
   const failures = [];
-  const test = async (name, fn) => {
+  // EAGLE_ONLY=text runs only the tests whose names contain text. A test that later tests depend on is marked needed, so it runs too.
+  const ONLY = process.env.EAGLE_ONLY || '';
+  let matched = 0;
+  let filtered = 0;
+  const test = async (name, fn, { needed = false } = {}) => {
+    if (ONLY && !needed && !name.includes(ONLY)) { filtered++; return; }
+    if (!needed && (!ONLY || name.includes(ONLY))) matched++;
     try { const r = await fn(); if (r === 'skip') { console.log(`  skip ${name}`); return; } passed++; console.log(`  ok   ${name}`); }
     catch (error) { failures.push(name); console.log(`  FAIL ${name}\n       ${error.message}`); }
   };
@@ -143,12 +297,12 @@ async function run() {
       await setFile('#json-file', SAMPLE);
       await waitFor('!document.getElementById("create").disabled');
       assert.equal(await evaluate('document.getElementById("project-name").value'), 'Bike Rack and Repair Stand');
-      clearDownloads();
+      const mark = await clearDownloads();
       await evaluate('document.getElementById("create").click()');
       await waitFor('/\\b(ok|error)\\b/.test(document.getElementById("status").className)', 60000);
       const status = await evaluate('document.getElementById("status").textContent');
       assert.match(status, /^Done\./, status);
-      const file = await waitForDownload('.pdf');
+      const file = await waitForNewDownload('.pdf', mark);
       assert.equal(path.basename(file), 'Bike-Rack-and-Repair-Stand-Workbook-filled.pdf');
       const bytes = fs.readFileSync(file);
       assert.ok(bytes.subarray(0, fs.statSync(PDF).size).equals(fs.readFileSync(PDF)), 'download is the official PDF plus an update');
@@ -156,9 +310,9 @@ async function run() {
       assert.match(report, /Filled \d+ answers\./);
       assert.match(report, /Printed names next to the approval signature lines/);
       assert.deepEqual(problems, []);
-      filledPdf = path.join(os.tmpdir(), `eph-filled-${process.pid}.pdf`);
+      filledPdf = track(path.join(os.tmpdir(), `eph-filled-${process.pid}.pdf`));
       fs.copyFileSync(file, filledPdf);
-    });
+    }, { needed: true });
     await test('flags a blank name or project name without blocking the PDF', async () => {
       const blank = path.join(downloads, 'blank-names.json');
       const d = JSON.parse(fs.readFileSync(SAMPLE, 'utf8'));
@@ -171,7 +325,7 @@ async function run() {
       const note = await evaluate('document.getElementById("heads-up").hidden ? "" : document.getElementById("heads-up").textContent');
       assert.match(note, /Your name is blank/);
       assert.match(note, /project name is blank/);
-      clearDownloads();
+      await clearDownloads();
       await evaluate('document.getElementById("create").click()');
       await waitFor('/\\b(ok|error)\\b/.test(document.getElementById("status").className)', 60000);
       assert.match(await evaluate('document.getElementById("status").textContent'), /^Done\./, 'still made the PDF');
@@ -186,18 +340,29 @@ async function run() {
     await test('Apple PDFKit (Preview) shows every answer (macOS only)', async () => {
       if (process.platform !== 'darwin') return 'skip';
       assert.ok(filledPdf, 'needs the PDF from the previous test');
-      const binary = path.join(os.tmpdir(), 'eph-pdfkit-check');
-      execFileSync('swiftc', ['-O', path.join(__dirname, 'pdfkit-check.swift'), '-o', binary], { stdio: 'ignore' });
-      const seen = JSON.parse(execFileSync(binary, [filledPdf], { encoding: 'utf8' }));
-      assert.equal(seen.locked, false);
-      const expected = lib.buildFieldValues(JSON.parse(fs.readFileSync(SAMPLE, 'utf8')));
-      const wrong = [];
-      for (const [name, value] of Object.entries(expected.text)) {
-        const values = seen.text[name] || [];
-        if (!values.length || values.some((v) => v !== value)) wrong.push(`${name}: expected "${value}", PDFKit shows ${JSON.stringify(values)}`);
+      const binary = track(path.join(os.tmpdir(), `eph-pdfkit-check-${process.pid}`));
+      let step = 'compiling the PDFKit probe with swiftc';
+      try {
+        const compile = runCaptured('swiftc', ['-O', path.join(__dirname, 'pdfkit-check.swift'), '-o', binary], PDFKIT_COMPILE_TIMEOUT_MS);
+        if (!compile.ok) throw commandFailure(step, compile);
+        step = 'reading the filled PDF with the PDFKit probe';
+        const check = runCaptured(binary, [filledPdf], PDFKIT_CHECK_TIMEOUT_MS);
+        if (!check.ok) throw commandFailure(step, check);
+        step = 'comparing the PDFKit values with the expected answers';
+        const seen = JSON.parse(check.stdout);
+        assert.equal(seen.locked, false);
+        const expected = lib.buildFieldValues(JSON.parse(fs.readFileSync(SAMPLE, 'utf8')));
+        const wrong = [];
+        for (const [name, value] of Object.entries(expected.text)) {
+          const values = seen.text[name] || [];
+          if (!values.length || values.some((v) => v !== value)) wrong.push(`${name}: expected "${value}", PDFKit shows ${JSON.stringify(values)}`);
+        }
+        for (const [name, value] of Object.entries(expected.radio)) if (seen.radio[name] !== value) wrong.push(`${name}: expected ${value}, PDFKit shows ${seen.radio[name]}`);
+        assert.deepEqual(wrong, []);
+      } catch (error) {
+        keepPdfkitEvidence(step, filledPdf, binary, error);
+        throw error;
       }
-      for (const [name, value] of Object.entries(expected.radio)) if (seen.radio[name] !== value) wrong.push(`${name}: expected ${value}, PDFKit shows ${seen.radio[name]}`);
-      assert.deepEqual(wrong, []);
     });
     await test('choosing a new PDF clears the old result', async () => {
       const copy = path.join(downloads, 'workbook-copy.pdf');
@@ -680,9 +845,9 @@ async function run() {
         await evaluate(`(() => { const i=document.getElementById("f-candidate-name"); i.value="Browser Test Scout"; i.dispatchEvent(new Event("input",{bubbles:true})); })()`);
         await waitFor(`(JSON.parse(localStorage.getItem(${JSON.stringify(key)})||"{}").candidate||{}).name === "Browser Test Scout"`);
         assert.match(await evaluate('document.querySelector(".backup-status").textContent'), /only in this browser/);
-        clearDownloads();
+        const mark = await clearDownloads();
         await click('Save backup file');
-        const backup = await waitForDownload('.json');
+        const backup = await waitForNewDownload('.json', mark);
         assert.match(path.basename(backup), /^Eagle-workbook-backup-\d{4}-\d{2}-\d{2}-\d{4}\.json$/, 'no personal name in the file name');
         const exported = JSON.parse(fs.readFileSync(backup, 'utf8'));
         assert.equal(exported.candidate.name, 'Browser Test Scout');
@@ -690,6 +855,14 @@ async function run() {
         assert.equal(lib.buildFieldValues(exported).text['Workbook-EagleName'], 'Browser Test Scout');
         await waitFor('!document.querySelector(".backup-status").textContent.includes("only in this browser")');
         assert.deepEqual(problems, []);
+      });
+      await test('a 2023 backup file says edition "2023a" at the top', async () => {
+        await open(file, ready);
+        const mark = await clearDownloads();
+        await click('Save backup file');
+        const text = fs.readFileSync(await waitForNewDownload('.json', mark), 'utf8');
+        assert.ok(text.startsWith('{\n  "edition": "2023a",\n'), text.slice(0, 40));
+        assert.equal(JSON.parse(text).edition, '2023a');
       });
       await test('opens an older backup file', async () => {
         await open(file, ready);
@@ -827,12 +1000,12 @@ async function run() {
       await waitFor('document.body.innerText.includes("Grand total: 3 people, 8 hours.")', 5000);
     });
     await test('2026 page: Save backup file writes a 2026 backup, and the 2023a backup is refused here', async () => {
-      clearDownloads();
+      const mark = await clearDownloads();
       await click('Save backup file');
-      const file = await waitForDownload('.json');
+      const file = await waitForNewDownload('.json', mark);
       const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
       assert.equal(saved.edition, '2026');
-      clearDownloads();
+      await clearDownloads();
       dialogs = [];
       await evaluate(`(() => { const orig = HTMLInputElement.prototype.click; HTMLInputElement.prototype.click = function () { if (this.type === 'file') { window.__picker = this; return; } return orig.call(this); }; })()`);
       await click('Open backup file');
@@ -1177,7 +1350,8 @@ async function run() {
       await open('index.html', '!!document.querySelector("a")');
       assert.equal(await evaluate('document.querySelector(\'a.tool.start\').getAttribute("href")'), 'EagleWorkbook2026-guided.html');
       assert.equal(await evaluate('document.querySelectorAll("a.tool.start").length'), 1);
-      assert.match(await evaluate('document.body.innerText'), /Just starting\? Use the 2026 pages\. If your proposal was fully approved before January 1, 2027 using the 2023 workbook, you may keep using the 2023 pages\./);
+      assert.match(await evaluate('document.body.innerText'), /Just starting\? Use the 2026 pages\. The FAQ quoted below, from Scouting America, says who may keep using the 2023 workbook\./);
+      assert.match(await evaluate('document.body.innerText'), /“A Scout whose project proposal was fully approved before January 1, 2027, using the 2023 workbook, may continue using that workbook to complete the project\.”/);
       await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
       try {
         // The goal is that a Scout sees the first card without scrolling: its title and first line, at least 60px of it.
@@ -1269,6 +1443,763 @@ async function run() {
       assert.equal(await evaluate('!!document.querySelector(\'a[href="EagleWorkbook2026-guided.html"]\')'), true);
     });
 
+    console.log('Save reminder and two-tab warning (all four workbook pages)');
+    // The four workbook pages and their draft keys. A tab shows the two-tab warning only for a tab with the same key.
+    const WB_PAGES = [
+      ['EagleWorkbook.html', 'eagle_workbook_v1', 'Classic 2023'],
+      ['EagleWorkbook-guided.html', 'eagle_workbook_guided_v1', 'Guided 2023'],
+      ['EagleWorkbook2026.html', 'eagle_workbook2026_v1', 'Classic 2026'],
+      ['EagleWorkbook2026-guided.html', 'eagle_workbook2026_guided_v1', 'Guided 2026']
+    ];
+    const READY_WB = '!!document.querySelector("nav button") && !!document.getElementById("f-candidate-name")';
+    const REMINDER = 'document.querySelector(".page-notices .page-notice[aria-label=\\"Save reminder\\"]")';
+    const TWO_TABS = 'document.querySelector(".page-notices .page-notice[aria-label=\\"Open in another tab\\"]")';
+    const TWO_TABS_WORDS = 'This workbook is also open in another tab. Keep one tab open. A tab that sees the other tab’s save stops saving, and anything typed there is lost on reload unless you save a backup file first.';
+    const REMINDER_WORDS = 'You’ve changed 5 boxes since your last backup file. Save one now: browser storage can be erased, but a backup file cannot. This browser has your newest answers. Save from this browser to keep them.';
+    const REMINDER_OPEN_WORDS = 'You’ve changed 5 boxes since this page opened. You haven’t saved a backup file yet. Save one now: browser storage can be erased, but a backup file cannot.';
+    // Remove a draft and everything kept with it, including the presence markers of that draft (never another draft's).
+    const clearKeys = (key) => evaluate(`(() => { const ks = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k === ${JSON.stringify(key)} || k.startsWith(${JSON.stringify(key + '_')})) ks.push(k); } ks.forEach((k) => localStorage.removeItem(k)); return true; })()`);
+    // Types into the first n empty text boxes on the page's current tab, one changed box each. Returns how many it typed into.
+    const fillNext = (n) => evaluate(`(() => { const els = [...document.querySelectorAll("main input[type=text]:not([readonly]), main input[type=tel], main input[type=email]")].filter((i) => !i.value && !i.disabled).slice(0, ${n}); els.forEach((el, i) => { el.value = "Test " + i; el.dispatchEvent(new Event("input", { bubbles: true })); }); return els.length; })()`);
+    // The text a screen reader gets from a banner: its visible copies that are aria-hidden are left out.
+    const spokenText = (selector) => evaluate(`(() => { const p = ${selector}.querySelector('[role="status"]'); return [...p.childNodes].filter((n) => !(n.nodeType === 1 && n.getAttribute('aria-hidden') === 'true')).map((n) => n.textContent).join(''); })()`);
+    // The same, read from another tab (the second tab of a two-tab test).
+    const spokenIn = (tab, selector) => tab.evaluate(`(() => { const p = ${selector}.querySelector('[role="status"]'); return [...p.childNodes].filter((n) => !(n.nodeType === 1 && n.getAttribute('aria-hidden') === 'true')).map((n) => n.textContent).join(''); })()`);
+    const saveFromPage = async () => {
+      const mark = await clearDownloads();
+      await evaluate('document.querySelector(".workbook-controls .btn-control.save").click(); true');
+      await waitForNewDownload('.json', mark);
+    };
+    const clickIn = (selector, text) => evaluate(`(() => { const b = [...${selector}.querySelectorAll("button")].find((x) => x.textContent === ${JSON.stringify(text)}); if (!b) throw new Error("no button " + ${JSON.stringify(text)}); b.click(); return true; })()`);
+    const openCheckedTab = async (file, key) => {
+      await open(file, READY_WB);
+      await clearKeys(key);
+      await open(file, READY_WB);
+    };
+
+    for (const [file, key, label] of WB_PAGES) {
+      await test(`save reminder, ${label}: 4 changed boxes show nothing, 5 show it outside the page, Not now holds it, the banner's Save backup file writes a file and clears it`, async () => {
+        await openCheckedTab(file, key);
+        await saveFromPage();   // a backup file of the empty draft: the count starts at zero
+        await sleep(400);
+        assert.equal(await evaluate(`!!${REMINDER}`), false, 'no changed box, no reminder');
+        assert.equal(await fillNext(4), 4);
+        await sleep(400);
+        assert.equal(await evaluate(`!!${REMINDER}`), false, 'four changed boxes: no reminder');
+        assert.equal(await fillNext(1), 1);
+        await waitFor(`!!${REMINDER}`, 5000);
+        assert.equal(await spokenText(REMINDER), REMINDER_WORDS, 'the reminder says the five-box words, once');
+        assert.equal(await evaluate(`${REMINDER}.querySelector(".notice-n").textContent`), '5 boxes', 'the visible count');
+        assert.equal(await evaluate(`${REMINDER}.querySelector('[role="status"]').getAttribute("role")`), 'status');
+        assert.equal(await evaluate(`document.getElementById("app").contains(${REMINDER})`), false, 'the banner is not inside the page that redraws');
+        // The count on screen follows the changed boxes, but the sentence is read out once, when the banner appears.
+        assert.equal(await fillNext(1), 1);
+        await waitFor(`${REMINDER}.querySelector(".notice-n").textContent === "6 boxes"`, 3000);
+        assert.equal(await spokenText(REMINDER), REMINDER_WORDS, 'the spoken sentence keeps the count it had when it appeared');
+        // A redraw (another tab) leaves the banner in place.
+        await evaluate('document.querySelectorAll("nav button")[1].click(); true');
+        await sleep(300);
+        assert.equal(await evaluate(`!!${REMINDER}`), true, 'the banner survives a redraw');
+        await evaluate('document.querySelectorAll("nav button")[0].click(); true');
+        await waitFor(`document.querySelectorAll("nav button")[0].classList.contains("active")`);
+        await clickIn(REMINDER, 'Not now');
+        assert.equal(await evaluate(`!!${REMINDER}`), false, 'Not now hides it');
+        assert.equal(await fillNext(1), 1);
+        await sleep(500);
+        assert.equal(await evaluate(`!!${REMINDER}`), false, 'one more box after Not now: still hidden');
+        assert.equal(await fillNext(4), 4);
+        await waitFor(`!!${REMINDER}`, 5000);
+        assert.equal(await evaluate(`${REMINDER}.querySelector(".notice-n").textContent`), '11 boxes', 'five more boxes after Not now bring it back');
+        const mark = await clearDownloads();
+        await clickIn(REMINDER, 'Save backup file');   // the banner's own button: it runs the page's save
+        await waitForNewDownload('.json', mark);
+        await waitFor(`!${REMINDER}`, 5000);
+        await sleep(400);
+        assert.equal(await evaluate(`!!${REMINDER}`), false, 'saving clears the reminder, and it does not come back at once');
+        // The save starts the count again, and it cleared "Not now": five new changes show the reminder at once.
+        assert.equal(await fillNext(5), 5);
+        await waitFor(`!!${REMINDER}`, 5000);
+        assert.equal(await evaluate(`${REMINDER}.querySelector(".notice-n").textContent`), '5 boxes', 'counted from the new backup file');
+        assert.deepEqual(problems, []);
+      });
+    }
+
+    // Before the first backup file: the count is against the boxes as the page opened, so the defaults the page starts with do not count.
+    for (const [file, key, label] of WB_PAGES) {
+      await test(`save reminder before any backup file, ${label}: a fresh page shows nothing, 5 typed boxes show it with the words for a page with no backup file, and the defaults are not counted`, async () => {
+        await sleep(600);   // the previous test's page may still have a save timer pending: let it write before storage is cleared
+        for (const [, other] of WB_PAGES) await clearKeys(other);   // a fresh page: no draft under any key (Guided falls back to the Classic draft)
+        await openCheckedTab(file, key);
+        await sleep(400);
+        assert.equal(await evaluate(`!!${REMINDER}`), false, 'a fresh page with its defaults shows no reminder');
+        assert.equal(await fillNext(4), 4);
+        await sleep(400);
+        assert.equal(await evaluate(`!!${REMINDER}`), false, 'four changed boxes: no reminder');
+        assert.equal(await fillNext(1), 1);
+        await waitFor(`!!${REMINDER}`, 5000);
+        assert.equal(await spokenText(REMINDER), REMINDER_OPEN_WORDS, 'the sentence says the page opened and that no backup file exists');
+        assert.equal(await evaluate(`${REMINDER}.querySelector(".notice-n").textContent`), '5 boxes', 'the count is the typed boxes only');
+        assert.deepEqual(problems, []);
+      });
+    }
+
+    // Focus after the banner's buttons: the banner is removed, so focus must move to the backup status line first.
+    for (const [file, key, label] of WB_PAGES) {
+      await test(`save reminder focus, ${label}: after Save backup file, and after Not now, the focus is on the backup status line (not lost to the page)`, async () => {
+        await openCheckedTab(file, key);
+        await saveFromPage();
+        await sleep(300);
+        assert.equal(await fillNext(5), 5);
+        await waitFor(`!!${REMINDER}`, 5000);
+        const STATUS_TOP = 'document.querySelector(".workbook-controls.top .backup-status")';
+        const mark = await clearDownloads();
+        await evaluate(`(() => { const b = ${REMINDER}.querySelector(".notice-save"); b.focus(); b.click(); return true; })()`);
+        await waitForNewDownload('.json', mark);
+        await waitFor(`!${REMINDER}`, 5000);
+        assert.equal(await evaluate(`document.activeElement === ${STATUS_TOP}`), true, 'after Save backup file, the focus is on the top backup status line');
+        assert.equal(await fillNext(5), 5);
+        await waitFor(`!!${REMINDER}`, 5000);
+        await evaluate(`(() => { const b = [...${REMINDER}.querySelectorAll("button")].find((x) => x.textContent === "Not now"); b.focus(); b.click(); return true; })()`);
+        await waitFor(`!${REMINDER}`, 5000);
+        assert.equal(await evaluate(`document.activeElement === ${STATUS_TOP}`), true, 'after Not now, the focus is on the top backup status line');
+        assert.deepEqual(problems, []);
+      });
+    }
+
+    // Unsaved work from an earlier visit, with no backup file in this browser: the reminder shows at once, counting the boxes that
+    // differ from the blank draft. A page that opened blank (the tests above) keeps its own wording.
+    const seedDraft = (key, draft) => evaluate(`localStorage.setItem(${JSON.stringify(key)}, ${JSON.stringify(JSON.stringify(draft))}); true`);
+    const SEEDED = { edition: '2026', candidate: { name: 'Sample A', email: 'a@example.org', phone: '555-0100' }, proposal: {} };
+    await test('save reminder after a reload, 2026 Classic: a saved draft with 3 boxes and no backup file shows the reminder at once, with 3; after a backup file, a reload shows nothing', async () => {
+      const [file, key] = WB_PAGES[2];
+      await clearKeys(key);
+      await seedDraft(key, SEEDED);
+      await open(file, READY_WB);
+      await waitFor(`!!${REMINDER}`, 5000);
+      assert.equal(await spokenText(REMINDER), 'Your saved answers in this browser have 3 boxes filled in that are not in a backup file yet. Save a backup file now: browser storage can be erased, but a backup file cannot.', 'the words for unsaved work from an earlier visit');
+      assert.equal(await evaluate(`${REMINDER}.querySelector(".notice-n").textContent`), '3 boxes', 'the visible count');
+      await saveFromPage();   // a backup file of this draft
+      await sleep(300);
+      await open(file, READY_WB);
+      await sleep(600);
+      assert.equal(await evaluate(`!!${REMINDER}`), false, 'after a backup file, a reload with the same draft shows no reminder');
+      assert.deepEqual(problems, []);
+      await clearKeys(key);
+    });
+
+    await test('save reminder, Guided 2023 with only a Classic 2023 draft saved (no Guided draft yet): the reminder shows at once, counting the Classic draft', async () => {
+      const [, classicKey] = WB_PAGES[0];
+      const [guidedFile, guidedKey] = WB_PAGES[1];
+      await clearKeys(guidedKey);
+      await clearKeys(classicKey);
+      await seedDraft(classicKey, { candidate: { name: 'Sample A', email: 'a@example.org', phone: '555-0100' }, proposal: {} });
+      await open(guidedFile, READY_WB);
+      await waitFor(`!!${REMINDER}`, 5000);
+      assert.equal(await evaluate(`${REMINDER}.querySelector(".notice-n").textContent`), '3 boxes', 'the three boxes of the Classic draft');
+      assert.equal(await spokenText(REMINDER), 'Your saved answers in this browser have 3 boxes filled in that are not in a backup file yet. Save a backup file now: browser storage can be erased, but a backup file cannot.');
+      await clearKeys(guidedKey);
+      await clearKeys(classicKey);
+      assert.deepEqual(problems, []);
+    });
+
+    // The banners sit in the page flow above the page content, so they push it down and never cover a control on a phone.
+    await test('save reminder at 390 px: the banner is above the app in the page flow, nothing is fixed to the bottom, and the Save backup file button at the end of the page is not covered', async () => {
+      const [file, key] = WB_PAGES[2];
+      await clearKeys(key);
+      await seedDraft(key, SEEDED);
+      await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 760, deviceScaleFactor: 2, mobile: true });
+      try {
+        await open(file, READY_WB);
+        await waitFor(`!!${REMINDER}`, 5000);
+        const place = await evaluate(`(() => { const b = ${REMINDER}; const app = document.getElementById("app"); const area = b.parentElement; return { before: Boolean(app.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_PRECEDING), inApp: app.contains(b), position: getComputedStyle(area).position }; })()`);
+        assert.equal(place.before, true, 'the banner comes before #app in the page');
+        assert.equal(place.inApp, false, 'the banner is not inside #app, which the page redraws');
+        assert.ok(!['fixed', 'absolute', 'sticky'].includes(place.position), `the banner area is not ${place.position}`);
+        const hit = await evaluate(`(() => { const btn = [...document.querySelectorAll('.workbook-controls:not(.top) .btn-control.save')].pop(); if (!btn) throw new Error('no Save backup file button at the end of the page'); btn.scrollIntoView({ block: 'end' }); const r = btn.getBoundingClientRect(); const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return { ok: Boolean(top) && btn.contains(top), covered: top ? (top.className || top.tagName) : 'nothing' }; })()`);
+        assert.equal(hit.ok, true, `the centre of the end-of-page Save backup file button is covered by: ${hit.covered}`);
+        assert.deepEqual(problems, []);
+      } finally {
+        await send('Emulation.clearDeviceMetricsOverride');
+        await clearKeys(key);
+      }
+    });
+    await test('save reminder at 390 px: after Save backup file the banner is gone, and no banner is left in the page', async () => {
+      const [file, key] = WB_PAGES[2];
+      await clearKeys(key);
+      await seedDraft(key, SEEDED);
+      await open(file, READY_WB);
+      await waitFor(`!!${REMINDER}`, 5000);
+      const mark = await clearDownloads();
+      await clickIn(REMINDER, 'Save backup file');
+      await waitForNewDownload('.json', mark);
+      await waitFor(`!${REMINDER}`, 5000);
+      assert.equal(await evaluate('document.querySelectorAll(".page-notices .page-notice").length'), 0, 'no banner left in the page');
+      await clearKeys(key);
+    });
+
+    // The page note: the Classic and Guided pages of one edition are two ways to fill in one workbook, each with its own draft.
+    for (const [file, key, label] of WB_PAGES) {
+      await test(`page note, ${label}: says the two pages are two ways to fill in one workbook with separate drafts, and warns about a second tab`, async () => {
+        await open(file, READY_WB);
+        const note = await evaluate('(document.getElementById("page-note") || {}).textContent || ""');
+        assert.match(note, /are two ways to fill in the same (2023|2026) workbook, but each keeps its own saved draft, so answers typed on one page do not appear on the other/, label);
+        assert.match(note, /If this page is open in two tabs, saving in one tab makes the other tab stop saving\. Anything typed in the stopped tab can be lost\. Keep one tab open \(the message at the top of the screen explains\)\./, label);
+        assert.doesNotMatch(note, /overwrite/, label);
+        assert.doesNotMatch(note, /\b(must|required)\b/i, label);
+        assert.deepEqual(problems, []);
+      });
+    }
+
+    for (const [file, key, label] of WB_PAGES) {
+      await test(`two-tab warning, ${label}: a second tab with the same draft shows it in both tabs, and closing that tab clears it`, async () => {
+        await openCheckedTab(file, key);
+        const tabB = await openTab();
+        const bProblems = [];
+        tabB.on((msg) => { if (msg.method === 'Runtime.exceptionThrown') bProblems.push(msg.params.exceptionDetails.exception?.description || msg.params.exceptionDetails.text); });
+        try {
+          await tabB.send('Page.navigate', { url: pathToFileURL(path.join(ROOT, file)).href });
+          await waitIn(tabB, READY_WB);
+          await waitIn(tabB, `!!${TWO_TABS}`);
+          await waitFor(`!!${TWO_TABS}`, 5000);
+          assert.equal(await spokenIn(tabB, TWO_TABS), TWO_TABS_WORDS, 'the second tab shows the explanation');
+          assert.equal(await spokenText(TWO_TABS), TWO_TABS_WORDS, 'the first tab shows the same explanation');
+          assert.equal(await evaluate(`${TWO_TABS}.querySelector('[role="status"]').textContent`), TWO_TABS_WORDS);
+          assert.equal(await evaluate(`document.getElementById("app").contains(${TWO_TABS})`), false, 'not inside the page that redraws');
+          // The page note says where the message is, and the message is above the page content (the note and the banner agree).
+          const noteNow = await evaluate('(document.getElementById("page-note") || {}).textContent || ""');
+          assert.match(noteNow, /If this page is open in two tabs, saving in one tab makes the other tab stop saving\. Anything typed in the stopped tab can be lost\. Keep one tab open \(the message at the top of the screen explains\)\./, `${label}: the page note's wording`);
+          assert.equal(await evaluate(`${TWO_TABS}.getBoundingClientRect().bottom <= document.getElementById("app").getBoundingClientRect().top`), true, `${label}: the two-tab message sits above the page content, at the top`);
+          assert.equal(await evaluate(`!!${REMINDER}`), false, 'no reminder for a draft with no changed box');
+          await tabB.close();   // a real close: the other tab removes this tab\u2019s marker
+          await waitFor(`!${TWO_TABS}`, 15000);
+          assert.deepEqual(problems, []);
+          assert.deepEqual(bProblems, []);
+        } finally {
+          await tabB.close().catch(() => {});
+          await clearKeys(key);
+        }
+      });
+    }
+
+    await test('two-tab warning: tabs with different draft keys (2026 Classic and Guided; 2023 Classic and Guided) do not warn each other', async () => {
+      for (const [a, b] of [[WB_PAGES[2], WB_PAGES[3]], [WB_PAGES[0], WB_PAGES[1]]]) {
+        await openCheckedTab(a[0], a[1]);
+        await clearKeys(b[1]);
+        const tabB = await openTab();
+        try {
+          await tabB.send('Page.navigate', { url: pathToFileURL(path.join(ROOT, b[0])).href });
+          await waitIn(tabB, READY_WB);
+          await sleep(3000);
+          assert.equal(await evaluate(`!!${TWO_TABS}`), false, `${a[2]} shows no warning for a ${b[2]} tab`);
+          assert.equal(await tabB.evaluate(`!!${TWO_TABS}`), false, `${b[2]} shows no warning for a ${a[2]} tab`);
+        } finally {
+          await tabB.close().catch(() => {});
+          await clearKeys(a[1]);
+          await clearKeys(b[1]);
+        }
+      }
+      assert.deepEqual(problems, []);
+    });
+
+    await test('Make with another tab open on the same draft: the two-tab warning shows, no Replace prompt opens, and the stored draft does not change', async () => {
+      await openCheckedTab(WB_PAGES[2][0], WB_PAGES[2][1]);
+      await evaluate('(() => { const d = document.querySelector("details.convert"); if (!d.open) d.querySelector("summary").click(); return true; })()');
+      await setFile('#convert-file', SAMPLE);
+      await waitFor('!!document.getElementById("convert-make")');
+      const tabB = await openTab();
+      try {
+        await tabB.send('Page.navigate', { url: pathToFileURL(path.join(ROOT, WB_PAGES[2][0])).href });
+        await waitIn(tabB, READY_WB);
+        await waitFor(`!!${TWO_TABS}`, 5000);
+        // The other tab is open now, so Make must refuse before it asks anything.
+        const before = await evaluate(`localStorage.getItem(${JSON.stringify(WB_PAGES[2][1])})`);
+        dialogs = [];
+        await evaluate('document.getElementById("convert-make").click(); true');
+        await sleep(800);
+        assert.deepEqual(dialogs, [], 'no Replace prompt was opened');
+        assert.equal(await evaluate(`localStorage.getItem(${JSON.stringify(WB_PAGES[2][1])})`), before, 'the stored draft did not change');
+        assert.equal(await spokenText(TWO_TABS), TWO_TABS_WORDS, 'the two-tab warning is the banner shown');
+        assert.deepEqual(problems, []);
+      } finally {
+        await tabB.close().catch(() => {});
+        await clearKeys(WB_PAGES[2][1]);
+      }
+    });
+
+
+    await test('save reminder, upgrade: a backup file saved before the count existed does not start a reminder for old changes', async () => {
+      const [file, key] = WB_PAGES[2];
+      await openCheckedTab(file, key);
+      await saveFromPage();   // a backup file with fingerprints, as this version writes them
+      assert.equal(await fillNext(5), 5);
+      await sleep(500);
+      // The same browser after the upgrade: the backup is old (10 minutes, so the timer has run out) and its fingerprints are missing.
+      await evaluate(`(() => { localStorage.removeItem(${JSON.stringify(key + '_snap')}); localStorage.setItem(${JSON.stringify(key + '_backup')}, String(Date.now() - 10 * 60 * 1000)); return true; })()`);
+      await open(file, READY_WB);
+      await sleep(1500);
+      assert.equal(await evaluate(`!!${REMINDER}`), false, 'the changed boxes are unknown, so no reminder');
+      assert.deepEqual(problems, []);
+      await clearKeys(key);
+    });
+
+    console.log('Start from a 2023 backup file (2026 pages)');
+    const CONVERT_NOTE = 'This new draft is for the 2026 workbook (No. 512-927). The official 2026 workbook says: “You must use the current edition of this official Eagle Scout Leadership Service Project Workbook, No. 512-927, to propose, plan, execute, and summarize your project.” (Page 4.) Scouting America’s FAQ for the 2026 workbook says a Scout whose project proposal was fully approved before January 1, 2027, using the 2023 workbook, may continue using that workbook to complete the project. This new draft is not an approved project. It has only the names, contacts, and unit details you ticked. Ask your council which workbook applies to your project.';
+    const DRAFT_KEYS_ALL = (key) => [key, `${key}_saved`, `${key}_backup`, `${key}_snap`, `${key}_corrupt`];
+    const clearDraft = (key) => evaluate(`${JSON.stringify(DRAFT_KEYS_ALL(key))}.forEach((k) => localStorage.removeItem(k)); true`);
+    const snapshot = async (keys) => JSON.parse(await evaluate(`JSON.stringify(${JSON.stringify(keys)}.map((k) => [k, localStorage.getItem(k)]))`));
+    const readDraft = async (key) => JSON.parse(await evaluate(`localStorage.getItem(${JSON.stringify(key)})`));
+    const scratch = (name, data) => { const p = track(path.join(os.tmpdir(), `eph-convert-${process.pid}-${name}`)); fs.writeFileSync(p, typeof data === 'string' ? data : JSON.stringify(data)); return p; };
+    const clickId = (id) => evaluate(`document.getElementById(${JSON.stringify(id)}).click(); true`);
+    const openConverter = () => evaluate('(() => { const d = document.querySelector("details.convert"); if (!d.open) d.querySelector("summary").click(); return true; })()');
+    const pickFile = (file) => setFile('#convert-file', file);
+    const tabClick = async (i) => { await evaluate(`document.querySelectorAll("nav button")[${i}].click(); true`); await waitFor(`document.querySelectorAll("nav button")[${i}].classList.contains("active")`); };
+    const TOTAL_ROWS = 37;   // every name and contact box the 2023 sample fills, plus the unit box
+
+    await test('converter: sits on the Project Contacts tab only, starts closed, and shows the exact not-approved note once opened', async () => {
+      await clearDraft(K26);
+      await open(F26, READY26);
+      await waitFor('!!document.querySelector("details.convert")');
+      assert.equal(await evaluate('document.querySelector("details.convert").open'), false, 'starts closed, so only its summary sits above the form');
+      assert.equal(await evaluate('document.querySelector("details.convert > summary").textContent'), 'Start from a 2023 backup file');
+      await openConverter();
+      assert.equal(await evaluate('document.querySelector(".convert-note").textContent'), CONVERT_NOTE);
+      await tabClick(1);
+      assert.equal(await evaluate('!!document.querySelector("details.convert")'), false, 'not on Project Proposal');
+      await tabClick(0);
+      assert.deepEqual(problems, []);
+    });
+    await test('converter: choosing the 2023 sample lists each copied box with its 2026 name, ticked, and says how many will be copied', async () => {
+      await openConverter();
+      await pickFile(SAMPLE);
+      await waitFor('!!document.getElementById("convert-count")');
+      assert.equal(await evaluate('document.getElementById("convert-count").textContent'), `${TOTAL_ROWS} values will be copied and need checking.`);
+      assert.equal(await evaluate('document.getElementById("cv-candidate-name").checked'), true);
+      const committee = await evaluate('document.getElementById("cv-contacts-committee-name").closest("li").textContent');
+      assert.match(committee, /Unit Committee Representative: Name \(2023: Unit Committee Chair\): Casey Chair/);
+      assert.equal(await evaluate('document.getElementById("cv-unit-type").checked'), true);
+      assert.equal(await evaluate('document.getElementById("convert-make").disabled'), false);
+      assert.deepEqual(problems, []);
+    });
+    await test('converter: Clear all and Select all change the count; a value that is empty in the 2023 file cannot be ticked', async () => {
+      await clickId('convert-clear');
+      await waitFor('document.getElementById("convert-count").textContent.startsWith("No values are ticked")');
+      assert.equal(await evaluate('document.getElementById("convert-make").disabled'), true);
+      await clickId('convert-all');
+      await waitFor(`document.getElementById("convert-count").textContent.startsWith("${TOTAL_ROWS} values")`);
+      const noCoach = scratch('no-coach.json', (() => { const d = JSON.parse(fs.readFileSync(SAMPLE, 'utf8')); d.contacts.coach.name = ''; return d; })());
+      await pickFile(noCoach);
+      await waitFor('!!document.getElementById("cv-contacts-coach-name")');
+      assert.equal(await evaluate('document.getElementById("cv-contacts-coach-name").disabled'), true);
+      assert.equal(await evaluate('document.getElementById("cv-contacts-coach-name").checked'), false);
+      assert.match(await evaluate('document.getElementById("cv-contacts-coach-name").closest("li").textContent'), /Empty in your 2023 file\./);
+      assert.match(await evaluate('document.getElementById("convert-count").textContent'), new RegExp(`^${TOTAL_ROWS - 1} values will be copied`));
+      fs.rmSync(noCoach, { force: true });
+    });
+    await test('converter: unticking email and making the draft writes only this page\u2019s 2026 key, flags each copy, and leaves the 2023 and the other 2026 keys byte-identical', async () => {
+      await clearDraft(K26);
+      await clearDraft(KG26);
+      await evaluate(`localStorage.setItem("eagle_workbook_v1", "2023 draft kept"); localStorage.setItem("eagle_workbook_guided_v1", "2023 guided kept"); localStorage.setItem(${JSON.stringify(KG26)}, ${JSON.stringify(JSON.stringify({ candidate: { name: 'Guided kept' }, proposal: {} }))}); true`);
+      const keys = ['eagle_workbook_v1', 'eagle_workbook_guided_v1', KG26];
+      const before = await snapshot(keys);
+      await open(F26, READY26);
+      await waitFor('!!document.querySelector("details.convert")');
+      await openConverter();
+      await pickFile(SAMPLE);
+      await waitFor('!!document.getElementById("cv-candidate-email")');
+      await evaluate('(() => { const b = document.getElementById("cv-candidate-email"); b.checked = false; b.dispatchEvent(new Event("change", { bubbles: true })); return true; })()');
+      assert.equal(await evaluate('document.getElementById("convert-count").textContent'), `${TOTAL_ROWS - 1} values will be copied and need checking.`);
+      assert.match(await evaluate('document.querySelector(".convert-notcopied").textContent'), /^Not copied: ZIP codes, dates and BSA IDs, street addresses for the adults, cities and states for the adults, and the advancement coordinator\./, 'the not-copied line is under the rows');
+      dialogs = [];
+      await clickId('convert-make');
+      await waitFor(`(localStorage.getItem(${JSON.stringify(K26)}) || '').includes("Alex Q. Sample")`);
+      const draft = await readDraft(K26);
+      assert.equal(draft.edition, '2026');
+      assert.equal(draft.candidate.name, 'Alex Q. Sample');
+      assert.equal(draft.candidate.email, '', 'the unticked email was not copied');
+      assert.equal(draft.checkThis.length, TOTAL_ROWS - 1, 'one flag per copied value');
+      assert.ok(!draft.checkThis.some((x) => x.path === 'candidate.email'));
+      assert.ok(!('zip' in draft.candidate), 'no ZIP box in 2026');
+      assert.deepEqual(draft.attachments, []);
+      assert.deepEqual(draft.links, []);
+      assert.equal(JSON.stringify(await snapshot(keys)), JSON.stringify(before), '2023 keys and the other 2026 key are unchanged');
+      assert.match(dialogs.join(' '), /Replace everything on this page with the names, contacts, and unit details from the 2023 backup file/);
+      assert.match(dialogs.join(' '), /This makes a new 2026 draft\. Your answers in every section of this page will be removed\. To keep them, press Cancel, save a backup file, then choose Make again\. Your 2023 backup file and 2023 drafts are not changed\./, 'the replace prompt says what goes and how to keep it');
+      assert.match(await evaluate('document.querySelector(".backup-status").textContent'), /Last backup file: never/, 'the new draft has never been saved as a backup file');
+      assert.equal(await evaluate('document.getElementById("check-count").textContent'), `${TOTAL_ROWS - 1} copied values still to check.`);
+      assert.equal(await evaluate('document.querySelectorAll(".check-btn").length'), TOTAL_ROWS - 1);
+      const checkNames = JSON.parse(await evaluate('JSON.stringify([...document.querySelectorAll(".check-btn")].map((b) => b.getAttribute("aria-label")))'));
+      assert.equal(new Set(checkNames).size, checkNames.length, 'every Checked button has its own name: ' + checkNames.join(' | '));
+      assert.ok(checkNames.every((n) => /^Mark .+ as checked$/.test(n)), 'each name is an action with its section');
+      assert.ok(checkNames.includes('Mark Eagle Scout Candidate: Name as checked') && checkNames.includes('Mark Unit Information: Unit Type as checked'), 'the section is in the name: ' + checkNames.join(' | '));
+      assert.deepEqual(problems, []);
+    });
+    await test('converter: a 2026 backup file is refused with the plain message, and nothing is written', async () => {
+      await clearDraft(K26);
+      await open(F26, READY26);
+      await waitFor('!!document.querySelector("details.convert")');
+      await openConverter();
+      const twenty26 = scratch('converter-2026.json', { edition: '2026', candidate: { name: 'Test' }, proposal: {} });
+      await pickFile(twenty26);
+      await waitFor('!!document.querySelector(".convert-error")');
+      assert.equal(await evaluate('document.querySelector(".convert-error").textContent'), 'This backup file is not from the 2023 workbook (No. 2023a). Choose a backup file saved from the 2023 workbook.');
+      assert.equal(await evaluate(`localStorage.getItem(${JSON.stringify(K26)})`), null);
+      fs.rmSync(twenty26, { force: true });
+    });
+    await test('converter: the one-tab warning sits above Make on both 2026 pages, stays after a redraw, and starts the Replace prompt', async () => {
+      const WARN = 'Keep only one tab open while you use this. Keep the other tab closed until the new draft is made.';
+      const SHOWN = `(() => { const w = document.getElementById("convert-warn"); return !!w && w.getClientRects().length > 0 && w.innerText === ${JSON.stringify(WARN)}; })()`;
+      for (const [file, key] of [[F26, K26], [G26, KG26]]) {
+        await clearDraft(key);
+        await open(file, READY26);
+        await waitFor('!!document.querySelector("details.convert")');
+        await openConverter();
+        await pickFile(SAMPLE);
+        await waitFor('!!document.getElementById("convert-make")');
+        await waitFor(SHOWN);
+        // A paragraph in the page flow, above the Make row, and not inside the button.
+        assert.equal(await evaluate('!document.getElementById("convert-make").contains(document.getElementById("convert-warn"))'), true, `${file}: not inside the button`);
+        assert.equal(await evaluate('!!(document.getElementById("convert-warn").compareDocumentPosition(document.querySelector(".convert-actions")) & Node.DOCUMENT_POSITION_FOLLOWING)'), true, `${file}: above the Make row`);
+        assert.equal(await evaluate('document.getElementById("convert-warn").className'), 'help', `${file}: the page's help-text style`);
+        // Clear all and Select all redraw the converter. Ticking one box does not redraw, so it is checked on its own too.
+        await clickId('convert-clear');
+        await waitFor('document.getElementById("convert-count").textContent.startsWith("No values are ticked")');
+        await waitFor(SHOWN);
+        await evaluate('document.getElementById("cv-candidate-name").click(); true');
+        await waitFor(SHOWN);
+        await clickId('convert-all');
+        await waitFor(`document.getElementById("convert-count").textContent === ${JSON.stringify(`${TOTAL_ROWS} values will be copied and need checking.`)}`);
+        await waitFor(SHOWN);
+        // The Replace prompt starts with the same sentence. The prompt is stubbed and cancelled, so nothing is written.
+        const stored = await evaluate(`localStorage.getItem(${JSON.stringify(key)})`);
+        await evaluate('window.__asked = ""; window.confirm = (message) => { window.__asked = message; return false; }; true');
+        await clickId('convert-make');
+        const asked = await evaluate('window.__asked');
+        assert.ok(asked.startsWith(`${WARN}\n\nReplace everything on this page`), `${file}: the prompt starts with the warning: ${asked.slice(0, 120)}`);
+        assert.equal(await evaluate(`localStorage.getItem(${JSON.stringify(key)})`), stored, `${file}: Cancel changed nothing`);
+        await evaluate('delete window.confirm; true');
+        assert.deepEqual(problems, [], file);
+      }
+    });
+    await test('converter: after a refused or unreadable file, focus goes back to the file input', async () => {
+      await clearDraft(K26);
+      await open(F26, READY26);
+      await waitFor('!!document.querySelector("details.convert")');
+      await openConverter();
+      const notJson = scratch('converter-not-json.json', 'this is not json');
+      await pickFile(notJson);
+      await waitFor('!!document.querySelector(".convert-error")');
+      assert.equal(await evaluate('document.activeElement && document.activeElement.id'), 'convert-file', 'focus is back on the file input, not the top of the page');
+      fs.rmSync(notJson, { force: true });
+    });
+    await test('converter: a 2023 unit type that names no Troop, Crew, or Ship is not copied, and the Unit Type box is flagged for a choice', async () => {
+      await clearDraft(K26);
+      await open(F26, READY26);
+      await waitFor('!!document.querySelector("details.convert")');
+      await openConverter();
+      const pack = scratch('converter-pack.json', (() => { const d = JSON.parse(fs.readFileSync(SAMPLE, 'utf8')); d.unit.type = 'Pack 5'; return d; })());
+      await pickFile(pack);
+      await waitFor('!!document.getElementById("cv-unit-type")');
+      assert.equal(await evaluate('document.getElementById("cv-unit-type").disabled'), true, 'it cannot be ticked');
+      assert.match(await evaluate('document.getElementById("cv-unit-type").closest("li").textContent'), /Your 2023 file does not name one clear unit type \(Troop, Crew, or Ship\)\. The Unit Type box is set to Troop by default\. Choose the unit type on this page\./);
+      await clickId('convert-make');
+      await waitFor('!!document.getElementById("f-unit-type-checked")');
+      assert.equal(await evaluate('document.getElementById("check-count").textContent'), `${TOTAL_ROWS - 1} copied values still to check.`, 'the unit prompt is not counted as a copied value');
+      assert.equal(await evaluate('document.getElementById("f-unit-type").value'), 'Troop');
+      assert.match(await evaluate('document.getElementById("f-unit-type-check").textContent'), /Check this: your 2023 backup file does not name one clear unit type \(Troop, Crew, or Ship\), so this box shows Troop\. Choose the unit type, then press Checked\./);
+      assert.equal(await evaluate('document.getElementById("f-unit-type-checked").getAttribute("aria-label")'), 'Mark Unit Information: Unit Type as checked');
+      fs.rmSync(pack, { force: true });
+      assert.deepEqual(problems, []);
+    });
+    await test('converter: an unticked unit row that names a Ship keeps Troop in the box, and the box gets a note and a Checked button that name the Ship', async () => {
+      await clearDraft(K26);
+      await open(F26, READY26);
+      await waitFor('!!document.querySelector("details.convert")');
+      await openConverter();
+      const ship = scratch('converter-ship.json', (() => { const d = JSON.parse(fs.readFileSync(SAMPLE, 'utf8')); d.unit.type = 'Sea Scout Ship 12'; return d; })());
+      await pickFile(ship);
+      await waitFor('!!document.getElementById("cv-unit-type")');
+      assert.equal(await evaluate('document.getElementById("cv-unit-type").checked'), true, 'the unit row starts ticked');
+      await clickId('cv-unit-type');   // the Scout unticks it
+      assert.equal(await evaluate('document.getElementById("cv-unit-type").checked'), false, 'unticked');
+      await clickId('convert-make');
+      await waitFor('!!document.getElementById("f-unit-type-checked")');
+      assert.equal(await evaluate('document.getElementById("f-unit-type").value'), 'Troop', 'the box keeps Troop, the 2026 default');
+      assert.equal(await evaluate('document.getElementById("f-unit-type-check").textContent'), 'Check this: your 2023 backup file names a Ship, but you did not tick Unit Type there. Check the Unit Type box, then press Checked.', 'the note names the Ship');
+      assert.equal(await evaluate('document.getElementById("f-unit-type").getAttribute("aria-describedby")'), 'f-unit-type-check', 'the box is described by its note');
+      assert.equal(await evaluate('document.getElementById("f-unit-type-checked").getAttribute("aria-label")'), 'Mark Unit Information: Unit Type as checked');
+      assert.equal(await evaluate('document.getElementById("check-count").textContent'), `${TOTAL_ROWS - 1} copied values still to check.`, 'the unit prompt is not counted as a copied value');
+      assert.deepEqual((await readDraft(K26)).checkThis.filter((x) => x.path === 'unit.type'), [{ path: 'unit.type', prompt: true, named: 'Ship' }], 'the prompt and the unit it names are saved');
+      await clickId('f-unit-type-checked');
+      await waitFor('!document.getElementById("f-unit-type-checked")');
+      assert.equal((await readDraft(K26)).checkThis.some((x) => x.path === 'unit.type'), false, 'Checked clears only the unit prompt');
+      fs.rmSync(ship, { force: true });
+      assert.deepEqual(problems, []);
+    });
+    await test('converter: an unticked Ship row keeps its note naming the Ship after the Scout changes the Unit Type box to Crew, and after a reload', async () => {
+      const SHIP_NOTE = 'Check this: your 2023 backup file names a Ship, but you did not tick Unit Type there. Check the Unit Type box, then press Checked.';
+      await clearDraft(K26);
+      await open(F26, READY26);
+      await waitFor('!!document.querySelector("details.convert")');
+      await openConverter();
+      const ship = scratch('converter-ship-change.json', (() => { const d = JSON.parse(fs.readFileSync(SAMPLE, 'utf8')); d.unit.type = 'Sea Scout Ship 12'; return d; })());
+      await pickFile(ship);
+      await waitFor('!!document.getElementById("cv-unit-type")');
+      await clickId('cv-unit-type');   // the Scout unticks it
+      await clickId('convert-make');
+      await waitFor('!!document.getElementById("f-unit-type-checked")');
+      assert.equal(await evaluate('document.getElementById("f-unit-type-check").textContent'), SHIP_NOTE, 'the note before the box changes');
+      await evaluate('(() => { const s = document.getElementById("f-unit-type"); s.value = "Crew"; s.dispatchEvent(new Event("change", { bubbles: true })); return true; })()');
+      await waitFor(`((JSON.parse(localStorage.getItem(${JSON.stringify(K26)}) || "{}").unit) || {}).type === "Crew"`);
+      // The page does not redraw its notes on a change, so reload: the note is drawn again from the saved draft.
+      await open(F26, READY26);
+      await waitFor('!!document.getElementById("f-unit-type-check")');
+      assert.equal(await evaluate('document.getElementById("f-unit-type").value'), 'Crew', 'the box keeps the Scout\'s Crew after the reload');
+      assert.equal(await evaluate('document.getElementById("f-unit-type-check").textContent'), SHIP_NOTE, 'after the box changes to Crew, the note still names the Ship and says nothing about Crew or Troop');
+      assert.deepEqual(problems, []);
+    });
+    await test('converter: a copied Crew unit type gets the copied-value note, and the Unit Type box is described by it', async () => {
+      await clearDraft(K26);
+      await open(F26, READY26);
+      await waitFor('!!document.querySelector("details.convert")');
+      await openConverter();
+      const crew = scratch('converter-crew.json', (() => { const d = JSON.parse(fs.readFileSync(SAMPLE, 'utf8')); d.unit.type = 'Venturing Crew 9'; return d; })());
+      await pickFile(crew);
+      await waitFor('!!document.getElementById("cv-unit-type")');
+      assert.equal(await evaluate('document.getElementById("cv-unit-type").checked'), true, 'the unit row starts ticked');
+      await clickId('convert-make');
+      await waitFor('!!document.getElementById("f-unit-type-checked")');
+      assert.equal(await evaluate('document.getElementById("f-unit-type").value'), 'Crew', 'the box holds the copied Crew');
+      assert.equal(await evaluate('document.getElementById("f-unit-type-check").textContent'), 'Check this: your 2023 backup file names a Crew, and this value was copied. Read it, then press Checked.', 'the note names the Crew');
+      assert.equal(await evaluate('document.getElementById("f-unit-type").getAttribute("aria-describedby")'), 'f-unit-type-check', 'the box is described by its note');
+      assert.equal(await evaluate('document.getElementById("f-unit-type-checked").getAttribute("aria-label")'), 'Mark Unit Information: Unit Type as checked');
+      assert.deepEqual((await readDraft(K26)).checkThis.filter((x) => x.path === 'unit.type'), [{ path: 'unit.type', copied: 'Crew' }], 'the copied value is saved with no prompt marker and the word the 2023 file gave');
+      // Changing the box to Ship must not change what the 2023 file said: the note still names the Crew.
+      await evaluate('(() => { const s = document.getElementById("f-unit-type"); s.value = "Ship"; s.dispatchEvent(new Event("change", { bubbles: true })); return true; })()');
+      await waitFor(`((JSON.parse(localStorage.getItem(${JSON.stringify(K26)}) || "{}").unit) || {}).type === "Ship"`);
+      // Reload, so the note is drawn again from the saved word (the page does not redraw its notes on a change).
+      await open(F26, READY26);
+      await waitFor('!!document.getElementById("f-unit-type-check")');
+      assert.equal(await evaluate('document.getElementById("f-unit-type").value'), 'Ship', 'the box now holds Ship');
+      assert.equal(await evaluate('document.getElementById("f-unit-type-check").textContent'), 'Check this: your 2023 backup file names a Crew, and this value was copied. Read it, then press Checked.', 'after a reload, changing the box to Ship keeps the note that names the Crew');
+      assert.deepEqual((await readDraft(K26)).checkThis.filter((x) => x.path === 'unit.type'), [{ path: 'unit.type', copied: 'Crew' }], 'the saved word is still Crew after the box changes');
+      fs.rmSync(crew, { force: true });
+      assert.deepEqual(problems, []);
+    });
+    await test('converter: when this page has a link, the replace prompt names it, and Cancel leaves the draft as it was', async () => {
+      const seed = { edition: '2026', candidate: { name: 'Keep Me' }, proposal: {}, links: [{ title: 'Permit', url: 'https://example.org/permit' }] };
+      await evaluate(`localStorage.setItem(${JSON.stringify(K26)}, ${JSON.stringify(JSON.stringify(seed))}); true`);
+      await open(F26, READY26);
+      await waitFor('!!document.querySelector("details.convert")');
+      assert.equal(await evaluate('document.querySelector("details.convert").open'), false, 'a named draft starts with the disclosure closed');
+      await openConverter();
+      await pickFile(SAMPLE);
+      await waitFor('!!document.getElementById("convert-make")');
+      const stored = await evaluate(`localStorage.getItem(${JSON.stringify(K26)})`);
+      await evaluate('window.__asked = ""; window.confirm = (message) => { window.__asked = message; return false; }; true');
+      await clickId('convert-make');
+      const asked = await evaluate('window.__asked');
+      assert.match(asked, /Replace everything on this page with the names, contacts, and unit details from the 2023 backup file/);
+      assert.match(asked, /Your answers in every section of this page will be removed\. To keep them, press Cancel, save a backup file, then choose Make again\./, asked);
+      assert.match(asked, /The new 2026 draft does not have 1 link that is on this page now, so it will be removed\./, asked);
+      assert.equal(await evaluate(`localStorage.getItem(${JSON.stringify(K26)})`), stored, 'Cancel changed nothing');
+      await evaluate('delete window.confirm; true');
+    });
+    await test('Checked: clears only that flag, moves focus to the next Checked button, and editing a copied value keeps its flag', async () => {
+      await clearDraft(K26);
+      await open(F26, READY26);
+      await waitFor('!!document.querySelector("details.convert")');
+      await openConverter();
+      await pickFile(SAMPLE);
+      await waitFor('!!document.getElementById("convert-make")');
+      await clickId('convert-make');
+      await waitFor('!!document.getElementById("f-candidate-name-checked")');
+      assert.equal(await evaluate('document.getElementById("f-candidate-name-checked").getAttribute("aria-label")'), 'Mark Eagle Scout Candidate: Name as checked');
+      const allNames = JSON.parse(await evaluate('JSON.stringify([...document.querySelectorAll(".check-btn")].map((b) => b.getAttribute("aria-label")))'));
+      assert.equal(allNames.length, TOTAL_ROWS, 'every copied value has a Checked button');
+      assert.equal(new Set(allNames).size, allNames.length, 'the Checked buttons of the full 2023 sample each have their own name');
+      assert.match(await evaluate('document.querySelector("#f-candidate-name").closest(".field").textContent'), /Check this: copied from your 2023 backup file\. Read it, fix it if it is wrong, then press Checked\./, 'the note is words, not only colour');
+      await setValue('#f-candidate-name', 'Alex Q. Sample Jr.');
+      await sleep(700);
+      assert.equal(await evaluate('!!document.getElementById("f-candidate-name-checked")'), true, 'editing did not clear the flag');
+      await clickId('f-candidate-name-checked');
+      await waitFor('!document.getElementById("f-candidate-name-checked")');
+      assert.equal(await evaluate('document.activeElement && document.activeElement.id'), 'f-candidate-address-checked', 'focus moves to the next Checked button');
+      const draft = await readDraft(K26);
+      assert.ok(!draft.checkThis.some((x) => x.path === 'candidate.name'), 'cleared in storage');
+      assert.equal(draft.checkThis[0].path, 'candidate.address');
+      assert.equal(draft.checkThis.length, TOTAL_ROWS - 1);
+      assert.equal(draft.candidate.name, 'Alex Q. Sample Jr.', 'the typed correction is kept');
+      assert.equal(await evaluate('document.getElementById("check-count").textContent'), `${TOTAL_ROWS - 1} copied values still to check.`);
+      assert.deepEqual(problems, []);
+    });
+    await test('converter: the Guided 2026 page makes its draft under its own key only, and its flags work the same way', async () => {
+      await clearDraft(K26);
+      await clearDraft(KG26);
+      await open(G26, READY26);
+      await waitFor('!!document.querySelector("details.convert")');
+      await openConverter();
+      await pickFile(SAMPLE);
+      await waitFor('!!document.getElementById("convert-make")');
+      await clickId('convert-make');
+      await waitFor(`(localStorage.getItem(${JSON.stringify(KG26)}) || '').includes("Alex Q. Sample")`);
+      assert.equal(await evaluate(`localStorage.getItem(${JSON.stringify(K26)})`), null, 'the Classic 2026 key is untouched');
+      await waitFor('!!document.getElementById("f-candidate-name-checked")');
+      assert.equal((await readDraft(KG26)).checkThis.length, TOTAL_ROWS);
+      await clickId('f-candidate-name-checked');
+      await waitFor('!document.getElementById("f-candidate-name-checked")');
+      assert.equal((await readDraft(KG26)).checkThis.length, TOTAL_ROWS - 1);
+      assert.deepEqual(problems, []);
+      await clearDraft(KG26);
+    });
+    await test('converter: a draft changed in another tab turns Make off, and a click that gets through does not overwrite that change', async () => {
+      await clearDraft(K26);
+      await open(F26, READY26);
+      await waitFor('!!document.querySelector("details.convert")');
+      await openConverter();
+      await pickFile(SAMPLE);
+      await waitFor('!!document.getElementById("convert-make")');
+      assert.equal(await evaluate('document.getElementById("convert-make").disabled'), false);
+      // Another tab writes the draft, and the browser tells this page with a storage event.
+      const other = { edition: '2026', candidate: { name: 'Other tab name' }, proposal: {}, checkThis: [] };
+      await evaluate(`localStorage.setItem(${JSON.stringify(K26)}, ${JSON.stringify(JSON.stringify(other))}); window.dispatchEvent(new StorageEvent("storage", { key: ${JSON.stringify(K26)}, storageArea: localStorage })); true`);
+      await waitFor('document.getElementById("convert-make").getAttribute("aria-disabled") === "true"');
+      assert.match(await evaluate('document.getElementById("convert-conflict").textContent'), /^⚠ This draft was changed in another tab or window, so this page has stopped saving\. Click “Save backup file”/, 'the same words as the status line');
+      assert.match(await evaluate('document.querySelector(".backup-status").textContent'), /changed in another tab or window/, 'the status line says the same');
+      // A click that gets through anyway (the button is turned on by hand) must not make the draft.
+      dialogs = [];
+      await evaluate('(() => { const b = document.getElementById("convert-make"); b.disabled = false; b.click(); return true; })()');
+      await sleep(300);
+      assert.deepEqual(dialogs, [], 'no replace prompt is shown');
+      assert.equal(JSON.parse(await evaluate(`localStorage.getItem(${JSON.stringify(K26)})`)).candidate.name, 'Other tab name', 'the other tab\u2019s draft is kept');
+      assert.equal(await evaluate('document.getElementById("convert-make").getAttribute("aria-disabled")'), 'true', 'Make is still off (aria-disabled, so it keeps focus; see the focus test below)');
+      assert.deepEqual(problems, []);
+      await clearDraft(K26);
+    });
+    await test('converter: another tab writes this draft while the Make prompt is open: its text is kept, Make writes nothing, and the conflict message shows', async () => {
+      await clearDraft(K26);
+      await open(F26, READY26);
+      await waitFor('!!document.querySelector("details.convert")');
+      await openConverter();
+      await pickFile(SAMPLE);
+      await waitFor('!!document.getElementById("convert-make")');
+      const other = JSON.stringify({ edition: '2026', candidate: { name: 'Other tab during prompt' }, proposal: {}, checkThis: [] });
+      // The prompt is stubbed: while it is open, another tab writes this draft. A window is not sent storage events for its own
+      // writes, so this page learns of the change only from the stored text.
+      await evaluate(`window.__asked = ""; window.confirm = (message) => { window.__asked = message; localStorage.setItem(${JSON.stringify(K26)}, ${JSON.stringify(other)}); return true; }; true`);
+      await clickId('convert-make');
+      await waitFor('(document.getElementById("convert-conflict").textContent || "").length > 0');
+      assert.match(await evaluate('window.__asked'), /Replace everything on this page with the names, contacts, and unit details from the 2023 backup file/, 'the prompt was shown');
+      assert.equal(await evaluate(`localStorage.getItem(${JSON.stringify(K26)})`), other, 'the other tab\u2019s text is still stored; the draft was not written over it');
+      assert.match(await evaluate('document.getElementById("convert-conflict").textContent'), /^⚠ This draft was changed in another tab or window, so this page has stopped saving\./, 'the conflict message is in the converter');
+      assert.equal(await evaluate('document.getElementById("convert-make").getAttribute("aria-disabled")'), 'true', 'Make is off');
+      await evaluate('delete window.confirm; true');
+      await clearDraft(K26);
+      assert.deepEqual(problems, []);
+    });
+    await test('converter, two real tabs (skipped unless EAGLE_KNOWN_RACE=1; the race is OPEN and mitigated by a one-tab warning, see todo/2026-open-items.md): another tab writes this draft while the Make prompt is open; its text is kept and this tab shows the conflict. With the flag set, this test fails: tab B\u2019s write is overwritten', async () => {
+      if (!process.env.EAGLE_KNOWN_RACE) return 'skip';
+      await clearDraft(K26);
+      await open(F26, READY26);
+      await waitFor('!!document.querySelector("details.convert")');
+      await openConverter();
+      await pickFile(SAMPLE);
+      await waitFor('!!document.getElementById("convert-make")');
+      await clickId('convert-all');
+      const other = JSON.stringify({ edition: '2026', candidate: { name: 'B typed during prompt' }, proposal: {}, checkThis: [] });
+      const tabB = await openTab();
+      const tabBProblems = [];
+      tabB.on((msg) => { if (msg.method === 'Runtime.exceptionThrown') tabBProblems.push(msg.params.exceptionDetails.exception?.description || msg.params.exceptionDetails.text); });
+      try {
+        // The real Make prompt (window.confirm) stays open until tab B has written. The evaluate that clicked Make returns only after
+        // the prompt closes, so it is not awaited until then. Tab B loads the page only after the Make check has run, while the prompt
+        // is open: a tab opened after the check is not seen (see makeDraft in lib/w26-classic.js).
+        holdDialogs = true;
+        dialogs = [];
+        const make = clickId('convert-make');
+        try {
+          for (let t = 0; t < 100 && !dialogs.length; t++) await sleep(100);
+          assert.match(dialogs.join(' '), /Replace everything on this page with the names, contacts, and unit details/, 'the Make prompt opened in this tab');
+          await Promise.race([
+            tabB.send('Page.navigate', { url: pathToFileURL(path.join(ROOT, F26)).href }).then(() => waitIn(tabB, `document.readyState === 'complete' && ${READY26}`)),
+            sleep(8000).then(() => { throw new Error('tab B did not load while the prompt was open (it may share a process with this tab)'); })
+          ]);
+          // Tab B writes the draft while tab A is blocked. The timeout reports a browser that will not run tab B until the prompt closes.
+          await Promise.race([
+            tabB.evaluate(`localStorage.setItem(${JSON.stringify(K26)}, ${JSON.stringify(other)}); true`),
+            sleep(5000).then(() => { throw new Error('tab B did not respond while the prompt was open (it may share a process with this tab)'); })
+          ]);
+        } finally {
+          // OK on the prompt. If no prompt is showing, this fails harmlessly.
+          holdDialogs = false;
+          await send('Page.handleJavaScriptDialog', { accept: true }).catch(() => {});
+          await make.catch(() => {});
+        }
+        assert.equal(await tabB.evaluate(`localStorage.getItem(${JSON.stringify(K26)})`), other, 'tab B\u2019s text is still stored: this tab did not write over it');
+        await waitFor('(document.getElementById("convert-conflict").textContent || "").length > 0', 5000);
+        assert.match(await evaluate('document.getElementById("convert-conflict").textContent'), /^⚠ This draft was changed in another tab or window, so this page has stopped saving\./, 'the conflict message shows in the converter');
+        assert.equal(await evaluate('document.getElementById("convert-make").getAttribute("aria-disabled")'), 'true', 'Make is off');
+        assert.deepEqual(problems, []);
+        assert.deepEqual(tabBProblems, []);
+      } finally {
+        await tabB.close();
+        await clearDraft(K26);
+      }
+    });
+    await test('converter: when Make turns off in a conflict, focus stays on Make, and Make is linked to the message that gives the reason', async () => {
+      await clearDraft(K26);
+      await open(F26, READY26);
+      await waitFor('!!document.querySelector("details.convert")');
+      await openConverter();
+      await pickFile(SAMPLE);
+      await waitFor('!!document.getElementById("convert-make")');
+      await evaluate('document.getElementById("convert-make").focus(); true');
+      assert.equal(await evaluate('document.activeElement && document.activeElement.id'), 'convert-make', 'focus is on Make');
+      const other = { edition: '2026', candidate: { name: 'Other tab name' }, proposal: {}, checkThis: [] };
+      await evaluate(`localStorage.setItem(${JSON.stringify(K26)}, ${JSON.stringify(JSON.stringify(other))}); window.dispatchEvent(new StorageEvent("storage", { key: ${JSON.stringify(K26)}, storageArea: localStorage })); true`);
+      await waitFor('document.getElementById("convert-make").getAttribute("aria-disabled") === "true"');
+      assert.equal(await evaluate('document.activeElement && document.activeElement.id'), 'convert-make', 'focus stays on Make, not on the page body');
+      assert.equal(await evaluate('document.getElementById("convert-make").disabled'), false, 'Make can still be reached');
+      const describedBy = await evaluate('document.getElementById("convert-make").getAttribute("aria-describedby")');
+      assert.equal(describedBy, 'convert-conflict', 'Make names the message that gives the reason');
+      assert.match(await evaluate(`document.getElementById(${JSON.stringify(describedBy)}).textContent`), /^⚠ This draft was changed in another tab or window, so this page has stopped saving\./);
+      assert.equal(await evaluate('getComputedStyle(document.getElementById("convert-make")).opacity'), '0.35', 'it still looks off');
+      dialogs = [];
+      await clickId('convert-make');
+      await sleep(300);
+      assert.deepEqual(dialogs, [], 'a click on Make in a conflict shows no prompt');
+      assert.equal(JSON.parse(await evaluate(`localStorage.getItem(${JSON.stringify(K26)})`)).candidate.name, 'Other tab name', 'the other tab\u2019s draft is kept');
+      await clearDraft(K26);
+      assert.deepEqual(problems, []);
+    });
+    await test('converter: a blank 2023 unit type and one name ticked: the count says 1 copied value, and the unit prompt is not counted', async () => {
+      await clearDraft(K26);
+      await open(F26, READY26);
+      await waitFor('!!document.querySelector("details.convert")');
+      await openConverter();
+      const blank = scratch('converter-blank-unit.json', (() => { const d = JSON.parse(fs.readFileSync(SAMPLE, 'utf8')); d.unit.type = ''; return d; })());
+      await pickFile(blank);
+      await waitFor('!!document.getElementById("cv-unit-type")');
+      await clickId('convert-clear');
+      await waitFor('document.getElementById("convert-count").textContent.startsWith("No values are ticked")');
+      await evaluate('(() => { const b = document.getElementById("cv-candidate-name"); b.checked = true; b.dispatchEvent(new Event("change", { bubbles: true })); return true; })()');
+      await waitFor('document.getElementById("convert-count").textContent === "1 value will be copied and needs checking."');
+      await clickId('convert-make');
+      await waitFor('!!document.getElementById("f-candidate-name-checked")');
+      assert.equal(await evaluate('document.getElementById("check-count").textContent'), '1 copied value still to check.');
+      assert.equal(await evaluate('!!document.getElementById("f-unit-type-checked")'), true, 'the unit prompt has its own Checked button');
+      assert.equal(await evaluate('document.getElementById("f-unit-type").value'), 'Troop');
+      const draft = await readDraft(K26);
+      assert.deepEqual(draft.checkThis, [{ path: 'candidate.name' }, { path: 'unit.type', prompt: true }]);
+      await clickId('f-candidate-name-checked');
+      await waitFor('!document.getElementById("f-candidate-name-checked")');
+      assert.equal(await evaluate('document.getElementById("check-count").textContent'), 'All copied values are checked.', 'the prompt does not keep the count open');
+      assert.equal(await evaluate('!!document.getElementById("f-unit-type-checked")'), true, 'the prompt is still there until its own Checked');
+      fs.rmSync(blank, { force: true });
+      await clearDraft(K26);
+      assert.deepEqual(problems, []);
+    });
+
+
     console.log('FillOfficialPDF2026.html (file://)');
     const FILL26 = 'FillOfficialPDF2026.html', READY_FILL26 = '!!window.EagleW26Pdf';
     const W26_PDF = path.join(ROOT, 'tests/.cache/512-92726-Eagle-Scout-Leadership-Service-Project-Workbook.pdf');
@@ -1295,14 +2226,15 @@ async function run() {
       await waitFor('document.getElementById("pdf-chosen").textContent.startsWith("Using")');
       await setFile('#json-file', SAMPLE26_FILE);
       await waitFor('!document.getElementById("create").disabled');
-      clearDownloads();
+      const mark = await clearDownloads();
       await evaluate('document.getElementById("create").click(); true');
       await waitFor('document.getElementById("report").hidden === false', 60000);
-      const file = await waitForDownload('.pdf');
+      const file = await waitForNewDownload('.pdf', mark);
       assert.equal(path.basename(file), 'Community-Bike-Repair-Station-2026-Workbook-filled.pdf', path.basename(file));
       const bytes = fs.readFileSync(file);
       assert.ok(bytes.subarray(0, fs.statSync(W26_PDF).size).equals(fs.readFileSync(W26_PDF)), 'the official file is kept, with an update appended');
       assert.match(await evaluate('document.getElementById("report").textContent'), /Filled \d+ answers\./);
+      assert.doesNotMatch(await evaluate('document.getElementById("report").textContent'), /not checked yet/, 'a draft with no copied values gets no heads-up');
       {
         const report = await evaluate('document.getElementById("report").textContent');
         const links = JSON.parse(await evaluate('JSON.stringify([...document.querySelectorAll("#report a")].map((a) => [a.getAttribute("href"), a.getAttribute("target"), a.getAttribute("rel")]))'));
@@ -1315,7 +2247,7 @@ async function run() {
         assert.match(report, /Unless you are completely done editing the document, including any signatures to be added electronically, DO NOT “flatten” the document by using “print to PDF” or “export as PDF” functions\./);
         assert.ok(report.indexOf('Next:') < report.indexOf('The workbook says, on page 2:') && report.indexOf('The workbook says, on page 2:') < report.indexOf('If your council accepts'), 'the signing notes come after the Next line, in order');
       }
-      filled2026 = path.join(os.tmpdir(), `eph-filled26-${process.pid}.pdf`);
+      filled2026 = track(path.join(os.tmpdir(), `eph-filled26-${process.pid}.pdf`));
       fs.copyFileSync(file, filled2026);
       assert.deepEqual(problems, []);
     });
@@ -1327,7 +2259,7 @@ async function run() {
         await waitFor('document.getElementById("pdf-chosen").textContent.startsWith("Using")');
         await setFile('#json-file', SAMPLE26_FILE);
         await waitFor('!document.getElementById("create").disabled');
-        clearDownloads();
+        await clearDownloads();
         await evaluate('document.getElementById("create").scrollIntoView({ block: "center" }); document.getElementById("create").click(); true');
         await waitFor('document.getElementById("report").hidden === false', 60000);
         await waitFor('document.activeElement && document.activeElement.tagName === "H2" && document.activeElement.closest("#report")', 5000);
@@ -1362,9 +2294,9 @@ async function run() {
       await waitFor('document.getElementById("appd-chosen").textContent.startsWith("Using")');
       await setFile('#json-file', SAMPLE26_FILE);
       await waitFor('!document.getElementById("create-appd").disabled');
-      clearDownloads();
+      const mark = await clearDownloads();
       await evaluate('document.getElementById("create-appd").click(); true');
-      const file = await waitForDownload('.pdf');
+      const file = await waitForNewDownload('.pdf', mark);
       assert.equal(path.basename(file), 'Community-Bike-Repair-Station-2026-Appendix-D-filled.pdf');
       await waitFor('document.getElementById("report").textContent.includes("Name of Organization")', 30000);
     });
@@ -1372,16 +2304,16 @@ async function run() {
       const A = require(path.join(ROOT, 'lib/attachments.js'));
       const bytes = fs.readFileSync(path.join(ROOT, 'tests/fixtures/scan-portrait.jpg'));
       const info = A.jpegInfo(new Uint8Array(bytes));
-      const backup = path.join(os.tmpdir(), `eph-attach26-${process.pid}.json`);
+      const backup = track(path.join(os.tmpdir(), `eph-attach26-${process.pid}.json`));
       fs.writeFileSync(backup, JSON.stringify({ edition: '2026', candidate: { name: 'Alex Example' }, proposal: { projectName: 'Bike repair' }, attachments: [
         { id: 'permit0001', place: 'end', label: 'Permit', pages: [{ id: 'page00001', width: info.width, height: info.height, jpeg: bytes.toString('base64') }] }
       ], links: [] }));
       await open(FILL26, READY_FILL26);
       await setFile('#json-file', backup);
       await waitFor('!document.getElementById("create-attach").disabled', 15000);
-      clearDownloads();
+      const mark = await clearDownloads();
       await evaluate('document.getElementById("create-attach").click(); true');
-      const file = await waitForDownload('.pdf');
+      const file = await waitForNewDownload('.pdf', mark);
       assert.equal(path.basename(file), 'Bike-repair-2026-Attachments.pdf');
       const text = fs.readFileSync(file).toString('latin1');
       assert.ok(text.startsWith('%PDF'));
@@ -1401,6 +2333,58 @@ async function run() {
       await waitFor('document.getElementById("pdf-chosen").textContent.includes("This is the 2026 workbook, but this page fills the 2023 workbook (No. 2023a).")');
     });
 
+    await test('2026 Fill page: copied values not yet checked get a heads-up in the report, and the PDF is still made', async () => {
+      if (!fs.existsSync(W26_PDF)) throw new Error('2026 workbook not cached: run tests/run-tests.cjs first');
+      const flagged = scratch('flagged-2026.json', { ...JSON.parse(fs.readFileSync(SAMPLE26_FILE, 'utf8')), checkThis: [{ path: 'candidate.name' }, { path: 'unit.council' }] });
+      await open(FILL26, READY_FILL26);
+      await setFile('#pdf-file', W26_PDF);
+      await waitFor('document.getElementById("pdf-chosen").textContent.startsWith("Using")');
+      await setFile('#json-file', flagged);
+      await waitFor('!document.getElementById("create").disabled');
+      const mark = await clearDownloads();
+      await evaluate('document.getElementById("create").click(); true');
+      await waitFor('document.getElementById("report").hidden === false', 60000);
+      await waitForNewDownload('.pdf', mark);
+      assert.match(await evaluate('document.getElementById("report").textContent'), /2 copied values are not checked yet\. Go to Project Contacts \(Guided: 1\. Set Up\) and press Checked next to each one\. The PDF includes them as they are now\./);
+      fs.rmSync(flagged, { force: true });
+    });
+    await test('2026 Fill page: a draft saved in this browser with a value not yet checked gets the heads-up too', async () => {
+      if (!fs.existsSync(W26_PDF)) throw new Error('2026 workbook not cached: run tests/run-tests.cjs first');
+      const withFlag = { ...JSON.parse(fs.readFileSync(SAMPLE26_FILE, 'utf8')), checkThis: [{ path: 'contacts.committee.name' }] };
+      await evaluate(`localStorage.setItem("eagle_workbook2026_v1", ${JSON.stringify(JSON.stringify(withFlag))}); true`);
+      await open(FILL26, READY_FILL26);
+      await setFile('#pdf-file', W26_PDF);
+      await waitFor('document.getElementById("pdf-chosen").textContent.startsWith("Using")');
+      await waitFor('[...document.querySelectorAll(".use-draft")].some((b) => b.textContent.includes("Classic 2026 workbook"))');
+      await evaluate('[...document.querySelectorAll(".use-draft")].find((b) => b.textContent.includes("Classic 2026 workbook")).click(); true');
+      await waitFor('!document.getElementById("create").disabled');
+      const mark = await clearDownloads();
+      await evaluate('document.getElementById("create").click(); true');
+      await waitFor('document.getElementById("report").hidden === false', 60000);
+      await waitForNewDownload('.pdf', mark);
+      assert.match(await evaluate('document.getElementById("report").textContent'), /1 copied value is not checked yet\./);
+      await evaluate('localStorage.removeItem("eagle_workbook2026_v1"); true');
+    });
+
+    await test('2026 Fill page: an unchecked unit prompt is its own sentence in the report, and is not counted as a copied value', async () => {
+      if (!fs.existsSync(W26_PDF)) throw new Error('2026 workbook not cached: run tests/run-tests.cjs first');
+      const prompt = scratch('flagged-unit-prompt.json', { ...JSON.parse(fs.readFileSync(SAMPLE26_FILE, 'utf8')), unit: { ...JSON.parse(fs.readFileSync(SAMPLE26_FILE, 'utf8')).unit, type: 'Troop' }, checkThis: [{ path: 'unit.type', prompt: true }] });
+      await open(FILL26, READY_FILL26);
+      await setFile('#pdf-file', W26_PDF);
+      await waitFor('document.getElementById("pdf-chosen").textContent.startsWith("Using")');
+      await setFile('#json-file', prompt);
+      await waitFor('!document.getElementById("create").disabled');
+      const mark = await clearDownloads();
+      await evaluate('document.getElementById("create").click(); true');
+      await waitFor('document.getElementById("report").hidden === false', 60000);
+      await waitForNewDownload('.pdf', mark);
+      const report = await evaluate('document.getElementById("report").textContent');
+      assert.match(report, /Unit Type is set to Troop\. Choose it on the Project Contacts \(Guided: 1\. Set Up\) tab and press Checked\./);
+      assert.doesNotMatch(report, /copied values? (is|are) not checked yet/, 'the prompt is not a copied value');
+      fs.rmSync(prompt, { force: true });
+      assert.deepEqual(problems, []);
+    });
+
     console.log('BackupFromPDF.html (file://)');
     await test('a filled 2026 PDF reads into a 2026 backup and opens in the Classic 2026 workbook', async () => {
       assert.ok(filled2026, 'needs the 2026 PDF from the Fill page test');
@@ -1409,9 +2393,9 @@ async function run() {
       await waitFor('/\\b(ok|error)\\b/.test(document.getElementById("read-status").className)', 60000);
       assert.match(await evaluate('document.getElementById("read-status").textContent'), /Found \d+ answers?\./);
       assert.equal(await evaluate('document.getElementById("open-guided").hidden'), true, '2023 buttons are hidden for a 2026 PDF');
-      clearDownloads();
+      const mark = await clearDownloads();
       await click('Save backup file');
-      const saved = JSON.parse(fs.readFileSync(await waitForDownload('.json'), 'utf8'));
+      const saved = JSON.parse(fs.readFileSync(await waitForNewDownload('.json', mark), 'utf8'));
       assert.equal(saved.edition, '2026');
       assert.equal(saved.candidate.name, 'Alex Example');
       await evaluate('document.getElementById("open-classic2026").click(); true');
@@ -1472,9 +2456,9 @@ async function run() {
       await waitFor('/\\b(ok|error)\\b/.test(document.getElementById("read-status").className)', 60000);
       assert.match(await evaluate('document.getElementById("read-status").textContent'), /^Found \d+ answers\.$/);
       assert.match(await evaluate('document.getElementById("warnings").textContent'), /No problems found/);
-      clearDownloads();
+      const mark = await clearDownloads();
       await evaluate('document.getElementById("save-backup").click()');
-      const backup = JSON.parse(fs.readFileSync(await waitForDownload('.json'), 'utf8'));
+      const backup = JSON.parse(fs.readFileSync(await waitForNewDownload('.json', mark), 'utf8'));
       const sample = JSON.parse(fs.readFileSync(SAMPLE, 'utf8'));
       assert.equal(backup.candidate.name, sample.candidate.name);
       assert.equal(backup.proposal.description, sample.proposal.description);
@@ -1822,7 +2806,8 @@ async function run() {
     console.log('Signed pages and attachments');
     const A = require(path.join(ROOT, 'lib/attachments.js'));
     const scan = path.join(__dirname, 'fixtures/scan-portrait.jpg');
-    const twoPagePdf = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'eph-permit-')), 'permit.pdf'); // not in downloads, which tests clear
+    const twoPagePermitDir = track(fs.mkdtempSync(path.join(os.tmpdir(), 'eph-permit-'))); // not in downloads, which tests clear
+    const twoPagePdf = path.join(twoPagePermitDir, 'permit.pdf');
     fs.writeFileSync(twoPagePdf, A.writePdf([{ text: [{ x: 72, y: 700, text: 'Park permit page 1', size: 14 }] }, { text: [{ x: 72, y: 700, text: 'Park permit page 2', size: 14 }] }]));
     let backupWithScans = null;
     await test('adds signed pages and a PDF attachment, keeps them after a reload, and saves them in the backup file', async () => {
@@ -1861,14 +2846,14 @@ async function run() {
       assert.equal(await evaluate('document.activeElement.className'), 'thumb-open', 'focus returns to the thumbnail');
       const draft = await evaluate('localStorage.getItem("eagle_workbook_guided_v1")');
       assert.doesNotMatch(draft, /"jpeg"/, 'pictures are not in localStorage');
-      clearDownloads();
+      const mark = await clearDownloads();
       await click('Save backup file');
-      backupWithScans = await waitForDownload('.json');
-      const saved = JSON.parse(fs.readFileSync(backupWithScans, 'utf8'));
+      const savedFile = await waitForNewDownload('.json', mark);
+      const saved = JSON.parse(fs.readFileSync(savedFile, 'utf8'));
       assert.equal(saved.attachments.length, 2);
       assert.ok(saved.attachments.flatMap((a) => a.pages).every((p) => A.isJpeg(A.fromBase64(p.jpeg))));
-      backupWithScans = path.join(os.tmpdir(), `eph-backup-scans-${process.pid}.json`);
-      fs.copyFileSync(path.join(downloads, downloaded('.json')[0]), backupWithScans);
+      backupWithScans = track(path.join(os.tmpdir(), `eph-backup-scans-${process.pid}.json`));
+      fs.copyFileSync(savedFile, backupWithScans);
       assert.deepEqual(problems, []);
     });
     await test('switching tabs while a file is read does not make a second Proposal Page H', async () => {
@@ -1918,12 +2903,12 @@ async function run() {
       await setFile('#json-file', backupWithScans);
       await waitFor('!document.getElementById("create-submission").disabled');
       assert.match(await evaluate('document.getElementById("attach-summary").textContent'), /Signed Proposal Page H/);
-      clearDownloads();
+      const mark = await clearDownloads();
       await evaluate('document.getElementById("create-submission").click()');
       await waitFor('/\\b(ok|error)\\b/.test(document.getElementById("submission-status").className)', 120000);
       const status = await evaluate('document.getElementById("submission-status").textContent');
       assert.match(status, /^Done\./, status);
-      const file = await waitForDownload('.pdf');
+      const file = await waitForNewDownload('.pdf', mark);
       assert.match(path.basename(file), /-Submission-copy\.pdf$/);
       const pdfjsLib = (() => { for (const n of ['DOMMatrix', 'Path2D', 'ImageData']) if (!globalThis[n]) globalThis[n] = class {}; const { warn, log } = console; console.warn = () => {}; console.log = () => {}; try { require(path.join(ROOT, 'vendor/pdfjs/pdf.worker.js')); require(path.join(ROOT, 'vendor/pdfjs/pdf.js')); return globalThis.pdfjsLib; } finally { console.warn = warn; console.log = log; } })();
       const doc = await pdfjsLib.getDocument({ data: new Uint8Array(fs.readFileSync(file)), verbosity: 0 }).promise;
@@ -1959,7 +2944,7 @@ async function run() {
 
     await test('a changed copy of the workbook is called out in Step 1, and the submission copy mentions the heads-ups', async () => {
       assert.ok(backupWithScans, 'needs the backup from the earlier test');
-      const changed = path.join(os.tmpdir(), `eph-changed-${process.pid}.pdf`);
+      const changed = track(path.join(os.tmpdir(), `eph-changed-${process.pid}.pdf`));
       fs.writeFileSync(changed, Buffer.concat([fs.readFileSync(PDF), Buffer.from('\n%edited')]));
       try {
         await open('FillOfficialPDF.html', '!!window.EagleOfficialPdf');
@@ -1970,7 +2955,7 @@ async function run() {
         assert.doesNotMatch(chosen, /It is the official workbook/);
         await setFile('#json-file', backupWithScans);
         await waitFor('!document.getElementById("create-submission").disabled');
-        clearDownloads();
+        await clearDownloads();
         await evaluate('document.getElementById("create-submission").click()');
         await waitFor('/\\b(ok|error)\\b/.test(document.getElementById("submission-status").className)', 120000);
         const status = await evaluate('document.getElementById("submission-status").textContent');
@@ -2012,13 +2997,13 @@ async function run() {
       assert.ok(photo && photo.pages.length === 1, 'the before photo is saved under its own place');
       assert.ok(!draft.attachments.some((a) => a.place === 'photosDuring' || a.place === 'photosAfter'), 'the other groups stay empty');
     });
-    if (backupWithScans) fs.rmSync(backupWithScans, { force: true });
-    fs.rmSync(path.dirname(twoPagePdf), { recursive: true, force: true });
   } finally {
-    browser.close();
-    fs.rmSync(downloads, { recursive: true, force: true });
-    if (filledPdf) fs.rmSync(filledPdf, { force: true });
+    // Chrome must have exited before its profile folder is removed.
+    await browser.close();
+    removeMade();
   }
+  if (ONLY) console.log(`\nEAGLE_ONLY=${ONLY}: ${matched} test(s) matched; ${filtered} other test(s) were not run.`);
+  if (ONLY && !matched) { console.error(`EAGLE_ONLY=${ONLY} matches no test name.`); process.exit(1); }
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (!passed) { console.error('No tests ran.'); process.exit(1); }
   process.exit(failures.length ? 1 : 0);

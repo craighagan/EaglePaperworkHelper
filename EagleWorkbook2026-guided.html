@@ -74,7 +74,7 @@ select{min-height:44px;font-size:16px}
 .btn{display:inline-block;padding:10px 20px;border:none;border-radius:6px;font:600 14px Georgia,serif;cursor:pointer;text-decoration:none}
 .btn-prev{background:#e0e0e0;color:#333}
 .btn-next{background:#003f87;color:#fff}
-.btn:disabled{opacity:.35;cursor:default}
+.btn:disabled,.btn[aria-disabled="true"]{opacity:.35;cursor:default}
 .workbook-controls{background:#fff;border:1px solid #ddd;border-radius:8px;padding:12px;margin:16px 0}
 .workbook-controls.top{margin:0;border-radius:0;border-width:0 0 1px}
 .control-buttons{display:flex;flex-wrap:wrap;gap:8px}
@@ -84,6 +84,10 @@ select{min-height:44px;font-size:16px}
 .btn-control.fill.quiet{background:#fff;color:#2d6a30}
 .backup-status{margin-top:6px;font-size:12.5px;color:#4e5a66}
 .backup-status.stale{color:#7a4a00;font-weight:700}
+.page-notices{display:flex;flex-direction:column;gap:8px}.page-notices:not(:empty){padding:8px 12px}
+.page-notice{pointer-events:auto;width:100%;max-width:720px;margin:0 auto;padding:10px 14px;border:2px solid #003f87;border-radius:8px;background:#fff;color:#1a1a1a;box-shadow:0 4px 14px rgba(0,0,0,.25);font-size:14px;line-height:1.45}
+.page-notice p{margin:0 0 8px}
+.page-notice .notice-actions{display:flex;flex-wrap:wrap;gap:8px}
 .page-footer{margin:24px 0 8px;padding-top:12px;border-top:1px solid #ccc;font-size:12.5px;color:#4e5a66}
 .page-footer p{margin:4px 0}
 .link-button{border:0;background:none;color:#00509e;text-decoration:underline;font:inherit;cursor:pointer;padding:0}
@@ -98,7 +102,7 @@ select{min-height:44px;font-size:16px}
 .print-footer{display:none}
 @media(max-width:600px){.row{grid-template-columns:1fr}main{padding:12px}.phase-row{flex-wrap:wrap}.phase-row input{flex:1 1 100%}.phase-row input.phase-date{flex:1 1 45%}}
 @media print{
-  header,nav,.nav-btns,.workbook-controls,.page-footer,.print-only-bar,.stage-card,.help,.intro,.official-label,.plain-help,.plain-full{display:none!important}
+  header,nav,.nav-btns,.workbook-controls,.page-footer,.print-only-bar,.stage-card,.help,.intro,.official-label,.plain-help,.plain-full,.page-notices,.check-flag,.check-count,.convert{display:none!important}
   body{background:#fff;font-size:10.5pt}
   .app{max-width:100%}
   main{padding:0}
@@ -166,16 +170,32 @@ select{min-height:44px;font-size:16px}
 .key-count{margin:4px 0 10px;font-size:.9em;color:#46566a}
 .review section{margin:0 0 16px}
 .backup-nudge{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0;padding:8px 12px;border-left:4px solid #e0a500;background:#fff8df;border-radius:6px;font-size:.95em;color:#172537}
+.check-flag{margin:6px 0 0;padding:8px 10px;background:#fff8df;border-left:4px solid #e0a500;border-radius:6px}
+.check-note{font-size:13px;color:#172537;margin:0 0 6px}
+.check-btn{min-height:44px}
+.check-count{margin:0 0 10px;font-weight:700;color:#003f87}
+.convert{margin:0 0 16px;background:#fff;border:1px solid #c9d3e0;border-radius:8px;padding:0 14px}
+.convert>summary{cursor:pointer;padding:12px 0;font-weight:700;color:#003f87}
+.convert ul{list-style:none;margin:8px 0;padding:0}
+.convert li{padding:8px 0;border-top:1px solid #e1e6ec}
+.convert li label{display:flex;gap:8px;align-items:flex-start;font-weight:400;margin:0}
+.convert li input[type=checkbox]{width:22px;height:22px;flex:none;margin-top:2px}
+.convert-note{font-weight:700;color:#7a4a00;background:#fff8df;padding:8px 10px;border-radius:6px}
+.convert-error{font-weight:700;color:#9a0a1e}
+.convert-actions{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.convert-count{font-weight:700;color:#003f87}
 @media print{input::placeholder,textarea::placeholder{color:transparent}.tip,.tip-btn,.tip-wrap,.keep-safe,.keep-list,.ask-help,.journey,.scoutly-win,.scoutly-pill,.backup-nudge,.empty-boxes,.tab-dot,.key-count,.review{display:none!important}}
 </style>
 </head>
 <body data-page="guided">
+<p class="intro" id="page-note">The Guided and Classic pages are two ways to fill in the same 2026 workbook, but each keeps its own saved draft, so answers typed on one page do not appear on the other. If this page is open in two tabs, saving in one tab makes the other tab stop saving. Anything typed in the stopped tab can be lost. Keep one tab open (the message at the top of the screen explains).</p>
 <div class="app" id="app"><p class="loading">Loading… If this message stays, this page cannot find its helper files. Keep this file in the same folder as the “lib” folder it came with. If you downloaded a ZIP file, unzip (extract) it first.</p></div>
 <script src="lib/official-pdf.js"></script>
 <script src="lib/preflight.js"></script>
 <script src="lib/journey.js"></script>
 <script src="lib/w26-tips.js"></script>
 <script src="lib/w26-model.js"></script>
+<script src="lib/w26-convert.js"></script>
 <script src="lib/attachments.js"></script>
 <script src="lib/workbook-common.js"></script>
 <script src="lib/w26-plain.js"></script>
