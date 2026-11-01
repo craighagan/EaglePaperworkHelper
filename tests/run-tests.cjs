@@ -574,6 +574,42 @@ function everyAnswer() {
       for (const d of [{}, null, { edition: 'x' }, { edition: '2026' }, { edition: 2026 }, { edition: ' 2026 ' }, { appendixD: {} }, d2023]) { assert.equal(W.editionOfData(d), J.editionOf(d), JSON.stringify(d)); assert.equal(lib.editionOf(d), J.editionOf(d), 'official-pdf: ' + JSON.stringify(d)); }
       assert.ok(fs.readFileSync(path.join(ROOT, 'lib/fill-page.js'), 'utf8').includes(W.editionMismatch(d2026, W.defaults)), 'lib/fill-page.js must say the same thing');
     });
+    await test('editions: a 2023a backup file says so at the top, once, and reads back as 2023a', () => {
+      const W = workbookCommon();
+      const J = require(path.join(ROOT, 'lib/journey.js'));
+      const text = W.backupText(W.mergeWithDefaults(W.defaults(), sample));
+      assert.ok(text.startsWith('{\n  "edition": "2023a",\n'), 'edition is the first key: ' + text.slice(0, 40));
+      assert.equal(text.match(/"edition"/g).length, 1, 'the key appears exactly once');
+      const back = JSON.parse(text);
+      assert.equal(W.editionOfData(back), '2023a');
+      assert.equal(J.editionOf(back), '2023a', 'journey.js agrees');
+      assert.equal(lib.editionOf(back), '2023a', 'official-pdf.js agrees');
+      assert.equal(W.editionMismatch(back, W.defaults), null, 'the 2023 pages open it');
+    });
+    await test('editions: an older 2023 backup file with no edition key still reads as 2023a, and saving it again only adds the key', () => {
+      const W = workbookCommon();
+      const J = require(path.join(ROOT, 'lib/journey.js'));
+      assert.equal('edition' in sample, false, 'the fixture has no edition key, and must keep none');
+      assert.equal(W.editionOfData(sample), '2023a');
+      assert.equal(J.editionOf(sample), '2023a', 'journey.js agrees');
+      assert.equal(lib.editionOf(sample), '2023a', 'official-pdf.js agrees');
+      assert.equal(W.editionMismatch(sample, W.defaults), null);
+      const merged = W.mergeWithDefaults(W.defaults(), sample);
+      assert.equal('edition' in merged, false, 'reading does not add an edition key to the draft');
+      assert.equal(merged.candidate.name, sample.candidate.name, 'the answers from the file are kept');
+      const saved = JSON.parse(W.backupText(merged));
+      assert.equal(saved.edition, '2023a');
+      const { edition, ...rest } = saved;
+      assert.deepEqual(rest, JSON.parse(JSON.stringify(merged)), 'the only difference is the edition key');
+    });
+    await test('editions: a 2026 backup file keeps edition 2026 and is still refused on the 2023 pages', () => {
+      const W = workbookCommon();
+      const M26 = require(path.join(ROOT, 'lib/w26-model.js'));
+      const text = W.backupText(M26.defaults());
+      assert.equal(JSON.parse(text).edition, '2026');
+      assert.equal(text.match(/"edition"/g).length, 1, 'the key appears exactly once');
+      assert.equal(W.editionMismatch(JSON.parse(text), W.defaults), 'This backup file is for the 2026 workbook. Open it in the 2026 workbook from the home page.');
+    });
     await test('copies: the roadmap step ids in workbook-common.js match the ones in journey.js', () => {
       const J = require(path.join(ROOT, 'lib/journey.js'));
       const W = workbookCommon();
